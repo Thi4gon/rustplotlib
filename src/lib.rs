@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 
 mod colors;
+mod text;
 mod transforms;
 
 #[pymodule]
