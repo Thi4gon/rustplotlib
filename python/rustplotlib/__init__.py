@@ -4,5 +4,7 @@ from rustplotlib import style
 from rustplotlib import colors
 from rustplotlib import gridspec
 from rustplotlib import cycler
+from rustplotlib import animation
+from rustplotlib import widgets
 
-__all__ = ["pyplot", "style", "colors", "gridspec", "cycler", "__version__"]
+__all__ = ["pyplot", "style", "colors", "gridspec", "cycler", "animation", "widgets", "__version__"]

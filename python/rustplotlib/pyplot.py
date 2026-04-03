@@ -655,12 +655,34 @@ class Axes3DProxy:
         pass
 
 
+class CanvasProxy:
+    """Stub canvas for matplotlib event-connection compatibility."""
+
+    def mpl_connect(self, event_name, callback):
+        """Stub: accept event connection without crashing."""
+        pass
+
+    def mpl_disconnect(self, cid):
+        pass
+
+    def draw(self):
+        pass
+
+    def draw_idle(self):
+        pass
+
+
 class FigureProxy:
     """Python wrapper around RustFigure."""
 
     def __init__(self, rust_fig, axes_proxies):
         self._fig = rust_fig
         self._axes = axes_proxies
+        self._canvas = CanvasProxy()
+
+    @property
+    def canvas(self):
+        return self._canvas
 
     def savefig(self, fname, dpi=None, transparent=False, format=None, bbox_inches=None, **kwargs):
         self._fig.savefig(str(fname), dpi, transparent)
