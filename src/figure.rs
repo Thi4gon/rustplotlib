@@ -13,6 +13,10 @@ pub struct RustFigure {
     axes: Vec<Axes>,
     nrows: usize,
     ncols: usize,
+    suptitle: Option<String>,
+    suptitle_fontsize: f32,
+    hspace: f32,
+    wspace: f32,
 }
 
 #[pymethods]
@@ -27,6 +31,10 @@ impl RustFigure {
             axes: Vec::new(),
             nrows: 1,
             ncols: 1,
+            suptitle: None,
+            suptitle_fontsize: 16.0,
+            hspace: 0.2,
+            wspace: 0.2,
         }
     }
 
@@ -717,19 +725,142 @@ impl RustFigure {
         Ok(())
     }
 
+    fn axes_annotate(
+        &mut self,
+        ax_id: usize,
+        text: String,
+        xy: (f64, f64),
+        xytext: (f64, f64),
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let fontsize = if let Some(v) = kwargs.get_item("fontsize")? {
+            v.extract::<f32>()?
+        } else {
+            12.0
+        };
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            colors::parse_color_value(&c)?
+        } else {
+            crate::colors::Color::new(0, 0, 0, 255)
+        };
+
+        let (arrow_color, arrow_width) = if let Some(ap) = kwargs.get_item("arrowprops")? {
+            let arrow_dict: &Bound<'_, PyDict> = ap.downcast::<PyDict>()?;
+            let ac = if let Some(c) = arrow_dict.get_item("color")? {
+                colors::parse_color_value(&c)?
+            } else {
+                crate::colors::Color::new(0, 0, 0, 255)
+            };
+            let aw = if let Some(v) = arrow_dict.get_item("width")? {
+                v.extract::<f32>()?
+            } else {
+                1.5
+            };
+            (ac, aw)
+        } else {
+            (crate::colors::Color::new(0, 0, 0, 255), 1.5)
+        };
+
+        ax.annotate(text, xy, xytext, fontsize, color, arrow_color, arrow_width);
+
+        Ok(())
+    }
+
+    #[pyo3(signature = (text, fontsize=None))]
+    fn suptitle(&mut self, text: String, fontsize: Option<f32>) {
+        self.suptitle = Some(text);
+        if let Some(fs) = fontsize {
+            self.suptitle_fontsize = fs;
+        }
+    }
+
+    #[pyo3(signature = (hspace=None, wspace=None))]
+    fn subplots_adjust(&mut self, hspace: Option<f32>, wspace: Option<f32>) {
+        if let Some(h) = hspace {
+            self.hspace = h;
+        }
+        if let Some(w) = wspace {
+            self.wspace = w;
+        }
+    }
+
+    fn axes_set_axis_off(&mut self, ax_id: usize, off: bool) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.set_axis_visible(!off);
+        Ok(())
+    }
+
+    fn axes_set_xticks(&mut self, ax_id: usize, ticks: Vec<f64>) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.custom_xticks = Some(ticks);
+        Ok(())
+    }
+
+    fn axes_set_yticks(&mut self, ax_id: usize, ticks: Vec<f64>) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.custom_yticks = Some(ticks);
+        Ok(())
+    }
+
+    fn axes_set_xticklabels(&mut self, ax_id: usize, labels: Vec<String>) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.custom_xtick_labels = Some(labels);
+        Ok(())
+    }
+
+    fn axes_set_yticklabels(&mut self, ax_id: usize, labels: Vec<String>) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.custom_ytick_labels = Some(labels);
+        Ok(())
+    }
+
+    fn axes_set_aspect(&mut self, ax_id: usize, aspect: String) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.aspect = match aspect.to_lowercase().as_str() {
+            "equal" => crate::axes::AspectRatio::Equal,
+            _ => crate::axes::AspectRatio::Auto,
+        };
+        Ok(())
+    }
+
+    fn axes_invert_xaxis(&mut self, ax_id: usize) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.invert_x = true;
+        Ok(())
+    }
+
+    fn axes_invert_yaxis(&mut self, ax_id: usize) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.invert_y = true;
+        Ok(())
+    }
+
     fn num_axes(&self) -> usize {
         self.axes.len()
     }
 
     fn render_to_png_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let pixmap = self.render_pixmap();
+        let pixmap = self.render_pixmap_opts(None, false);
         let png_data = pixmap.encode_png()
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("PNG encode error: {}", e)))?;
         Ok(PyBytes::new_bound(py, &png_data))
     }
 
-    fn savefig(&self, path: String) -> PyResult<()> {
-        let pixmap = self.render_pixmap();
+    #[pyo3(signature = (path, dpi=None, transparent=None))]
+    fn savefig(&self, path: String, dpi: Option<u32>, transparent: Option<bool>) -> PyResult<()> {
+        let pixmap = self.render_pixmap_opts(dpi, transparent.unwrap_or(false));
 
         if path.ends_with(".pdf") {
             let pdf_data = Self::render_pdf(&pixmap);
@@ -762,7 +893,7 @@ impl RustFigure {
     }
 
     fn show(&self) -> PyResult<()> {
-        let pixmap = self.render_pixmap();
+        let pixmap = self.render_pixmap_opts(None, false);
         crate::window::show_pixmap(&pixmap)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
     }
@@ -860,18 +991,29 @@ impl RustFigure {
         pdf
     }
 
-    fn render_pixmap(&self) -> Pixmap {
-        let mut pixmap = Pixmap::new(self.width, self.height)
+    fn render_pixmap_opts(&self, dpi: Option<u32>, transparent: bool) -> Pixmap {
+        let scale = if let Some(d) = dpi {
+            d as f32 / self.dpi as f32
+        } else {
+            1.0
+        };
+
+        let pw = (self.width as f32 * scale) as u32;
+        let ph = (self.height as f32 * scale) as u32;
+
+        let mut pixmap = Pixmap::new(pw.max(1), ph.max(1))
             .expect("Failed to create pixmap");
 
-        // Fill with light gray background (figure background)
-        let bg_paint = {
-            let mut p = tiny_skia::Paint::default();
-            p.set_color(tiny_skia::Color::from_rgba8(240, 240, 240, 255));
-            p
-        };
-        if let Some(rect) = tiny_skia::Rect::from_xywh(0.0, 0.0, self.width as f32, self.height as f32) {
-            pixmap.fill_rect(rect, &bg_paint, tiny_skia::Transform::identity(), None);
+        if !transparent {
+            // Fill with light gray background (figure background)
+            let bg_paint = {
+                let mut p = tiny_skia::Paint::default();
+                p.set_color(tiny_skia::Color::from_rgba8(240, 240, 240, 255));
+                p
+            };
+            if let Some(rect) = tiny_skia::Rect::from_xywh(0.0, 0.0, pw as f32, ph as f32) {
+                pixmap.fill_rect(rect, &bg_paint, tiny_skia::Transform::identity(), None);
+            }
         }
 
         if self.axes.is_empty() {
@@ -879,21 +1021,39 @@ impl RustFigure {
         }
 
         // Layout margins
-        let margin_left = 70.0_f32;
-        let margin_right = 20.0_f32;
-        let margin_top = 40.0_f32;
-        let margin_bottom = 50.0_f32;
-        let subplot_hgap = 60.0_f32;
-        let subplot_vgap = 60.0_f32;
+        let margin_left = 70.0_f32 * scale;
+        let margin_right = 20.0_f32 * scale;
+        let mut margin_top = 40.0_f32 * scale;
+        let margin_bottom = 50.0_f32 * scale;
+
+        // If suptitle exists, add extra top padding
+        if self.suptitle.is_some() {
+            margin_top += self.suptitle_fontsize * scale + 10.0 * scale;
+        }
 
         let nrows = self.nrows.max(1);
         let ncols = self.ncols.max(1);
 
-        let total_w = self.width as f32 - margin_left - margin_right;
-        let total_h = self.height as f32 - margin_top - margin_bottom;
+        // Use hspace/wspace to compute subplot gaps.
+        // hspace/wspace are fractions of the average subplot height/width.
+        let total_w = pw as f32 - margin_left - margin_right;
+        let total_h = ph as f32 - margin_top - margin_bottom;
 
-        let cell_w = (total_w - (ncols as f32 - 1.0) * subplot_hgap) / ncols as f32;
-        let cell_h = (total_h - (nrows as f32 - 1.0) * subplot_vgap) / nrows as f32;
+        // Compute cell size accounting for gaps: total = n*cell + (n-1)*gap
+        // gap = fraction * cell => total = n*cell + (n-1)*fraction*cell = cell*(n + (n-1)*fraction)
+        let cell_w = if ncols > 1 {
+            total_w / (ncols as f32 + (ncols as f32 - 1.0) * self.wspace)
+        } else {
+            total_w
+        };
+        let cell_h = if nrows > 1 {
+            total_h / (nrows as f32 + (nrows as f32 - 1.0) * self.hspace)
+        } else {
+            total_h
+        };
+
+        let subplot_hgap = cell_w * self.wspace;
+        let subplot_vgap = cell_h * self.hspace;
 
         for (idx, ax) in self.axes.iter().enumerate() {
             let row = idx / ncols;
@@ -906,6 +1066,23 @@ impl RustFigure {
             let bottom = top + cell_h;
 
             ax.draw(&mut pixmap, left, top, right, bottom);
+        }
+
+        // Draw suptitle
+        if let Some(ref suptitle) = self.suptitle {
+            let cx = pw as f32 / 2.0;
+            let y = 10.0 * scale + self.suptitle_fontsize * scale * 0.5;
+            crate::text::draw_text(
+                &mut pixmap,
+                suptitle,
+                cx,
+                y,
+                self.suptitle_fontsize * scale,
+                crate::colors::Color::new(0, 0, 0, 255),
+                crate::text::TextAnchorX::Center,
+                crate::text::TextAnchorY::Center,
+                0.0,
+            );
         }
 
         pixmap

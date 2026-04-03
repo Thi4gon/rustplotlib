@@ -271,6 +271,53 @@ class AxesProxy:
         self._fig.axes_axvline(self._id, float(x), kw)
         return self
 
+    def annotate(self, text, xy, xytext=None, arrowprops=None, fontsize=None,
+                 color=None, **kwargs):
+        if xytext is None:
+            xytext = xy
+        kw = {}
+        if fontsize is not None:
+            kw["fontsize"] = float(fontsize)
+        if color is not None:
+            kw["color"] = color
+        if arrowprops is not None:
+            kw["arrowprops"] = dict(arrowprops)
+        xy_tuple = (float(xy[0]), float(xy[1]))
+        xytext_tuple = (float(xytext[0]), float(xytext[1]))
+        self._fig.axes_annotate(self._id, str(text), xy_tuple, xytext_tuple, kw)
+        return self
+
+    def axis(self, arg):
+        if arg == 'off':
+            self._fig.axes_set_axis_off(self._id, True)
+        elif arg == 'on':
+            self._fig.axes_set_axis_off(self._id, False)
+
+    def set_xticks(self, ticks, labels=None, **kwargs):
+        self._fig.axes_set_xticks(self._id, [float(t) for t in ticks])
+        if labels is not None:
+            self._fig.axes_set_xticklabels(self._id, [str(l) for l in labels])
+
+    def set_yticks(self, ticks, labels=None, **kwargs):
+        self._fig.axes_set_yticks(self._id, [float(t) for t in ticks])
+        if labels is not None:
+            self._fig.axes_set_yticklabels(self._id, [str(l) for l in labels])
+
+    def set_xticklabels(self, labels, **kwargs):
+        self._fig.axes_set_xticklabels(self._id, [str(l) for l in labels])
+
+    def set_yticklabels(self, labels, **kwargs):
+        self._fig.axes_set_yticklabels(self._id, [str(l) for l in labels])
+
+    def set_aspect(self, aspect, **kwargs):
+        self._fig.axes_set_aspect(self._id, str(aspect))
+
+    def invert_xaxis(self):
+        self._fig.axes_invert_xaxis(self._id)
+
+    def invert_yaxis(self):
+        self._fig.axes_invert_yaxis(self._id)
+
     def add_patch(self, patch):
         pass  # Stub for patches.Rectangle etc.
 
@@ -282,13 +329,19 @@ class FigureProxy:
         self._fig = rust_fig
         self._axes = axes_proxies
 
-    def savefig(self, fname, dpi=None, format=None, bbox_inches=None, **kwargs):
-        self._fig.savefig(str(fname))
+    def savefig(self, fname, dpi=None, transparent=False, format=None, bbox_inches=None, **kwargs):
+        self._fig.savefig(str(fname), dpi, transparent)
 
     def set_size_inches(self, w, h=None):
         if h is None and hasattr(w, "__iter__"):
             w, h = w
         self._fig.set_size_inches(float(w), float(h))
+
+    def suptitle(self, text, fontsize=None, **kwargs):
+        self._fig.suptitle(str(text), fontsize)
+
+    def subplots_adjust(self, hspace=None, wspace=None, **kwargs):
+        self._fig.subplots_adjust(hspace, wspace)
 
     def tight_layout(self, **kwargs):
         pass
@@ -528,20 +581,36 @@ def text(x, y, s, **kwargs):
     _gca().text(x, y, s, **kwargs)
 
 
-def xticks(*args, **kwargs):
-    pass  # Accept fontsize, ticks, labels, etc.
+def xticks(ticks=None, labels=None, **kwargs):
+    if ticks is not None:
+        _gca().set_xticks(ticks, labels=labels)
 
 
-def yticks(*args, **kwargs):
-    pass  # Accept fontsize, ticks, labels, etc.
+def yticks(ticks=None, labels=None, **kwargs):
+    if ticks is not None:
+        _gca().set_yticks(ticks, labels=labels)
+
+
+def annotate(text, xy, xytext=None, arrowprops=None, **kwargs):
+    _gca().annotate(text, xy, xytext=xytext, arrowprops=arrowprops, **kwargs)
+
+
+def suptitle(text, fontsize=None, **kwargs):
+    _ensure_figure()
+    _current_figure.suptitle(str(text), fontsize)
+
+
+def subplots_adjust(hspace=None, wspace=None, **kwargs):
+    _ensure_figure()
+    _current_figure.subplots_adjust(hspace, wspace)
 
 
 def tight_layout(**kwargs):
     pass
 
 
-def savefig(fname, **kwargs):
-    _gcf().savefig(str(fname))
+def savefig(fname, dpi=None, transparent=False, **kwargs):
+    _gcf().savefig(str(fname), dpi, transparent)
 
 
 def show():
