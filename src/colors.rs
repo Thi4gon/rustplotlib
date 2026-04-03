@@ -59,6 +59,10 @@ fn named_color(name: &str) -> Option<Color> {
 /// Parse a hex color string (without the '#' prefix).
 /// Supports 3-char (#RGB), 6-char (#RRGGBB), and 8-char (#RRGGBBAA) hex.
 fn hex_color(hex: &str) -> Option<Color> {
+    // Validate all characters are ASCII hex digits
+    if !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
     match hex.len() {
         3 => {
             let r = u8::from_str_radix(&hex[0..1], 16).ok()?;

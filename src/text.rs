@@ -154,7 +154,10 @@ pub fn measure_text(text: &str, size: f32) -> (f32, f32) {
 
 /// Measure the width and height of an already-processed text string (no LaTeX stripping).
 fn measure_text_raw(text: &str, size: f32) -> (f32, f32) {
-    let font = FontRef::try_from_slice(FONT_DATA).expect("Failed to load embedded font");
+    let font = match FontRef::try_from_slice(FONT_DATA) {
+        Ok(f) => f,
+        Err(_) => return (0.0, 0.0), // silently skip if font fails to load
+    };
     let scaled = font.as_scaled(PxScale::from(size));
 
     let mut width = 0.0f32;
@@ -202,7 +205,10 @@ pub fn draw_text(
         return;
     }
 
-    let font = FontRef::try_from_slice(FONT_DATA).expect("Failed to load embedded font");
+    let font = match FontRef::try_from_slice(FONT_DATA) {
+        Ok(f) => f,
+        Err(_) => return, // silently skip text rendering if font fails
+    };
     let scaled = font.as_scaled(PxScale::from(size));
 
     let (text_width, _text_height) = measure_text_raw(&text, size);

@@ -1,3 +1,4 @@
+use std::time::{SystemTime, UNIX_EPOCH};
 use tiny_skia::Pixmap;
 
 /// Show a plot in an interactive window.
@@ -28,15 +29,22 @@ pub fn show_pixmap(pixmap: &Pixmap) -> Result<(), String> {
 
 /// Save the pixmap to a temp file and open it with the OS default viewer.
 fn show_with_system_viewer(pixmap: &Pixmap) -> Result<(), String> {
-    let path = "/tmp/rustplot_show.png";
+    // Generate unique temp filename to avoid race conditions
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let pid = std::process::id();
+    let path = format!("{}/rustplotlib_{}_{}.png", std::env::temp_dir().display(), pid, timestamp);
+
     pixmap
-        .save_png(path)
+        .save_png(&path)
         .map_err(|e| format!("Failed to save temp PNG: {}", e))?;
 
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
-            .arg(path)
+            .arg(&path)
             .spawn()
             .map_err(|e| format!("Failed to open viewer: {}", e))?;
     }
@@ -44,7 +52,7 @@ fn show_with_system_viewer(pixmap: &Pixmap) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         std::process::Command::new("xdg-open")
-            .arg(path)
+            .arg(&path)
             .spawn()
             .map_err(|e| format!("Failed to open viewer: {}", e))?;
     }
@@ -52,10 +60,17 @@ fn show_with_system_viewer(pixmap: &Pixmap) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("cmd")
-            .args(["/C", "start", path])
+            .args(["/C", "start", &path])
             .spawn()
             .map_err(|e| format!("Failed to open viewer: {}", e))?;
     }
+
+    // Clean up after a short delay (spawn a thread to delete after 5 seconds)
+    let path_clone = path.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        let _ = std::fs::remove_file(&path_clone);
+    });
 
     Ok(())
 }
@@ -119,12 +134,23 @@ fn show_native_window(pixmap: &Pixmap) -> Result<(), String> {
                 }
                 WindowEvent::RedrawRequested => {
                     if let Some(surface) = self.surface.as_mut() {
-                        let w = NonZeroU32::new(self.pixmap_w).unwrap();
-                        let h = NonZeroU32::new(self.pixmap_h).unwrap();
-                        surface.resize(w, h).unwrap();
-                        let mut buf = surface.buffer_mut().unwrap();
+                        let w = match NonZeroU32::new(self.pixmap_w) {
+                            Some(w) => w,
+                            None => return,  // skip rendering if dimensions are 0
+                        };
+                        let h = match NonZeroU32::new(self.pixmap_h) {
+                            Some(h) => h,
+                            None => return,
+                        };
+                        if let Err(_) = surface.resize(w, h) {
+                            return;
+                        }
+                        let mut buf = match surface.buffer_mut() {
+                            Ok(b) => b,
+                            Err(_) => return,
+                        };
                         buf.copy_from_slice(&self.pixel_data);
-                        buf.present().unwrap();
+                        let _ = buf.present();
                     }
                 }
                 _ => {}
