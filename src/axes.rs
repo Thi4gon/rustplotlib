@@ -7,6 +7,8 @@ use crate::artists::bar::Bar;
 use crate::artists::hist::Histogram;
 use crate::artists::image::Image;
 use crate::artists::fill_between::FillBetween;
+use crate::artists::fill_betweenx::FillBetweenX;
+use crate::artists::violin::ViolinPlot;
 use crate::artists::step::{Step, StepWhere};
 use crate::artists::pie::PieChart;
 use crate::artists::errorbar::ErrorBar;
@@ -108,6 +110,26 @@ pub struct SpanRegion {
     pub alpha: f32,
 }
 
+/// A bounded reference line (hlines / vlines).
+pub struct BoundedRefLine {
+    pub horizontal: bool, // true = hline, false = vline
+    pub value: f64,
+    pub bound_min: f64,
+    pub bound_max: f64,
+    pub color: Color,
+    pub linestyle: LineStyle,
+    pub linewidth: f32,
+    pub alpha: f32,
+}
+
+/// Table data to draw on axes.
+pub struct TableData {
+    pub cell_text: Vec<Vec<String>>,
+    pub col_labels: Option<Vec<String>>,
+    pub row_labels: Option<Vec<String>>,
+    pub loc: String,
+}
+
 pub struct Axes {
     artists: Vec<Box<dyn Artist>>,
     pub title: Option<String>,
@@ -161,6 +183,10 @@ pub struct Axes {
     pub colorbar_vmax: f64,
     // Grid which (Major/Minor/Both)
     pub grid_which: GridWhich,
+    // Bounded reference lines (hlines / vlines)
+    pub bounded_ref_lines: Vec<BoundedRefLine>,
+    // Table data
+    pub table_data: Option<TableData>,
 }
 
 /// Which grid lines to show.
@@ -231,6 +257,8 @@ impl Axes {
             colorbar_vmin: 0.0,
             colorbar_vmax: 1.0,
             grid_which: GridWhich::Major,
+            bounded_ref_lines: Vec::new(),
+            table_data: None,
         }
     }
 
@@ -779,6 +807,35 @@ impl Axes {
             }
         }
 
+        // 2d. Draw bounded reference lines (hlines / vlines)
+        for brl in &self.bounded_ref_lines {
+            let mut brl_color = brl.color;
+            brl_color.a = (brl.alpha * 255.0) as u8;
+            let mut brl_paint = Paint::default();
+            brl_paint.set_color(brl_color.to_tiny_skia());
+            brl_paint.anti_alias = true;
+
+            let mut brl_stroke = Stroke::default();
+            brl_stroke.width = brl.linewidth;
+            brl_stroke.dash = brl.linestyle.to_dash(brl.linewidth);
+
+            let mut pb = PathBuilder::new();
+            if brl.horizontal {
+                let (px_min, py) = transform.transform_xy(brl.bound_min, brl.value);
+                let (px_max, _) = transform.transform_xy(brl.bound_max, brl.value);
+                pb.move_to(px_min, py);
+                pb.line_to(px_max, py);
+            } else {
+                let (px, py_min) = transform.transform_xy(brl.value, brl.bound_min);
+                let (_, py_max) = transform.transform_xy(brl.value, brl.bound_max);
+                pb.move_to(px, py_min);
+                pb.line_to(px, py_max);
+            }
+            if let Some(path) = pb.finish() {
+                pixmap.stroke_path(&path, &brl_paint, &brl_stroke, ts, None);
+            }
+        }
+
         // 3. Draw each artist
         for artist in &self.artists {
             artist.draw(pixmap, &transform);
@@ -1089,6 +1146,137 @@ impl Axes {
         // 12. Draw colorbar if enabled
         if self.show_colorbar {
             self.draw_colorbar(pixmap, right, top, bottom);
+        }
+
+        // 13. Draw table if present
+        if let Some(ref table) = self.table_data {
+            self.draw_table(pixmap, table, left, top, right, bottom);
+        }
+    }
+
+    /// Draw a table on the axes.
+    fn draw_table(
+        &self,
+        pixmap: &mut Pixmap,
+        table: &TableData,
+        left: f32,
+        top: f32,
+        right: f32,
+        bottom: f32,
+    ) {
+        let ts = tiny_skia::Transform::identity();
+
+        let nrows = table.cell_text.len();
+        if nrows == 0 {
+            return;
+        }
+        let ncols = table.cell_text.iter().map(|r| r.len()).max().unwrap_or(0);
+        if ncols == 0 {
+            return;
+        }
+
+        let has_col_labels = table.col_labels.is_some();
+        let has_row_labels = table.row_labels.is_some();
+        let total_rows = nrows + if has_col_labels { 1 } else { 0 };
+        let total_cols = ncols + if has_row_labels { 1 } else { 0 };
+
+        // Compute cell dimensions
+        let table_width = right - left;
+        let cell_h = 20.0_f32;
+        let table_height = cell_h * total_rows as f32;
+        let cell_w = table_width / total_cols as f32;
+
+        // Position table based on loc
+        let table_top = match table.loc.as_str() {
+            "top" => top,
+            "center" => (top + bottom) / 2.0 - table_height / 2.0,
+            _ => bottom, // "bottom" is default
+        };
+        let table_left = left;
+
+        // Draw grid and cell text
+        let mut paint_border = Paint::default();
+        paint_border.set_color(tiny_skia::Color::from_rgba8(0, 0, 0, 255));
+        paint_border.anti_alias = true;
+        let mut stroke = Stroke::default();
+        stroke.width = 0.5;
+
+        let mut paint_header_bg = Paint::default();
+        paint_header_bg.set_color(tiny_skia::Color::from_rgba8(220, 220, 220, 255));
+
+        let font_size = 9.0_f32;
+        let text_color = Color::new(0, 0, 0, 255);
+
+        for row in 0..total_rows {
+            for col in 0..total_cols {
+                let cx = table_left + col as f32 * cell_w;
+                let cy = table_top + row as f32 * cell_h;
+
+                // Determine if this is a header cell
+                let is_header_row = has_col_labels && row == 0;
+                let is_header_col = has_row_labels && col == 0;
+                let is_header = is_header_row || is_header_col;
+
+                // Draw cell background
+                if let Some(rect) = Rect::from_xywh(cx, cy, cell_w, cell_h) {
+                    if is_header {
+                        pixmap.fill_rect(rect, &paint_header_bg, ts, None);
+                    } else {
+                        let mut white_paint = Paint::default();
+                        white_paint.set_color(tiny_skia::Color::from_rgba8(255, 255, 255, 240));
+                        pixmap.fill_rect(rect, &white_paint, ts, None);
+                    }
+                }
+
+                // Draw cell border
+                let mut pb = PathBuilder::new();
+                pb.move_to(cx, cy);
+                pb.line_to(cx + cell_w, cy);
+                pb.line_to(cx + cell_w, cy + cell_h);
+                pb.line_to(cx, cy + cell_h);
+                pb.close();
+                if let Some(path) = pb.finish() {
+                    pixmap.stroke_path(&path, &paint_border, &stroke, ts, None);
+                }
+
+                // Determine cell text
+                let cell_str = if is_header_row && is_header_col {
+                    String::new()
+                } else if is_header_row {
+                    let data_col = if has_row_labels { col - 1 } else { col };
+                    table.col_labels.as_ref()
+                        .and_then(|labels| labels.get(data_col))
+                        .cloned()
+                        .unwrap_or_default()
+                } else if is_header_col {
+                    let data_row = if has_col_labels { row - 1 } else { row };
+                    table.row_labels.as_ref()
+                        .and_then(|labels| labels.get(data_row))
+                        .cloned()
+                        .unwrap_or_default()
+                } else {
+                    let data_row = if has_col_labels { row - 1 } else { row };
+                    let data_col = if has_row_labels { col - 1 } else { col };
+                    table.cell_text.get(data_row)
+                        .and_then(|r| r.get(data_col))
+                        .cloned()
+                        .unwrap_or_default()
+                };
+
+                if !cell_str.is_empty() {
+                    draw_text(
+                        pixmap,
+                        &cell_str,
+                        cx + cell_w / 2.0,
+                        cy + cell_h / 2.0,
+                        font_size,
+                        text_color,
+                        TextAnchorX::Center,
+                        TextAnchorY::Center,
+                        0.0,
+                    );
+                }
+            }
         }
     }
 
@@ -1479,6 +1667,112 @@ impl Axes {
             vmax: xmax,
             color: color.unwrap_or(Color::new(0, 0, 255, 255)),
             alpha,
+        });
+    }
+
+    /// Add multiple horizontal lines with bounded x range.
+    pub fn hlines(
+        &mut self,
+        y_values: Vec<f64>,
+        xmin: f64,
+        xmax: f64,
+        color: Option<Color>,
+        linestyle: &str,
+        linewidth: f32,
+        alpha: f32,
+    ) {
+        let c = color.unwrap_or(Color::new(0, 0, 0, 255));
+        for y in y_values {
+            self.bounded_ref_lines.push(BoundedRefLine {
+                horizontal: true,
+                value: y,
+                bound_min: xmin,
+                bound_max: xmax,
+                color: c,
+                linestyle: LineStyle::from_str(linestyle),
+                linewidth,
+                alpha,
+            });
+        }
+    }
+
+    /// Add multiple vertical lines with bounded y range.
+    pub fn vlines(
+        &mut self,
+        x_values: Vec<f64>,
+        ymin: f64,
+        ymax: f64,
+        color: Option<Color>,
+        linestyle: &str,
+        linewidth: f32,
+        alpha: f32,
+    ) {
+        let c = color.unwrap_or(Color::new(0, 0, 0, 255));
+        for x in x_values {
+            self.bounded_ref_lines.push(BoundedRefLine {
+                horizontal: false,
+                value: x,
+                bound_min: ymin,
+                bound_max: ymax,
+                color: c,
+                linestyle: LineStyle::from_str(linestyle),
+                linewidth,
+                alpha,
+            });
+        }
+    }
+
+    /// Add a violin plot.
+    pub fn violinplot(
+        &mut self,
+        data: Vec<Vec<f64>>,
+        positions: Option<Vec<f64>>,
+        width: Option<f64>,
+        color: Option<Color>,
+        show_means: bool,
+        show_medians: bool,
+        alpha: Option<f32>,
+        label: Option<String>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let pos = positions.unwrap_or_else(|| (1..=data.len()).map(|i| i as f64).collect());
+        let w = width.unwrap_or(0.5);
+        let a = alpha.unwrap_or(0.7);
+        let mut vp = ViolinPlot::new(data, pos, w, c, show_means, show_medians, a);
+        vp.label = label;
+        self.artists.push(Box::new(vp));
+    }
+
+    /// Add a fill_betweenx area (horizontal band).
+    pub fn fill_betweenx(
+        &mut self,
+        y: Vec<f64>,
+        x1: Vec<f64>,
+        x2: Vec<f64>,
+        color: Option<Color>,
+        alpha: Option<f32>,
+        label: Option<String>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let a = alpha.unwrap_or(0.3);
+        let mut fb = FillBetweenX::new(y, x1, x2, c, a);
+        fb.label = label;
+        self.artists.push(Box::new(fb));
+    }
+
+    /// Set table data to be drawn on the axes.
+    pub fn set_table(
+        &mut self,
+        cell_text: Vec<Vec<String>>,
+        col_labels: Option<Vec<String>>,
+        row_labels: Option<Vec<String>>,
+        loc: String,
+    ) {
+        self.table_data = Some(TableData {
+            cell_text,
+            col_labels,
+            row_labels,
+            loc,
         });
     }
 

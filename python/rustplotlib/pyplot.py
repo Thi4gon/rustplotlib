@@ -520,6 +520,93 @@ class AxesProxy:
     def set_facecolor(self, color):
         self._fig.axes_set_facecolor(self._id, color)
 
+    def hlines(self, y, xmin, xmax, colors=None, linestyles='-', linewidth=1.0, alpha=1.0, **kwargs):
+        """Draw horizontal lines at each y from xmin to xmax."""
+        if isinstance(y, (int, float)):
+            y = [float(y)]
+        else:
+            y = _to_list(y)
+        kw = {"linestyle": linestyles if isinstance(linestyles, str) else "-",
+              "linewidth": float(linewidth), "alpha": float(alpha)}
+        if colors is not None:
+            kw["color"] = colors
+        self._fig.axes_hlines(self._id, y, float(xmin), float(xmax), kw)
+        return self
+
+    def vlines(self, x, ymin, ymax, colors=None, linestyles='-', linewidth=1.0, alpha=1.0, **kwargs):
+        """Draw vertical lines at each x from ymin to ymax."""
+        if isinstance(x, (int, float)):
+            x = [float(x)]
+        else:
+            x = _to_list(x)
+        kw = {"linestyle": linestyles if isinstance(linestyles, str) else "-",
+              "linewidth": float(linewidth), "alpha": float(alpha)}
+        if colors is not None:
+            kw["color"] = colors
+        self._fig.axes_vlines(self._id, x, float(ymin), float(ymax), kw)
+        return self
+
+    def violinplot(self, dataset, positions=None, widths=None, showmeans=False,
+                   showmedians=True, color=None, alpha=None, label=None, **kwargs):
+        """Draw a violin plot."""
+        # dataset can be a list of arrays or a single array (single violin)
+        if dataset and not isinstance(dataset[0], (list, tuple)):
+            if hasattr(dataset[0], '__iter__'):
+                data_list = [_to_list(d) for d in dataset]
+            else:
+                data_list = [_to_list(dataset)]
+        else:
+            data_list = [_to_list(d) for d in dataset]
+        kw = {"showmeans": showmeans, "showmedians": showmedians}
+        if positions is not None:
+            kw["positions"] = [float(p) for p in positions]
+        if widths is not None:
+            kw["widths"] = float(widths)
+        if color is not None:
+            kw["color"] = color
+        if alpha is not None:
+            kw["alpha"] = float(alpha)
+        if label is not None:
+            kw["label"] = label
+        self._fig.axes_violinplot(self._id, data_list, kw)
+        return self
+
+    def fill_betweenx(self, y, x1, x2=0, alpha=0.3, color=None, label=None, **kwargs):
+        """Fill between two x-curves sharing y values (horizontal bands)."""
+        y = _to_list(y)
+        x1 = _to_list(x1)
+        if isinstance(x2, (int, float)):
+            x2 = [float(x2)] * len(y)
+        else:
+            x2 = _to_list(x2)
+        kw = {"alpha": float(alpha)}
+        if color is not None:
+            kw["color"] = color
+        if label is not None:
+            kw["label"] = label
+        self._fig.axes_fill_betweenx(self._id, y, x1, x2, kw)
+        return self
+
+    def table(self, cellText=None, colLabels=None, rowLabels=None, loc='bottom', **kwargs):
+        """Draw a table inside this axes."""
+        kw = {"loc": loc}
+        if cellText is not None:
+            kw["cellText"] = [[str(cell) for cell in row] for row in cellText]
+        if colLabels is not None:
+            kw["colLabels"] = [str(l) for l in colLabels]
+        if rowLabels is not None:
+            kw["rowLabels"] = [str(l) for l in rowLabels]
+        self._fig.axes_table(self._id, kw)
+        return self
+
+    def secondary_xaxis(self, location='top', **kwargs):
+        """Stub for secondary x-axis — returns self for chaining."""
+        return self
+
+    def secondary_yaxis(self, location='right', **kwargs):
+        """Stub for secondary y-axis — returns self for chaining."""
+        return self
+
 
 class TwinAxesProxy:
     """Python wrapper for a twin (right-side y-axis) axes."""
@@ -992,6 +1079,57 @@ def subplots(nrows=1, ncols=1, figsize=None, dpi=100, subplot_kw=None, **kwargs)
     return FigureProxy(fig, axes), axes
 
 
+def subplot_mosaic(mosaic, figsize=None, dpi=100, **kwargs):
+    """Create subplots from an ASCII art or nested list layout.
+
+    Example:
+        fig, axes = plt.subplot_mosaic([['A', 'B'], ['C', 'C']])
+    """
+    global _current_figure, _current_axes_id
+
+    if isinstance(mosaic, str):
+        # Parse string mosaic: "AB\nCC"
+        rows = [list(row.strip()) for row in mosaic.strip().split('\n')]
+    else:
+        rows = mosaic
+
+    nrows = len(rows)
+    ncols = max(len(row) for row in rows)
+
+    # Find unique labels (preserving order)
+    labels = []
+    for row in rows:
+        for label in row:
+            if label not in labels and label != '.':
+                labels.append(label)
+
+    if figsize:
+        w, h = figsize
+        fig = RustFigure(int(w * dpi), int(h * dpi), dpi)
+    else:
+        fig = RustFigure(640, 480, dpi)
+
+    fig.setup_subplots(nrows, ncols)
+    _current_figure = fig
+    _current_axes_id = 0
+    _apply_current_style(fig)
+
+    # Map labels to axes
+    axes_dict = {}
+    label_to_id = {}
+    for label in labels:
+        # Find the first cell with this label
+        for r, row in enumerate(rows):
+            for c, cell in enumerate(row):
+                if cell == label and label not in label_to_id:
+                    ax_id = r * ncols + c
+                    label_to_id[label] = ax_id
+                    axes_dict[label] = AxesProxy(fig, ax_id)
+
+    fig_proxy = FigureProxy(fig, axes_dict)
+    return fig_proxy, axes_dict
+
+
 def plot(*args, **kwargs):
     _gca().plot(*args, **kwargs)
 
@@ -1062,6 +1200,26 @@ def axhspan(ymin, ymax, **kwargs):
 
 def axvspan(xmin, xmax, **kwargs):
     _gca().axvspan(xmin, xmax, **kwargs)
+
+
+def hlines(y, xmin, xmax, **kwargs):
+    _gca().hlines(y, xmin, xmax, **kwargs)
+
+
+def vlines(x, ymin, ymax, **kwargs):
+    _gca().vlines(x, ymin, ymax, **kwargs)
+
+
+def violinplot(dataset, **kwargs):
+    _gca().violinplot(dataset, **kwargs)
+
+
+def fill_betweenx(y, x1, x2=0, **kwargs):
+    _gca().fill_betweenx(y, x1, x2, **kwargs)
+
+
+def table(**kwargs):
+    _gca().table(**kwargs)
 
 
 def contour(*args, **kwargs):

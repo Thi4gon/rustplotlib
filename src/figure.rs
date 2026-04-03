@@ -1074,6 +1074,184 @@ impl RustFigure {
         Ok(())
     }
 
+    fn axes_hlines(
+        &mut self,
+        ax_id: usize,
+        y: Vec<f64>,
+        xmin: f64,
+        xmax: f64,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let linestyle = if let Some(v) = kwargs.get_item("linestyle")? {
+            v.extract::<String>()?
+        } else {
+            "-".to_string()
+        };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            v.extract::<f32>()?
+        } else {
+            1.0
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            1.0
+        };
+
+        ax.hlines(y, xmin, xmax, color, &linestyle, linewidth, alpha);
+        Ok(())
+    }
+
+    fn axes_vlines(
+        &mut self,
+        ax_id: usize,
+        x: Vec<f64>,
+        ymin: f64,
+        ymax: f64,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let linestyle = if let Some(v) = kwargs.get_item("linestyle")? {
+            v.extract::<String>()?
+        } else {
+            "-".to_string()
+        };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            v.extract::<f32>()?
+        } else {
+            1.0
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            1.0
+        };
+
+        ax.vlines(x, ymin, ymax, color, &linestyle, linewidth, alpha);
+        Ok(())
+    }
+
+    fn axes_violinplot(
+        &mut self,
+        ax_id: usize,
+        data: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let positions = if let Some(v) = kwargs.get_item("positions")? {
+            Some(v.extract::<Vec<f64>>()?)
+        } else { None };
+
+        let widths = if let Some(v) = kwargs.get_item("widths")? {
+            Some(v.extract::<f64>()?)
+        } else { None };
+
+        let show_means = if let Some(v) = kwargs.get_item("showmeans")? {
+            v.extract::<bool>()?
+        } else {
+            false
+        };
+
+        let show_medians = if let Some(v) = kwargs.get_item("showmedians")? {
+            v.extract::<bool>()?
+        } else {
+            true
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        ax.violinplot(data, positions, widths, color, show_means, show_medians, alpha, label);
+        Ok(())
+    }
+
+    fn axes_fill_betweenx(
+        &mut self,
+        ax_id: usize,
+        y: Vec<f64>,
+        x1: Vec<f64>,
+        x2: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        ax.fill_betweenx(y, x1, x2, color, alpha, label);
+        Ok(())
+    }
+
+    fn axes_table(
+        &mut self,
+        ax_id: usize,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let cell_text = if let Some(v) = kwargs.get_item("cellText")? {
+            v.extract::<Vec<Vec<String>>>()?
+        } else {
+            Vec::new()
+        };
+
+        let col_labels = if let Some(v) = kwargs.get_item("colLabels")? {
+            Some(v.extract::<Vec<String>>()?)
+        } else { None };
+
+        let row_labels = if let Some(v) = kwargs.get_item("rowLabels")? {
+            Some(v.extract::<Vec<String>>()?)
+        } else { None };
+
+        let loc = if let Some(v) = kwargs.get_item("loc")? {
+            v.extract::<String>()?
+        } else {
+            "bottom".to_string()
+        };
+
+        ax.set_table(cell_text, col_labels, row_labels, loc);
+        Ok(())
+    }
+
     fn axes_set_polar(&mut self, ax_id: usize, polar: bool) -> PyResult<()> {
         let ax = self.axes.get_mut(ax_id)
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
