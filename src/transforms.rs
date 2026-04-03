@@ -12,12 +12,14 @@ pub struct Transform {
     pub pixel_right: f64,
     pub pixel_top: f64,
     pub pixel_bottom: f64,
+    pub log_x: bool,
+    pub log_y: bool,
 }
 
 #[pymethods]
 impl Transform {
     #[new]
-    #[pyo3(signature = (data_xlim, data_ylim, pixel_left, pixel_right, pixel_top, pixel_bottom))]
+    #[pyo3(signature = (data_xlim, data_ylim, pixel_left, pixel_right, pixel_top, pixel_bottom, log_x=false, log_y=false))]
     pub fn new(
         data_xlim: (f64, f64),
         data_ylim: (f64, f64),
@@ -25,6 +27,8 @@ impl Transform {
         pixel_right: f64,
         pixel_top: f64,
         pixel_bottom: f64,
+        log_x: bool,
+        log_y: bool,
     ) -> Self {
         Transform {
             data_xmin: data_xlim.0,
@@ -35,12 +39,18 @@ impl Transform {
             pixel_right,
             pixel_top,
             pixel_bottom,
+            log_x,
+            log_y,
         }
     }
 
     /// Map data coordinates (x, y) to pixel coordinates.
     /// Y is inverted: data-y increases upward, pixel-y increases downward.
+    /// If log_x or log_y is true, data coords are transformed through log10 first.
     pub fn transform(&self, x: f64, y: f64) -> (f64, f64) {
+        let x = if self.log_x { x.max(1e-15).log10() } else { x };
+        let y = if self.log_y { y.max(1e-15).log10() } else { y };
+
         let dx = self.data_xmax - self.data_xmin;
         let dy = self.data_ymax - self.data_ymin;
 
@@ -74,6 +84,18 @@ impl Transform {
 }
 
 impl Transform {
+    /// Create a linear (non-log) transform — convenience for Rust-side code.
+    pub fn new_linear(
+        data_xlim: (f64, f64),
+        data_ylim: (f64, f64),
+        pixel_left: f64,
+        pixel_right: f64,
+        pixel_top: f64,
+        pixel_bottom: f64,
+    ) -> Self {
+        Self::new(data_xlim, data_ylim, pixel_left, pixel_right, pixel_top, pixel_bottom, false, false)
+    }
+
     /// Internal transform returning f32 (for use in Rust drawing code).
     pub fn transform_xy(&self, x: f64, y: f64) -> (f32, f32) {
         let (px, py) = self.transform(x, y);

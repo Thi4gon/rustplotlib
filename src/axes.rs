@@ -9,12 +9,23 @@ use crate::artists::image::Image;
 use crate::artists::fill_between::FillBetween;
 use crate::artists::step::{Step, StepWhere};
 use crate::artists::pie::PieChart;
+use crate::artists::errorbar::ErrorBar;
+use crate::artists::barh::BarH;
+use crate::artists::boxplot::BoxPlot;
+use crate::artists::stem::Stem;
 use crate::artists::legend::draw_legend;
 use crate::artists::{LineStyle, MarkerStyle};
 use crate::colors::Color;
 use crate::text::{draw_text, TextAnchorX, TextAnchorY};
-use crate::ticker::{compute_auto_ticks, format_tick_value};
+use crate::ticker::{compute_auto_ticks, compute_log_ticks, format_tick_value, format_log_tick_value};
 use crate::transforms::Transform;
+
+/// Axis scale type.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AxisScale {
+    Linear,
+    Log,
+}
 
 /// Tab10 color palette (same as matplotlib's default).
 const TAB10: [(u8, u8, u8); 10] = [
@@ -68,6 +79,8 @@ pub struct Axes {
     pub tick_size: f32,
     pub texts: Vec<TextAnnotation>,
     pub ref_lines: Vec<RefLine>,
+    pub x_scale: AxisScale,
+    pub y_scale: AxisScale,
 }
 
 impl Axes {
@@ -91,6 +104,8 @@ impl Axes {
             tick_size: 10.0,
             texts: Vec::new(),
             ref_lines: Vec::new(),
+            x_scale: AxisScale::Linear,
+            y_scale: AxisScale::Linear,
         }
     }
 
@@ -249,6 +264,109 @@ impl Axes {
         self.artists.push(Box::new(chart));
     }
 
+    /// Set the X axis scale ("linear" or "log").
+    pub fn set_xscale(&mut self, scale: &str) {
+        self.x_scale = match scale.to_lowercase().as_str() {
+            "log" => AxisScale::Log,
+            _ => AxisScale::Linear,
+        };
+    }
+
+    /// Set the Y axis scale ("linear" or "log").
+    pub fn set_yscale(&mut self, scale: &str) {
+        self.y_scale = match scale.to_lowercase().as_str() {
+            "log" => AxisScale::Log,
+            _ => AxisScale::Linear,
+        };
+    }
+
+    /// Add an error bar plot.
+    pub fn errorbar(
+        &mut self,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        yerr: Option<Vec<f64>>,
+        xerr: Option<Vec<f64>>,
+        color: Option<Color>,
+        linewidth: Option<f32>,
+        capsize: Option<f32>,
+        marker: Option<&str>,
+        marker_size: Option<f32>,
+        label: Option<String>,
+        alpha: Option<f32>,
+        linestyle: Option<&str>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let mut eb = ErrorBar::new(x, y, c);
+        eb.yerr = yerr;
+        eb.xerr = xerr;
+        if let Some(lw) = linewidth { eb.linewidth = lw; }
+        if let Some(cs) = capsize { eb.capsize = cs; }
+        if let Some(m) = marker { eb.marker = MarkerStyle::from_str(m); }
+        if let Some(ms) = marker_size { eb.marker_size = ms; }
+        eb.label = label;
+        if let Some(a) = alpha { eb.alpha = a; }
+        if let Some(ls) = linestyle { eb.linestyle = LineStyle::from_str(ls); }
+        self.artists.push(Box::new(eb));
+    }
+
+    /// Add a horizontal bar chart.
+    pub fn barh(
+        &mut self,
+        y: Vec<f64>,
+        widths: Vec<f64>,
+        color: Option<Color>,
+        height: Option<f64>,
+        label: Option<String>,
+        alpha: Option<f32>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let mut b = BarH::new(y, widths, c);
+        if let Some(h) = height { b.height = h; }
+        b.label = label;
+        if let Some(a) = alpha { b.alpha = a; }
+        self.artists.push(Box::new(b));
+    }
+
+    /// Add a box plot.
+    pub fn boxplot(
+        &mut self,
+        data: Vec<Vec<f64>>,
+        positions: Option<Vec<f64>>,
+        widths: Option<f64>,
+        color: Option<Color>,
+        median_color: Option<Color>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let mc = median_color.unwrap_or(Color::new(255, 127, 14, 255));
+        let pos = positions.unwrap_or_else(|| (1..=data.len()).map(|i| i as f64).collect());
+        let w = widths.unwrap_or(0.5);
+        let bp = BoxPlot::new(data, pos, w, c, mc);
+        self.artists.push(Box::new(bp));
+    }
+
+    /// Add a stem plot.
+    pub fn stem(
+        &mut self,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        color: Option<Color>,
+        linewidth: Option<f32>,
+        marker: Option<&str>,
+        marker_size: Option<f32>,
+        label: Option<String>,
+        baseline: Option<f64>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let mut s = Stem::new(x, y, c);
+        if let Some(lw) = linewidth { s.linewidth = lw; }
+        if let Some(m) = marker { s.marker = MarkerStyle::from_str(m); }
+        if let Some(ms) = marker_size { s.marker_size = ms; }
+        s.label = label;
+        if let Some(bl) = baseline { s.baseline = bl; }
+        self.artists.push(Box::new(s));
+    }
+
     /// Add a horizontal reference line.
     pub fn axhline(
         &mut self,
@@ -324,15 +442,51 @@ impl Axes {
     /// Draw this axes and all its artists onto the pixmap.
     /// left, top, right, bottom are pixel coordinates of the plot area.
     pub fn draw(&self, pixmap: &mut Pixmap, left: f32, top: f32, right: f32, bottom: f32) {
-        let (xmin, xmax, ymin, ymax) = self.compute_bounds();
+        let (mut xmin, mut xmax, mut ymin, mut ymax) = self.compute_bounds();
+
+        let log_x = self.x_scale == AxisScale::Log;
+        let log_y = self.y_scale == AxisScale::Log;
+
+        // For log scale, compute ticks in data space before transforming bounds
+        let x_ticks_data: Vec<f64>;
+        let y_ticks_data: Vec<f64>;
+
+        if log_x {
+            xmin = xmin.max(1e-15);
+            xmax = xmax.max(1e-15);
+            x_ticks_data = compute_log_ticks(xmin, xmax);
+        } else {
+            x_ticks_data = Vec::new(); // will compute later
+        }
+        if log_y {
+            ymin = ymin.max(1e-15);
+            ymax = ymax.max(1e-15);
+            y_ticks_data = compute_log_ticks(ymin, ymax);
+        } else {
+            y_ticks_data = Vec::new(); // will compute later
+        }
+
+        // Build data bounds in log space if needed
+        let (dxmin, dxmax) = if log_x {
+            (xmin.max(1e-15).log10(), xmax.max(1e-15).log10())
+        } else {
+            (xmin, xmax)
+        };
+        let (dymin, dymax) = if log_y {
+            (ymin.max(1e-15).log10(), ymax.max(1e-15).log10())
+        } else {
+            (ymin, ymax)
+        };
 
         let transform = Transform::new(
-            (xmin, xmax),
-            (ymin, ymax),
+            (dxmin, dxmax),
+            (dymin, dymax),
             left as f64,
             right as f64,
             top as f64,
             bottom as f64,
+            log_x,
+            log_y,
         );
 
         let ts = tiny_skia::Transform::identity();
@@ -346,8 +500,8 @@ impl Axes {
 
         // 2. Draw grid if enabled
         if self.grid_visible {
-            let x_ticks = compute_auto_ticks(xmin, xmax, 10);
-            let y_ticks = compute_auto_ticks(ymin, ymax, 8);
+            let x_ticks: Vec<f64> = if log_x { x_ticks_data.clone() } else { compute_auto_ticks(xmin, xmax, 10) };
+            let y_ticks: Vec<f64> = if log_y { y_ticks_data.clone() } else { compute_auto_ticks(ymin, ymax, 8) };
 
             let mut grid_color = self.grid_color;
             grid_color.a = (self.grid_alpha * 255.0) as u8;
@@ -425,8 +579,8 @@ impl Axes {
         }
 
         // 5. Draw tick marks and labels
-        let x_ticks = compute_auto_ticks(xmin, xmax, 10);
-        let y_ticks = compute_auto_ticks(ymin, ymax, 8);
+        let x_ticks: Vec<f64> = if log_x { x_ticks_data.clone() } else { compute_auto_ticks(xmin, xmax, 10) };
+        let y_ticks: Vec<f64> = if log_y { y_ticks_data.clone() } else { compute_auto_ticks(ymin, ymax, 8) };
         let tick_len = 5.0_f32;
         let tick_color = Color::new(0, 0, 0, 255);
 
@@ -451,7 +605,7 @@ impl Axes {
             }
 
             // Tick label
-            let label = format_tick_value(tx);
+            let label = if log_x { format_log_tick_value(tx) } else { format_tick_value(tx) };
             draw_text(
                 pixmap,
                 &label,
@@ -479,7 +633,7 @@ impl Axes {
             }
 
             // Tick label
-            let label = format_tick_value(ty);
+            let label = if log_y { format_log_tick_value(ty) } else { format_tick_value(ty) };
             draw_text(
                 pixmap,
                 &label,

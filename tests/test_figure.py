@@ -126,3 +126,106 @@ def test_plot_with_kwargs():
     )
     data = fig.render_to_png_bytes()
     assert len(data) > 0
+
+
+def test_log_scale():
+    fig = RustFigure(800, 600, 100)
+    ax_id = fig.add_axes()
+    fig.axes_plot(ax_id, [1.0, 10.0, 100.0, 1000.0], [1.0, 10.0, 100.0, 1000.0], {})
+    fig.axes_set_xscale(ax_id, "log")
+    fig.axes_set_yscale(ax_id, "log")
+    data = fig.render_to_png_bytes()
+    assert len(data) > 0
+    assert data[:4] == b'\x89PNG'
+
+
+def test_log_scale_x_only():
+    fig = RustFigure(800, 600, 100)
+    ax_id = fig.add_axes()
+    fig.axes_plot(ax_id, [0.1, 1.0, 10.0, 100.0], [1.0, 2.0, 3.0, 4.0], {})
+    fig.axes_set_xscale(ax_id, "log")
+    data = fig.render_to_png_bytes()
+    assert len(data) > 0
+
+
+def test_errorbar():
+    fig = RustFigure(800, 600, 100)
+    ax_id = fig.add_axes()
+    fig.axes_errorbar(
+        ax_id,
+        [1.0, 2.0, 3.0, 4.0],
+        [10.0, 20.0, 15.0, 25.0],
+        {"yerr": [1.0, 2.0, 1.5, 3.0], "marker": "o", "capsize": 5.0, "label": "data"},
+    )
+    data = fig.render_to_png_bytes()
+    assert len(data) > 0
+    assert data[:4] == b'\x89PNG'
+
+
+def test_errorbar_xerr():
+    fig = RustFigure(800, 600, 100)
+    ax_id = fig.add_axes()
+    fig.axes_errorbar(
+        ax_id,
+        [1.0, 2.0, 3.0],
+        [10.0, 20.0, 15.0],
+        {"xerr": [0.5, 0.3, 0.7], "yerr": [1.0, 2.0, 1.5]},
+    )
+    data = fig.render_to_png_bytes()
+    assert len(data) > 0
+
+
+def test_barh():
+    fig = RustFigure(800, 600, 100)
+    ax_id = fig.add_axes()
+    fig.axes_barh(
+        ax_id,
+        [1.0, 2.0, 3.0],
+        [10.0, 20.0, 15.0],
+        {"color": "blue", "label": "hbar"},
+    )
+    data = fig.render_to_png_bytes()
+    assert len(data) > 0
+    assert data[:4] == b'\x89PNG'
+
+
+def test_boxplot():
+    fig = RustFigure(800, 600, 100)
+    ax_id = fig.add_axes()
+    fig.axes_boxplot(
+        ax_id,
+        [
+            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 100.0],
+            [10.0, 20.0, 30.0, 40.0, 50.0],
+        ],
+        {},
+    )
+    data = fig.render_to_png_bytes()
+    assert len(data) > 0
+    assert data[:4] == b'\x89PNG'
+
+
+def test_boxplot_single():
+    fig = RustFigure(800, 600, 100)
+    ax_id = fig.add_axes()
+    fig.axes_boxplot(
+        ax_id,
+        [[5.0, 8.0, 12.0, 15.0, 18.0, 20.0, 25.0, 30.0]],
+        {"widths": 0.7},
+    )
+    data = fig.render_to_png_bytes()
+    assert len(data) > 0
+
+
+def test_stem():
+    fig = RustFigure(800, 600, 100)
+    ax_id = fig.add_axes()
+    fig.axes_stem(
+        ax_id,
+        [1.0, 2.0, 3.0, 4.0, 5.0],
+        [1.0, 4.0, 2.0, 5.0, 3.0],
+        {"marker": "o", "label": "stem data"},
+    )
+    data = fig.render_to_png_bytes()
+    assert len(data) > 0
+    assert data[:4] == b'\x89PNG'

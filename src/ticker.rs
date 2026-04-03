@@ -104,6 +104,40 @@ pub fn format_tick_value(val: f64) -> String {
     s.to_string()
 }
 
+/// Compute logarithmic tick positions (powers of 10) for an axis range [vmin, vmax].
+/// vmin and vmax should be > 0.
+pub fn compute_log_ticks(vmin: f64, vmax: f64) -> Vec<f64> {
+    let log_min = vmin.max(1e-15).log10().floor() as i32;
+    let log_max = vmax.max(1e-15).log10().ceil() as i32;
+    let mut ticks = Vec::new();
+    for exp in log_min..=log_max {
+        let val = 10.0_f64.powi(exp);
+        if val >= vmin * 0.99 && val <= vmax * 1.01 {
+            ticks.push(val);
+        }
+    }
+    if ticks.is_empty() {
+        ticks.push(vmin);
+        ticks.push(vmax);
+    }
+    ticks
+}
+
+/// Format a log tick value as a clean string using actual values.
+pub fn format_log_tick_value(val: f64) -> String {
+    if val >= 1.0 && (val - val.round()).abs() < 1e-9 {
+        format!("{}", val.round() as i64)
+    } else if val >= 0.01 {
+        let s = format!("{:.15}", val);
+        let s = s.trim_end_matches('0');
+        let s = s.trim_end_matches('.');
+        s.to_string()
+    } else {
+        // Very small values: use scientific-ish notation
+        format!("{:.0e}", val)
+    }
+}
+
 /// Python-exposed function: compute auto ticks for a range.
 #[pyfunction]
 pub fn auto_ticks(vmin: f64, vmax: f64) -> Vec<f64> {

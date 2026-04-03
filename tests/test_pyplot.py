@@ -87,3 +87,111 @@ def test_plot_single_arg():
     plt.close()
     assert os.path.exists("/tmp/test_single.png")
     os.remove("/tmp/test_single.png")
+
+
+def test_log_scale():
+    fig, ax = plt.subplots()
+    ax.plot([1, 10, 100, 1000], [1, 10, 100, 1000])
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_title("Log-Log Plot")
+    fig.savefig("/tmp/test_log.png")
+    plt.close()
+    assert os.path.exists("/tmp/test_log.png")
+    os.remove("/tmp/test_log.png")
+
+
+def test_xscale_yscale_functions():
+    plt.plot([0.1, 1, 10, 100], [1, 2, 3, 4])
+    plt.xscale("log")
+    plt.savefig("/tmp/test_xscale.png")
+    plt.close()
+    assert os.path.exists("/tmp/test_xscale.png")
+    os.remove("/tmp/test_xscale.png")
+
+
+def test_errorbar():
+    fig, ax = plt.subplots()
+    ax.errorbar([1, 2, 3, 4], [10, 20, 15, 25],
+                yerr=[1, 2, 1.5, 3], marker="o", capsize=5.0,
+                label="measurements")
+    ax.legend()
+    fig.savefig("/tmp/test_errorbar.png")
+    plt.close()
+    assert os.path.exists("/tmp/test_errorbar.png")
+    os.remove("/tmp/test_errorbar.png")
+
+
+def test_errorbar_function():
+    plt.errorbar([1, 2, 3], [10, 20, 15], yerr=[1, 2, 1.5])
+    plt.savefig("/tmp/test_errorbar_func.png")
+    plt.close()
+    assert os.path.exists("/tmp/test_errorbar_func.png")
+    os.remove("/tmp/test_errorbar_func.png")
+
+
+def test_barh():
+    fig, ax = plt.subplots()
+    ax.barh([1, 2, 3], [10, 20, 15], color="green", label="bars")
+    ax.set_title("Horizontal Bars")
+    fig.savefig("/tmp/test_barh.png")
+    plt.close()
+    assert os.path.exists("/tmp/test_barh.png")
+    os.remove("/tmp/test_barh.png")
+
+
+def test_barh_function():
+    plt.barh([1, 2, 3, 4], [40, 30, 20, 10])
+    plt.savefig("/tmp/test_barh_func.png")
+    plt.close()
+    assert os.path.exists("/tmp/test_barh_func.png")
+    os.remove("/tmp/test_barh_func.png")
+
+
+def test_boxplot():
+    import random
+    random.seed(42)
+    data1 = [random.gauss(0, 1) for _ in range(50)]
+    data2 = [random.gauss(2, 0.5) for _ in range(50)]
+    fig, ax = plt.subplots()
+    ax.boxplot([data1, data2])
+    ax.set_title("Box Plot")
+    fig.savefig("/tmp/test_boxplot.png")
+    plt.close()
+    assert os.path.exists("/tmp/test_boxplot.png")
+    os.remove("/tmp/test_boxplot.png")
+
+
+def test_boxplot_function():
+    plt.boxplot([[1, 2, 3, 4, 5, 10, 20]])
+    plt.savefig("/tmp/test_boxplot_func.png")
+    plt.close()
+    assert os.path.exists("/tmp/test_boxplot_func.png")
+    os.remove("/tmp/test_boxplot_func.png")
+
+
+def test_stem():
+    fig, ax = plt.subplots()
+    ax.stem([1, 2, 3, 4, 5], [1, 4, 2, 5, 3], label="stem")
+    ax.legend()
+    fig.savefig("/tmp/test_stem.png")
+    plt.close()
+    assert os.path.exists("/tmp/test_stem.png")
+    os.remove("/tmp/test_stem.png")
+
+
+def test_stem_single_arg():
+    fig, ax = plt.subplots()
+    ax.stem([3, 1, 4, 1, 5, 9])
+    fig.savefig("/tmp/test_stem_single.png")
+    plt.close()
+    assert os.path.exists("/tmp/test_stem_single.png")
+    os.remove("/tmp/test_stem_single.png")
+
+
+def test_stem_function():
+    plt.stem([1, 2, 3], [4, 5, 6])
+    plt.savefig("/tmp/test_stem_func.png")
+    plt.close()
+    assert os.path.exists("/tmp/test_stem_func.png")
+    os.remove("/tmp/test_stem_func.png")

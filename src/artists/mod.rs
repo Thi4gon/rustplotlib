@@ -7,6 +7,10 @@ pub mod legend;
 pub mod fill_between;
 pub mod step;
 pub mod pie;
+pub mod errorbar;
+pub mod barh;
+pub mod boxplot;
+pub mod stem;
 
 use tiny_skia::{PathBuilder, StrokeDash};
 

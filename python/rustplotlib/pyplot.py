@@ -167,6 +167,96 @@ class AxesProxy:
         self._fig.axes_pie(self._id, sizes, kw)
         return self
 
+    def set_xscale(self, scale, **kwargs):
+        self._fig.axes_set_xscale(self._id, str(scale))
+
+    def set_yscale(self, scale, **kwargs):
+        self._fig.axes_set_yscale(self._id, str(scale))
+
+    def errorbar(self, x, y, yerr=None, xerr=None, color=None, linewidth=None,
+                 capsize=3.0, marker=None, markersize=None, label=None,
+                 alpha=None, linestyle=None, fmt=None, **kwargs):
+        x, y = _to_list(x), _to_list(y)
+        kw = {}
+        if yerr is not None:
+            kw["yerr"] = _to_list(yerr)
+        if xerr is not None:
+            kw["xerr"] = _to_list(xerr)
+        if color is not None:
+            kw["color"] = color
+        if linewidth is not None:
+            kw["linewidth"] = float(linewidth)
+        if capsize is not None:
+            kw["capsize"] = float(capsize)
+        if marker is not None:
+            kw["marker"] = marker
+        if markersize is not None:
+            kw["markersize"] = float(markersize)
+        if label is not None:
+            kw["label"] = label
+        if alpha is not None:
+            kw["alpha"] = float(alpha)
+        if linestyle is not None:
+            kw["linestyle"] = linestyle
+        self._fig.axes_errorbar(self._id, x, y, kw)
+        return self
+
+    def barh(self, y, width, height=0.8, color=None, label=None, alpha=1.0, **kwargs):
+        y, width = _to_list(y), _to_list(width)
+        kw = {"height": float(height), "alpha": float(alpha)}
+        if color is not None:
+            kw["color"] = color
+        if label is not None:
+            kw["label"] = label
+        self._fig.axes_barh(self._id, y, width, kw)
+        return self
+
+    def boxplot(self, data, positions=None, widths=None, color=None,
+                median_color=None, **kwargs):
+        # data can be a list of lists or a single list (single box)
+        if data and not isinstance(data[0], (list, tuple)):
+            if hasattr(data[0], '__iter__'):
+                data_list = [_to_list(d) for d in data]
+            else:
+                data_list = [_to_list(data)]
+        else:
+            data_list = [_to_list(d) for d in data]
+        kw = {}
+        if positions is not None:
+            kw["positions"] = [float(p) for p in positions]
+        if widths is not None:
+            kw["widths"] = float(widths)
+        if color is not None:
+            kw["color"] = color
+        if median_color is not None:
+            kw["median_color"] = median_color
+        self._fig.axes_boxplot(self._id, data_list, kw)
+        return self
+
+    def stem(self, *args, color=None, linewidth=None, marker=None,
+             markersize=None, label=None, baseline=0.0, **kwargs):
+        if len(args) == 1:
+            y = _to_list(args[0])
+            x = list(range(len(y)))
+        elif len(args) >= 2:
+            x = _to_list(args[0])
+            y = _to_list(args[1])
+        else:
+            raise ValueError("stem requires at least one positional argument")
+        kw = {"baseline": float(baseline)}
+        if color is not None:
+            kw["color"] = color
+        if linewidth is not None:
+            kw["linewidth"] = float(linewidth)
+        if marker is not None:
+            kw["marker"] = marker
+        if markersize is not None:
+            kw["markersize"] = float(markersize)
+        if label is not None:
+            kw["label"] = label
+        self._fig.axes_stem(self._id, x, y, kw)
+        return self
+
     def axhline(self, y=0, color=None, linestyle="--", linewidth=1.0, alpha=1.0, **kwargs):
         kw = {"linestyle": linestyle, "linewidth": float(linewidth), "alpha": float(alpha)}
         if color is not None:
@@ -370,6 +460,30 @@ def step(x, y, **kwargs):
 
 def pie(sizes, **kwargs):
     _gca().pie(sizes, **kwargs)
+
+
+def xscale(scale, **kwargs):
+    _gca().set_xscale(scale, **kwargs)
+
+
+def yscale(scale, **kwargs):
+    _gca().set_yscale(scale, **kwargs)
+
+
+def errorbar(x, y, **kwargs):
+    _gca().errorbar(x, y, **kwargs)
+
+
+def barh(y, width, **kwargs):
+    _gca().barh(y, width, **kwargs)
+
+
+def boxplot(data, **kwargs):
+    _gca().boxplot(data, **kwargs)
+
+
+def stem(*args, **kwargs):
+    _gca().stem(*args, **kwargs)
 
 
 def axhline(y=0, **kwargs):

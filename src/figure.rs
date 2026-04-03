@@ -495,6 +495,194 @@ impl RustFigure {
         Ok(())
     }
 
+    fn axes_set_xscale(&mut self, ax_id: usize, scale: String) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.set_xscale(&scale);
+        Ok(())
+    }
+
+    fn axes_set_yscale(&mut self, ax_id: usize, scale: String) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.set_yscale(&scale);
+        Ok(())
+    }
+
+    fn axes_errorbar(
+        &mut self,
+        ax_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let yerr = if let Some(v) = kwargs.get_item("yerr")? {
+            Some(v.extract::<Vec<f64>>()?)
+        } else { None };
+
+        let xerr = if let Some(v) = kwargs.get_item("xerr")? {
+            Some(v.extract::<Vec<f64>>()?)
+        } else { None };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let capsize = if let Some(v) = kwargs.get_item("capsize")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let marker = if let Some(v) = kwargs.get_item("marker")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let marker_size = if let Some(v) = kwargs.get_item("markersize")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let linestyle = if let Some(v) = kwargs.get_item("linestyle")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        ax.errorbar(
+            x, y,
+            yerr, xerr,
+            color,
+            linewidth,
+            capsize,
+            marker.as_deref(),
+            marker_size,
+            label,
+            alpha,
+            linestyle.as_deref(),
+        );
+
+        Ok(())
+    }
+
+    fn axes_barh(
+        &mut self,
+        ax_id: usize,
+        y: Vec<f64>,
+        widths: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let height = if let Some(v) = kwargs.get_item("height")? {
+            Some(v.extract::<f64>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        ax.barh(y, widths, color, height, label, alpha);
+
+        Ok(())
+    }
+
+    fn axes_boxplot(
+        &mut self,
+        ax_id: usize,
+        data: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let positions = if let Some(v) = kwargs.get_item("positions")? {
+            Some(v.extract::<Vec<f64>>()?)
+        } else { None };
+
+        let widths = if let Some(v) = kwargs.get_item("widths")? {
+            Some(v.extract::<f64>()?)
+        } else { None };
+
+        let median_color = if let Some(c) = kwargs.get_item("median_color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        ax.boxplot(data, positions, widths, color, median_color);
+
+        Ok(())
+    }
+
+    fn axes_stem(
+        &mut self,
+        ax_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let marker = if let Some(v) = kwargs.get_item("marker")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let marker_size = if let Some(v) = kwargs.get_item("markersize")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let baseline = if let Some(v) = kwargs.get_item("baseline")? {
+            Some(v.extract::<f64>()?)
+        } else { None };
+
+        ax.stem(
+            x, y,
+            color,
+            linewidth,
+            marker.as_deref(),
+            marker_size,
+            label,
+            baseline,
+        );
+
+        Ok(())
+    }
+
     fn axes_text(
         &mut self,
         ax_id: usize,
