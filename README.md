@@ -11,13 +11,13 @@ No Python runtime dependency for rendering. No wrappers. No subprocess calls. Pu
 
 ## Why RustPlotLib?
 
-| | matplotlib | plotpy (Rust) | **rustplotlib** |
+| | matplotlib | Other Rust plotting libs | **rustplotlib** |
 |---|---|---|---|
-| Rendering engine | C/C++ (AGG) | None (calls matplotlib) | **Rust (tiny-skia)** |
-| Needs matplotlib? | - | Yes | **No** |
-| Needs Python for rendering? | Yes | Yes | **No** |
-| Performance | Baseline | Slower (subprocess) | **Up to 30x faster** |
-| Approach | Original | Wrapper | **Full reimplementation** |
+| Rendering engine | C/C++ (AGG) | None (wrap matplotlib or call Python) | **Rust native (tiny-skia)** |
+| External dependencies | NumPy, Pillow, FreeType, etc. | Python + matplotlib required | **Zero** — self-contained |
+| Performance | Baseline | Same or slower (subprocess overhead) | **Up to 30x faster** |
+| Python API | Original | Rust-only or generates .py scripts | **Drop-in replacement** — same API |
+| Approach | Interpreted + C extensions | Wrappers / code generators | **Full reimplementation in Rust** |
 
 ---
 
@@ -61,61 +61,83 @@ plt.show()
 
 ---
 
-## What's Implemented (v0.1.0)
+## What's Implemented
 
 ### Plot Types
-| Function | Description | Status |
-|---|---|---|
-| `plot()` | Line plots with color, linestyle, linewidth, markers, labels, alpha | Done |
-| `scatter()` | Scatter plots with sizes, colors, markers, alpha | Done |
-| `bar()` | Bar charts with width, colors, labels | Done |
-| `hist()` | Histograms with bins, colors, alpha | Done |
-| `imshow()` | Image/heatmap display with colormaps | Done |
+| Function | Description |
+|---|---|
+| `plot()` | Line plots with color, linestyle, linewidth, markers, markevery, labels, alpha |
+| `scatter()` | Scatter plots with per-point sizes, colors, markers, alpha |
+| `bar()` / `barh()` | Vertical and horizontal bar charts |
+| `hist()` | Histograms with configurable bins |
+| `imshow()` | Image/heatmap display with 11 colormaps |
+| `fill_between()` | Filled area between two curves |
+| `errorbar()` | Error bars with caps (xerr/yerr) |
+| `step()` | Step plots (pre/post/mid) |
+| `pie()` | Pie charts with labels |
+| `boxplot()` | Box-and-whisker plots (Q1/median/Q3, whiskers, outliers) |
+| `stem()` | Stem plots with baseline |
 
 ### Layout & Figure
-| Function | Description | Status |
-|---|---|---|
-| `subplots(nrows, ncols)` | Grid of axes with figsize/dpi | Done |
-| `figure(figsize, dpi)` | Create new figure | Done |
-| `tight_layout()` | Auto-adjust spacing | Done |
-| `close()` | Close current figure | Done |
+| Function | Description |
+|---|---|
+| `subplots(nrows, ncols)` | Grid of axes with figsize/dpi |
+| `figure(figsize, dpi)` | Create new figure |
+| `suptitle()` | Figure-level super title |
+| `subplots_adjust()` | Control hspace/wspace between subplots |
+| `tight_layout()` | Auto-adjust spacing |
+| `close()` | Close current figure |
 
-### Customization
-| Function | Description | Status |
-|---|---|---|
-| `title()` / `set_title()` | Plot title with fontsize | Done |
-| `xlabel()` / `ylabel()` | Axis labels with fontsize | Done |
-| `set_xlim()` / `set_ylim()` | Axis range limits | Done |
-| `legend()` | Legend with color swatches | Done |
-| `grid()` | Grid lines | Done |
+### Axes Customization
+| Function | Description |
+|---|---|
+| `title()` / `set_title()` | Plot title with fontsize |
+| `xlabel()` / `ylabel()` | Axis labels with fontsize |
+| `set_xlim()` / `set_ylim()` | Axis range limits |
+| `set_xscale('log')` / `set_yscale('log')` | Logarithmic scale |
+| `set_xticks()` / `set_yticks()` | Custom tick positions |
+| `set_xticklabels()` / `set_yticklabels()` | Custom tick labels |
+| `set_aspect('equal')` | Equal aspect ratio |
+| `invert_xaxis()` / `invert_yaxis()` | Invert axis direction |
+| `axis('off')` | Hide axes completely |
+| `legend()` | Legend with line+marker swatches and positioning |
+| `grid()` | Grid lines with color, linewidth, linestyle, alpha |
+| `text()` | Positioned text annotations |
+| `annotate()` | Text with arrow pointing to data |
+| `axhline()` / `axvline()` | Horizontal/vertical reference lines |
 
 ### Output
-| Method | Description | Status |
-|---|---|---|
-| `savefig("file.png")` | Save as PNG | Done |
-| `savefig("file.svg")` | Save as SVG | Done |
-| `show()` | Interactive window display | Done |
+| Method | Description |
+|---|---|
+| `savefig("file.png")` | Save as PNG (with dpi, transparent options) |
+| `savefig("file.svg")` | Save as SVG |
+| `savefig("file.pdf")` | Save as PDF |
+| `show()` | Interactive window display |
 
 ### Colors
 - **Named:** `"red"`, `"blue"`, `"green"`, `"orange"`, `"purple"`, `"black"`, `"white"`, + 10 more
 - **Shorthand:** `"r"`, `"g"`, `"b"`, `"c"`, `"m"`, `"y"`, `"k"`, `"w"`
 - **Hex:** `"#FF0000"`, `"#f00"`, `"#FF000080"`
-- **RGB tuple:** `(1.0, 0.0, 0.0)`
-- **RGBA tuple:** `(1.0, 0.0, 0.0, 0.5)`
+- **RGB/RGBA tuples:** `(1.0, 0.0, 0.0)`, `(1.0, 0.0, 0.0, 0.5)`
 
 ### Linestyles & Markers
 - **Linestyles:** `-` (solid), `--` (dashed), `-.` (dashdot), `:` (dotted)
 - **Markers:** `.` `o` `s` `^` `v` `+` `x` `D` `*`
 - **Format strings:** `"r--o"` = red + dashed + circle markers
+- **markevery:** show marker every N points
 
 ### Colormaps
 `viridis` `plasma` `inferno` `magma` `hot` `cool` `gray` `jet` `Blues` `Reds` `Greens`
 
-### Built-in Features
-- Auto-tick calculation with "nice numbers"
-- Tab10 color cycle (automatic color assignment)
+### Text Rendering
 - Embedded DejaVu Sans font (no system font dependency)
-- Coordinate transform system (data space to pixel space)
+- LaTeX-to-Unicode conversion (`$\theta$` → θ, `$x_1$` → x₁, Greek letters, sub/superscripts)
+
+### Compatibility
+- `rcParams` dict (accepts matplotlib config without crashing)
+- `font_manager.FontProperties` (stub)
+- `ticker.FormatStrFormatter` (stub)
+- `patches.Rectangle` (stub)
 
 ---
 
@@ -219,7 +241,7 @@ See [ROADMAP.md](ROADMAP.md) for the full development plan. Here's the overview:
 | Phase | Version | Focus | Status |
 |---|---|---|---|
 | MVP | v0.1.0 | plot, scatter, bar, hist, imshow, subplots, PNG/SVG/window | **Done** |
-| 1 | v0.2.0 | Log scale, errorbar, fill_between, boxplot, pie, PDF, annotations | Planned |
+| 1 | v0.2.0 | Log scale, errorbar, fill_between, boxplot, pie, PDF, annotations, stem, barh, step | **In Progress** |
 | 2 | v0.3.0 | Contour, streamplot, quiver, polar, hexbin, GridSpec, patches | Planned |
 | 3 | v0.4.0 | Styles, rcParams, LaTeX, dark mode, custom fonts | Planned |
 | 4 | v0.5.0 | Full 3D (surface, wireframe, scatter3D, bar3d) | Planned |
