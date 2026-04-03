@@ -897,7 +897,7 @@ impl Axes {
                     tick_color,
                     TextAnchorX::Center,
                     TextAnchorY::Center,
-                    std::f32::consts::FRAC_PI_2,
+                    -std::f32::consts::FRAC_PI_2,
                 );
             }
         }
@@ -1065,7 +1065,7 @@ impl Axes {
                 tick_color,
                 TextAnchorX::Center,
                 TextAnchorY::Center,
-                std::f32::consts::FRAC_PI_2,
+                -std::f32::consts::FRAC_PI_2,
             );
         }
 
