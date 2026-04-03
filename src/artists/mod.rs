@@ -14,6 +14,8 @@ pub mod stem;
 pub mod contour;
 pub mod hexbin;
 pub mod patches;
+pub mod quiver;
+pub mod streamplot;
 
 use tiny_skia::{PathBuilder, StrokeDash};
 

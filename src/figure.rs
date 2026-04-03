@@ -203,7 +203,11 @@ impl RustFigure {
             Some(v.extract::<f32>()?)
         } else { None };
 
-        ax.bar(x, heights, color, width, label, alpha);
+        let bottom = if let Some(v) = kwargs.get_item("bottom")? {
+            Some(v.extract::<f64>()?)
+        } else { None };
+
+        ax.bar(x, heights, color, width, label, alpha, bottom);
 
         Ok(())
     }
@@ -333,6 +337,12 @@ impl RustFigure {
         }
         // Accept linestyle but don't process it yet (grid linestyle is basic)
         let _ = kwargs.get_item("linestyle")?;
+
+        // Grid which: major/minor/both
+        if let Some(v) = kwargs.get_item("which")? {
+            let which_str = v.extract::<String>()?;
+            ax.grid_which = crate::axes::GridWhich::from_str(&which_str);
+        }
 
         Ok(())
     }
@@ -1228,7 +1238,93 @@ impl RustFigure {
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
             .twin_axes.as_mut()
             .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twin axes"))?;
-        twin.bar(x, heights, color, width, label, alpha);
+        twin.bar(x, heights, color, width, label, alpha, None);
+        Ok(())
+    }
+
+    fn axes_colorbar(
+        &mut self,
+        ax_id: usize,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let cmap = if let Some(v) = kwargs.get_item("cmap")? {
+            v.extract::<String>()?
+        } else {
+            "viridis".to_string()
+        };
+
+        let vmin = if let Some(v) = kwargs.get_item("vmin")? {
+            v.extract::<f64>()?
+        } else {
+            0.0
+        };
+
+        let vmax = if let Some(v) = kwargs.get_item("vmax")? {
+            v.extract::<f64>()?
+        } else {
+            1.0
+        };
+
+        ax.colorbar(&cmap, vmin, vmax);
+        Ok(())
+    }
+
+    fn axes_quiver(
+        &mut self,
+        ax_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        u: Vec<f64>,
+        v: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let scale = if let Some(v) = kwargs.get_item("scale")? {
+            Some(v.extract::<f64>()?)
+        } else { None };
+
+        let width = if let Some(v) = kwargs.get_item("width")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        ax.quiver(x, y, u, v, color, scale, width);
+        Ok(())
+    }
+
+    fn axes_streamplot(
+        &mut self,
+        ax_id: usize,
+        x: Vec<Vec<f64>>,
+        y: Vec<Vec<f64>>,
+        u: Vec<Vec<f64>>,
+        v: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let density = if let Some(v) = kwargs.get_item("density")? {
+            Some(v.extract::<f64>()?)
+        } else { None };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        ax.streamplot(x, y, u, v, color, density, linewidth);
         Ok(())
     }
 

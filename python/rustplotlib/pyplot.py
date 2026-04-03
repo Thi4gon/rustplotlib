@@ -78,13 +78,15 @@ class AxesProxy:
         self._fig.axes_scatter(self._id, x, y, kw)
         return self
 
-    def bar(self, x, height, width=0.8, color=None, label=None, alpha=1.0, **kwargs):
+    def bar(self, x, height, width=0.8, bottom=None, color=None, label=None, alpha=1.0, **kwargs):
         x, height = _to_list(x), _to_list(height)
         kw = {"width": width, "alpha": alpha}
         if color is not None:
             kw["color"] = color
         if label is not None:
             kw["label"] = label
+        if bottom is not None:
+            kw["bottom"] = float(bottom)
         self._fig.axes_bar(self._id, x, height, kw)
         return self
 
@@ -137,8 +139,8 @@ class AxesProxy:
             kw['prop'] = str(kwargs['prop'])  # pass as string, ignored on Rust side
         self._fig.axes_legend(self._id, kw)
 
-    def grid(self, visible=True, **kwargs):
-        kw = {}
+    def grid(self, visible=True, which='major', **kwargs):
+        kw = {"which": which}
         if 'color' in kwargs:
             kw['color'] = kwargs['color']
         if 'linewidth' in kwargs:
@@ -419,6 +421,63 @@ class AxesProxy:
         self._fig.axes_hexbin(self._id, x, y, kw)
         return self
 
+    def colorbar(self, mappable=None, cmap="viridis", vmin=0.0, vmax=1.0, **kwargs):
+        """Add a colorbar to this axes."""
+        # Try to extract cmap/vmin/vmax from the mappable if provided
+        if mappable is not None:
+            if hasattr(mappable, 'cmap'):
+                cmap = mappable.cmap
+            if hasattr(mappable, 'vmin') and mappable.vmin is not None:
+                vmin = mappable.vmin
+            if hasattr(mappable, 'vmax') and mappable.vmax is not None:
+                vmax = mappable.vmax
+        kw = {"cmap": str(cmap), "vmin": float(vmin), "vmax": float(vmax)}
+        self._fig.axes_colorbar(self._id, kw)
+        return self
+
+    def quiver(self, *args, color=None, scale=None, width=None, **kwargs):
+        """Draw arrows at (x, y) with direction (u, v)."""
+        if len(args) == 4:
+            x, y, u, v = args
+        elif len(args) == 2:
+            u, v = args
+            nr = len(u) if hasattr(u, '__len__') else 1
+            nc = len(u[0]) if hasattr(u, '__len__') and hasattr(u[0], '__len__') else len(u)
+            x = list(range(nc))
+            y = list(range(nr))
+            # flatten for 1D
+        else:
+            raise ValueError("quiver requires 2 or 4 positional arguments")
+        x, y = _to_list(x), _to_list(y)
+        u, v = _to_list(u), _to_list(v)
+        kw = {}
+        if color is not None:
+            kw["color"] = color
+        if scale is not None:
+            kw["scale"] = float(scale)
+        if width is not None:
+            kw["width"] = float(width)
+        self._fig.axes_quiver(self._id, x, y, u, v, kw)
+        return self
+
+    def streamplot(self, x, y, u, v, color=None, density=1.0, linewidth=1.0, **kwargs):
+        """Draw streamlines from vector field (u, v) on grid (x, y)."""
+        x_2d = _to_2d_list(x) if hasattr(x[0], '__len__') else [_to_list(x)]
+        y_2d = _to_2d_list(y) if hasattr(y[0], '__len__') else [_to_list(y)]
+        u_2d = _to_2d_list(u)
+        v_2d = _to_2d_list(v)
+        # If x and y are 1D, expand them into a meshgrid-like 2D format
+        if len(x_2d) == 1 and len(u_2d) > 1:
+            x_row = x_2d[0]
+            y_col = y_2d[0] if len(y_2d) == 1 else [row[0] for row in y_2d]
+            x_2d = [list(x_row) for _ in range(len(u_2d))]
+            y_2d = [[yv] * len(x_row) for yv in y_col]
+        kw = {"density": float(density), "linewidth": float(linewidth)}
+        if color is not None:
+            kw["color"] = color
+        self._fig.axes_streamplot(self._id, x_2d, y_2d, u_2d, v_2d, kw)
+        return self
+
     def twinx(self):
         twin_id = self._fig.axes_twinx(self._id)
         return TwinAxesProxy(self._fig, twin_id)
@@ -517,6 +576,15 @@ class FigureProxy:
 
     def tight_layout(self, **kwargs):
         pass
+
+    def colorbar(self, mappable=None, ax=None, **kwargs):
+        """Add a colorbar to the figure."""
+        if ax is not None and hasattr(ax, 'colorbar'):
+            ax.colorbar(mappable, **kwargs)
+        elif self._axes:
+            target = self._axes[0] if isinstance(self._axes, list) else self._axes
+            if hasattr(target, 'colorbar'):
+                target.colorbar(mappable, **kwargs)
 
     def set_facecolor(self, color):
         self._fig.set_facecolor(color)
@@ -801,6 +869,18 @@ def contourf(*args, **kwargs):
 
 def hexbin(x, y, **kwargs):
     _gca().hexbin(x, y, **kwargs)
+
+
+def colorbar(mappable=None, **kwargs):
+    _gca().colorbar(mappable, **kwargs)
+
+
+def quiver(*args, **kwargs):
+    _gca().quiver(*args, **kwargs)
+
+
+def streamplot(x, y, u, v, **kwargs):
+    _gca().streamplot(x, y, u, v, **kwargs)
 
 
 def subplot_polar(**kwargs):

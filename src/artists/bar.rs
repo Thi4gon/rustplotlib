@@ -10,6 +10,7 @@ pub struct Bar {
     pub color: Color,
     pub label: Option<String>,
     pub alpha: f32,
+    pub bottom: f64,
 }
 
 impl Bar {
@@ -21,6 +22,7 @@ impl Bar {
             color,
             label: None,
             alpha: 1.0,
+            bottom: 0.0,
         }
     }
 }
@@ -62,8 +64,12 @@ impl Artist for Bar {
             let x_left = self.x[i] - half_w;
             let x_right = self.x[i] + half_w;
 
-            // Bar goes from y=0 to y=h
-            let (y_bottom, y_top) = if h >= 0.0 { (0.0, h) } else { (h, 0.0) };
+            // Bar goes from y=bottom to y=bottom+h
+            let (y_bottom, y_top) = if h >= 0.0 {
+                (self.bottom, self.bottom + h)
+            } else {
+                (self.bottom + h, self.bottom)
+            };
 
             let (px_left, py_top) = transform.transform_xy(x_left, y_top);
             let (px_right, py_bottom) = transform.transform_xy(x_right, y_bottom);
@@ -95,16 +101,18 @@ impl Artist for Bar {
 
         let mut xmin = f64::MAX;
         let mut xmax = f64::MIN;
-        let mut ymin = 0.0_f64;
-        let mut ymax = 0.0_f64;
+        let mut ymin = self.bottom;
+        let mut ymax = self.bottom;
 
         for i in 0..n {
             let xl = self.x[i] - half_w;
             let xr = self.x[i] + half_w;
             if xl < xmin { xmin = xl; }
             if xr > xmax { xmax = xr; }
-            if self.heights[i] < ymin { ymin = self.heights[i]; }
-            if self.heights[i] > ymax { ymax = self.heights[i]; }
+            let y_top = self.bottom + self.heights[i];
+            if y_top < ymin { ymin = y_top; }
+            if y_top > ymax { ymax = y_top; }
+            if self.bottom < ymin { ymin = self.bottom; }
         }
         (xmin, xmax, ymin, ymax)
     }

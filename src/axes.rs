@@ -154,6 +154,31 @@ pub struct Axes {
     pub tick_length: f32,
     pub tick_width: f32,
     pub tick_label_size: f32,
+    // Colorbar
+    pub show_colorbar: bool,
+    pub colorbar_cmap: String,
+    pub colorbar_vmin: f64,
+    pub colorbar_vmax: f64,
+    // Grid which (Major/Minor/Both)
+    pub grid_which: GridWhich,
+}
+
+/// Which grid lines to show.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum GridWhich {
+    Major,
+    Minor,
+    Both,
+}
+
+impl GridWhich {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "minor" => GridWhich::Minor,
+            "both" => GridWhich::Both,
+            _ => GridWhich::Major,
+        }
+    }
 }
 
 impl Axes {
@@ -201,6 +226,11 @@ impl Axes {
             tick_length: 5.0,
             tick_width: 1.0,
             tick_label_size: 10.0,
+            show_colorbar: false,
+            colorbar_cmap: "viridis".to_string(),
+            colorbar_vmin: 0.0,
+            colorbar_vmax: 1.0,
+            grid_which: GridWhich::Major,
         }
     }
 
@@ -272,12 +302,14 @@ impl Axes {
         width: Option<f64>,
         label: Option<String>,
         alpha: Option<f32>,
+        bottom: Option<f64>,
     ) {
         let c = color.unwrap_or_else(|| self.next_color());
         let mut b = Bar::new(x, heights, c);
         if let Some(w) = width { b.width = w; }
         b.label = label;
         if let Some(a) = alpha { b.alpha = a; }
+        if let Some(bot) = bottom { b.bottom = bot; }
         self.artists.push(Box::new(b));
     }
 
@@ -1053,6 +1085,91 @@ impl Axes {
         if let Some(ref twin) = self.twin_axes {
             twin.draw_as_twin(pixmap, left, top, right, bottom);
         }
+
+        // 12. Draw colorbar if enabled
+        if self.show_colorbar {
+            self.draw_colorbar(pixmap, right, top, bottom);
+        }
+    }
+
+    /// Draw a vertical colorbar to the right of the plot area.
+    fn draw_colorbar(&self, pixmap: &mut Pixmap, right: f32, top: f32, bottom: f32) {
+        use crate::artists::image::colormap_lookup;
+
+        let ts = tiny_skia::Transform::identity();
+        let bar_width = 15.0_f32;
+        let bar_left = right + 10.0;
+        let bar_right = bar_left + bar_width;
+        let bar_top = top;
+        let bar_bottom = bottom;
+        let bar_height = bar_bottom - bar_top;
+
+        if bar_height <= 0.0 { return; }
+
+        // Draw gradient strip
+        let n_steps = (bar_height as usize).max(2);
+        for i in 0..n_steps {
+            let frac = i as f32 / (n_steps - 1) as f32;
+            // Top = vmax (t=1), bottom = vmin (t=0)
+            let t = 1.0 - frac;
+            let color = colormap_lookup(&self.colorbar_cmap, t as f64);
+
+            let y = bar_top + frac * bar_height;
+            let row_h = (bar_height / n_steps as f32).max(1.0);
+
+            if let Some(rect) = Rect::from_xywh(bar_left, y, bar_width, row_h) {
+                let mut paint = Paint::default();
+                paint.set_color(color.to_tiny_skia());
+                paint.anti_alias = false;
+                pixmap.fill_rect(rect, &paint, ts, None);
+            }
+        }
+
+        // Draw border around colorbar
+        if let Some(rect) = Rect::from_xywh(bar_left, bar_top, bar_width, bar_height) {
+            let path = PathBuilder::from_rect(rect);
+            let mut border_paint = Paint::default();
+            border_paint.set_color(self.spine_color.to_tiny_skia());
+            border_paint.anti_alias = true;
+            let mut stroke = Stroke::default();
+            stroke.width = 0.5;
+            pixmap.stroke_path(&path, &border_paint, &stroke, ts, None);
+        }
+
+        // Draw tick labels on the colorbar (5 ticks)
+        let n_ticks = 5;
+        let label_x = bar_right + 4.0;
+        for i in 0..n_ticks {
+            let frac = i as f32 / (n_ticks - 1) as f32;
+            let y = bar_top + frac * bar_height;
+            let val = self.colorbar_vmax + frac as f64 * (self.colorbar_vmin - self.colorbar_vmax);
+            let label = crate::ticker::format_tick_value(val);
+
+            // Tick mark
+            let mut pb = PathBuilder::new();
+            pb.move_to(bar_right, y);
+            pb.line_to(bar_right + 3.0, y);
+            if let Some(path) = pb.finish() {
+                let mut tick_paint = Paint::default();
+                tick_paint.set_color(self.spine_color.to_tiny_skia());
+                tick_paint.anti_alias = true;
+                let mut tick_stroke = Stroke::default();
+                tick_stroke.width = 0.5;
+                pixmap.stroke_path(&path, &tick_paint, &tick_stroke, ts, None);
+            }
+
+            draw_text(
+                pixmap,
+                &label,
+                label_x,
+                y,
+                8.0,
+                self.text_color,
+                TextAnchorX::Left,
+                TextAnchorY::Center,
+                0.0,
+            );
+        }
     }
 
     /// Draw this axes as a twin (right y-axis, shared x-axis).
@@ -1468,5 +1585,49 @@ impl Axes {
     /// Set spine linewidth.
     pub fn set_spine_linewidth(&mut self, lw: f32) {
         self.spine_linewidth = lw;
+    }
+
+    /// Enable colorbar with the given colormap and value range.
+    pub fn colorbar(&mut self, cmap: &str, vmin: f64, vmax: f64) {
+        self.show_colorbar = true;
+        self.colorbar_cmap = cmap.to_string();
+        self.colorbar_vmin = vmin;
+        self.colorbar_vmax = vmax;
+    }
+
+    /// Add a quiver (vector arrow) plot.
+    pub fn quiver(
+        &mut self,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        u: Vec<f64>,
+        v: Vec<f64>,
+        color: Option<Color>,
+        scale: Option<f64>,
+        width: Option<f32>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let q = crate::artists::quiver::Quiver::new(x, y, u, v, c, scale.unwrap_or(1.0), width.unwrap_or(1.5));
+        self.artists.push(Box::new(q));
+    }
+
+    /// Add a streamplot (streamlines for vector fields).
+    pub fn streamplot(
+        &mut self,
+        x: Vec<Vec<f64>>,
+        y: Vec<Vec<f64>>,
+        u: Vec<Vec<f64>>,
+        v: Vec<Vec<f64>>,
+        color: Option<Color>,
+        density: Option<f64>,
+        linewidth: Option<f32>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let sp = crate::artists::streamplot::StreamPlot::new(
+            x, y, u, v, c,
+            density.unwrap_or(1.0),
+            linewidth.unwrap_or(1.0),
+        );
+        self.artists.push(Box::new(sp));
     }
 }
