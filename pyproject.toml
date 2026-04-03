@@ -8,6 +8,22 @@ version = "0.1.0"
 description = "Matplotlib drop-in replacement powered by Rust"
 requires-python = ">=3.9"
 dependencies = ["numpy"]
+license = {text = "MIT"}
+readme = "README.md"
+keywords = ["matplotlib", "plotting", "visualization", "rust", "performance"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+
+[project.urls]
+Homepage = "https://github.com/Thi4gon/rustplot"
+Repository = "https://github.com/Thi4gon/rustplot"
+Issues = "https://github.com/Thi4gon/rustplot/issues"
 
 [tool.maturin]
 bindings = "pyo3"

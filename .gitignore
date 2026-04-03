@@ -1,6 +1,5 @@
 # Rust
 target/
-Cargo.lock
 
 # Native extension artifacts
 *.so
@@ -24,3 +23,7 @@ build/
 
 # OS
 .DS_Store
+
+# Reference / internal
+matplotlib/
+docs/
