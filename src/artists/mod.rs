@@ -16,6 +16,11 @@ pub mod hexbin;
 pub mod patches;
 pub mod quiver;
 pub mod streamplot;
+pub mod line3d;
+pub mod scatter3d;
+pub mod surface3d;
+pub mod wireframe3d;
+pub mod bar3d;
 
 use tiny_skia::{PathBuilder, StrokeDash};
 

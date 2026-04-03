@@ -2,8 +2,10 @@ use pyo3::prelude::*;
 
 mod artists;
 mod axes;
+mod axes3d;
 mod colors;
 mod figure;
+mod projection3d;
 mod text;
 mod ticker;
 mod transforms;

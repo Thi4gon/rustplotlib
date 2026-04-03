@@ -3,6 +3,7 @@ use pyo3::types::{PyBytes, PyDict};
 use tiny_skia::Pixmap;
 
 use crate::axes::Axes;
+use crate::axes3d::Axes3D;
 use crate::colors;
 
 #[pyclass]
@@ -18,6 +19,8 @@ pub struct RustFigure {
     hspace: f32,
     wspace: f32,
     bg_color: crate::colors::Color,
+    /// 3D axes, stored separately. Keyed by subplot index.
+    axes3d: Vec<(usize, Axes3D)>,
 }
 
 #[pymethods]
@@ -40,6 +43,7 @@ impl RustFigure {
             hspace: 0.2,
             wspace: 0.2,
             bg_color: crate::colors::Color::new(240, 240, 240, 255),
+            axes3d: Vec::new(),
         }
     }
 
@@ -1479,6 +1483,278 @@ impl RustFigure {
         crate::window::show_pixmap(&pixmap)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
     }
+
+    // -----------------------------------------------------------------------
+    // 3D Axes methods
+    // -----------------------------------------------------------------------
+
+    /// Add a 3D subplot at the given index. Returns the 3D axes ID.
+    fn add_subplot_3d(&mut self, subplot_idx: usize) -> usize {
+        let id = self.axes3d.len();
+        self.axes3d.push((subplot_idx, Axes3D::new()));
+        id
+    }
+
+    /// Plot a 3D line.
+    fn axes3d_plot(
+        &mut self,
+        ax3d_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        z: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            colors::parse_color_value(&c)?
+        } else {
+            ax.next_color()
+        };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            v.extract::<f32>()?
+        } else {
+            1.5
+        };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else {
+            None
+        };
+
+        ax.artists.push(Box::new(crate::artists::line3d::Line3D {
+            x, y, z, color, linewidth, label,
+        }));
+
+        Ok(())
+    }
+
+    /// 3D scatter plot.
+    fn axes3d_scatter(
+        &mut self,
+        ax3d_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        z: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            colors::parse_color_value(&c)?
+        } else {
+            ax.next_color()
+        };
+
+        let sizes = if let Some(v) = kwargs.get_item("s")? {
+            v.extract::<Vec<f32>>()?
+        } else {
+            vec![6.0]
+        };
+
+        let marker_str = if let Some(v) = kwargs.get_item("marker")? {
+            v.extract::<String>()?
+        } else {
+            "o".to_string()
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            1.0
+        };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else {
+            None
+        };
+
+        ax.artists.push(Box::new(crate::artists::scatter3d::Scatter3D {
+            x, y, z, sizes, color,
+            marker: crate::artists::MarkerStyle::from_str(&marker_str),
+            label, alpha,
+        }));
+
+        Ok(())
+    }
+
+    /// 3D surface plot.
+    fn axes3d_plot_surface(
+        &mut self,
+        ax3d_id: usize,
+        x: Vec<Vec<f64>>,
+        y: Vec<Vec<f64>>,
+        z: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+
+        let cmap = if let Some(v) = kwargs.get_item("cmap")? {
+            v.extract::<String>()?
+        } else {
+            "viridis".to_string()
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            0.9
+        };
+
+        ax.artists.push(Box::new(crate::artists::surface3d::Surface3D {
+            x, y, z, cmap, alpha,
+        }));
+
+        Ok(())
+    }
+
+    /// 3D wireframe plot.
+    fn axes3d_plot_wireframe(
+        &mut self,
+        ax3d_id: usize,
+        x: Vec<Vec<f64>>,
+        y: Vec<Vec<f64>>,
+        z: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            colors::parse_color_value(&c)?
+        } else {
+            crate::colors::Color::new(31, 119, 180, 255)
+        };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            v.extract::<f32>()?
+        } else {
+            0.5
+        };
+
+        ax.artists.push(Box::new(crate::artists::wireframe3d::Wireframe3D {
+            x, y, z, color, linewidth,
+        }));
+
+        Ok(())
+    }
+
+    /// 3D bar chart.
+    fn axes3d_bar3d(
+        &mut self,
+        ax3d_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        z: Vec<f64>,
+        dx: Vec<f64>,
+        dy: Vec<f64>,
+        dz: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            colors::parse_color_value(&c)?
+        } else {
+            ax.next_color()
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            0.9
+        };
+
+        ax.artists.push(Box::new(crate::artists::bar3d::Bar3D {
+            x, y, z, dx, dy, dz, color, alpha,
+        }));
+
+        Ok(())
+    }
+
+    /// Set title for a 3D axes.
+    #[pyo3(signature = (ax3d_id, title, fontsize=None))]
+    fn axes3d_set_title(&mut self, ax3d_id: usize, title: String, fontsize: Option<f32>) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+        ax.title = Some(title);
+        let _ = fontsize; // not yet used for 3D title sizing
+        Ok(())
+    }
+
+    /// Set X label for a 3D axes.
+    #[pyo3(signature = (ax3d_id, label, fontsize=None))]
+    fn axes3d_set_xlabel(&mut self, ax3d_id: usize, label: String, fontsize: Option<f32>) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+        ax.xlabel = Some(label);
+        let _ = fontsize;
+        Ok(())
+    }
+
+    /// Set Y label for a 3D axes.
+    #[pyo3(signature = (ax3d_id, label, fontsize=None))]
+    fn axes3d_set_ylabel(&mut self, ax3d_id: usize, label: String, fontsize: Option<f32>) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+        ax.ylabel = Some(label);
+        let _ = fontsize;
+        Ok(())
+    }
+
+    /// Set Z label for a 3D axes.
+    #[pyo3(signature = (ax3d_id, label, fontsize=None))]
+    fn axes3d_set_zlabel(&mut self, ax3d_id: usize, label: String, fontsize: Option<f32>) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+        ax.zlabel = Some(label);
+        let _ = fontsize;
+        Ok(())
+    }
+
+    /// Set camera view angle for 3D axes.
+    fn axes3d_view_init(&mut self, ax3d_id: usize, elev: f64, azim: f64) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+        ax.camera.elevation = elev;
+        ax.camera.azimuth = azim;
+        Ok(())
+    }
+
+    fn axes3d_set_xlim(&mut self, ax3d_id: usize, lo: f64, hi: f64) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+        ax.xlim = Some((lo, hi));
+        Ok(())
+    }
+
+    fn axes3d_set_ylim(&mut self, ax3d_id: usize, lo: f64, hi: f64) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+        ax.ylim = Some((lo, hi));
+        Ok(())
+    }
+
+    fn axes3d_set_zlim(&mut self, ax3d_id: usize, lo: f64, hi: f64) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+        ax.zlim = Some((lo, hi));
+        Ok(())
+    }
+
+    fn axes3d_legend(&mut self, ax3d_id: usize) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+        ax.show_legend = true;
+        Ok(())
+    }
 }
 
 impl RustFigure {
@@ -1733,7 +2009,14 @@ impl RustFigure {
         let subplot_hgap = cell_w * self.wspace;
         let subplot_vgap = cell_h * self.hspace;
 
+        // Collect which subplot indices are claimed by 3D axes
+        let axes3d_indices: std::collections::HashSet<usize> = self.axes3d.iter().map(|(idx, _)| *idx).collect();
+
         for (idx, ax) in self.axes.iter().enumerate() {
+            // Skip 2D axes at slots taken by 3D
+            if axes3d_indices.contains(&idx) {
+                continue;
+            }
             let row = idx / ncols;
             let col = idx % ncols;
             if row >= nrows { break; }
@@ -1744,6 +2027,20 @@ impl RustFigure {
             let bottom = top + cell_h;
 
             ax.draw(&mut pixmap, left, top, right, bottom);
+        }
+
+        // Draw 3D axes in their subplot slots
+        for (subplot_idx, ax3d) in &self.axes3d {
+            let row = subplot_idx / ncols;
+            let col = subplot_idx % ncols;
+            if row >= nrows { continue; }
+
+            let left = margin_left + col as f32 * (cell_w + subplot_hgap);
+            let top = margin_top + row as f32 * (cell_h + subplot_vgap);
+            let right = left + cell_w;
+            let bottom = top + cell_h;
+
+            ax3d.draw(&mut pixmap, left, top, right, bottom);
         }
 
         // Draw suptitle

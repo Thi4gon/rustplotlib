@@ -553,6 +553,108 @@ class TwinAxesProxy:
         self._fig.twin_axes_legend(self._id, kw)
 
 
+class Axes3DProxy:
+    """Python wrapper around a Rust 3D axes, accessed by ID."""
+
+    def __init__(self, figure, ax3d_id):
+        self._fig = figure
+        self._id = ax3d_id
+
+    def plot(self, xs, ys, zs, **kwargs):
+        xs, ys, zs = _to_list(xs), _to_list(ys), _to_list(zs)
+        kw = {}
+        if 'color' in kwargs:
+            kw['color'] = kwargs['color']
+        if 'linewidth' in kwargs:
+            kw['linewidth'] = float(kwargs['linewidth'])
+        if 'label' in kwargs:
+            kw['label'] = kwargs['label']
+        self._fig.axes3d_plot(self._id, xs, ys, zs, kw)
+        return self
+
+    def scatter(self, xs, ys, zs, s=None, c=None, marker='o', alpha=1.0, label=None, **kwargs):
+        xs, ys, zs = _to_list(xs), _to_list(ys), _to_list(zs)
+        kw = {'marker': marker, 'alpha': float(alpha)}
+        if s is not None:
+            kw['s'] = list(np.atleast_1d(s).astype(float))
+        if c is not None:
+            kw['color'] = c
+        if label is not None:
+            kw['label'] = label
+        self._fig.axes3d_scatter(self._id, xs, ys, zs, kw)
+        return self
+
+    def plot_surface(self, X, Y, Z, cmap='viridis', alpha=0.9, **kwargs):
+        x_2d = _to_2d_list(X)
+        y_2d = _to_2d_list(Y)
+        z_2d = _to_2d_list(Z)
+        kw = {'cmap': str(cmap), 'alpha': float(alpha)}
+        self._fig.axes3d_plot_surface(self._id, x_2d, y_2d, z_2d, kw)
+        return self
+
+    def plot_wireframe(self, X, Y, Z, color=None, linewidth=0.5, **kwargs):
+        x_2d = _to_2d_list(X)
+        y_2d = _to_2d_list(Y)
+        z_2d = _to_2d_list(Z)
+        kw = {'linewidth': float(linewidth)}
+        if color is not None:
+            kw['color'] = color
+        self._fig.axes3d_plot_wireframe(self._id, x_2d, y_2d, z_2d, kw)
+        return self
+
+    def bar3d(self, x, y, z, dx, dy, dz, color=None, alpha=0.9, **kwargs):
+        x, y, z = _to_list(x), _to_list(y), _to_list(z)
+        dx_l, dy_l, dz_l = _to_list(dx), _to_list(dy), _to_list(dz)
+        kw = {'alpha': float(alpha)}
+        if color is not None:
+            kw['color'] = color
+        self._fig.axes3d_bar3d(self._id, x, y, z, dx_l, dy_l, dz_l, kw)
+        return self
+
+    def set_title(self, title, fontsize=None, **kwargs):
+        self._fig.axes3d_set_title(self._id, str(title), fontsize)
+
+    def set_xlabel(self, label, fontsize=None, **kwargs):
+        self._fig.axes3d_set_xlabel(self._id, str(label), fontsize)
+
+    def set_ylabel(self, label, fontsize=None, **kwargs):
+        self._fig.axes3d_set_ylabel(self._id, str(label), fontsize)
+
+    def set_zlabel(self, label, fontsize=None, **kwargs):
+        self._fig.axes3d_set_zlabel(self._id, str(label), fontsize)
+
+    def view_init(self, elev=30, azim=-60, **kwargs):
+        self._fig.axes3d_view_init(self._id, float(elev), float(azim))
+
+    def set_xlim(self, left=None, right=None, **kwargs):
+        if left is not None and right is not None:
+            self._fig.axes3d_set_xlim(self._id, float(left), float(right))
+
+    def set_ylim(self, bottom=None, top=None, **kwargs):
+        if bottom is not None and top is not None:
+            self._fig.axes3d_set_ylim(self._id, float(bottom), float(top))
+
+    def set_zlim(self, bottom=None, top=None, **kwargs):
+        if bottom is not None and top is not None:
+            self._fig.axes3d_set_zlim(self._id, float(bottom), float(top))
+
+    def legend(self, *args, **kwargs):
+        self._fig.axes3d_legend(self._id)
+
+    # No-op stubs for matplotlib compat
+    def grid(self, visible=True, **kwargs):
+        pass
+
+    def set_xticks(self, *args, **kwargs):
+        pass
+
+    def set_yticks(self, *args, **kwargs):
+        pass
+
+    def set_zticks(self, *args, **kwargs):
+        pass
+
+
 class FigureProxy:
     """Python wrapper around RustFigure."""
 
@@ -591,6 +693,29 @@ class FigureProxy:
 
     def show(self):
         self._fig.show()
+
+    def add_subplot(self, *args, projection=None, **kwargs):
+        """Add a subplot to the figure. Supports projection='3d'."""
+        # Parse subplot spec: add_subplot(111) or add_subplot(1, 1, 1)
+        if len(args) == 1:
+            spec = int(args[0])
+            nrows = spec // 100
+            ncols = (spec // 10) % 10
+            idx = (spec % 10) - 1
+        elif len(args) == 3:
+            nrows, ncols, idx = int(args[0]), int(args[1]), int(args[2]) - 1
+        else:
+            nrows, ncols, idx = 1, 1, 0
+
+        # Ensure subplots layout is set up
+        if nrows > 1 or ncols > 1:
+            self._fig.setup_subplots(nrows, ncols)
+
+        if projection == '3d':
+            ax3d_id = self._fig.add_subplot_3d(idx)
+            return Axes3DProxy(self._fig, ax3d_id)
+        else:
+            return AxesProxy(self._fig, idx)
 
 
 def _to_list(data):
@@ -761,7 +886,7 @@ def figure(figsize=None, dpi=100, **kwargs):
     return FigureProxy(_current_figure, [_gca()])
 
 
-def subplots(nrows=1, ncols=1, figsize=None, dpi=100, **kwargs):
+def subplots(nrows=1, ncols=1, figsize=None, dpi=100, subplot_kw=None, **kwargs):
     global _current_figure, _current_axes_id
     if figsize:
         w, h = figsize
@@ -773,15 +898,25 @@ def subplots(nrows=1, ncols=1, figsize=None, dpi=100, **kwargs):
     _current_axes_id = 0
     _apply_current_style(fig)
 
+    subplot_kw = subplot_kw or {}
+    is_3d = subplot_kw.get('projection') == '3d'
+
+    def _make_ax(idx):
+        if is_3d:
+            ax3d_id = fig.add_subplot_3d(idx)
+            return Axes3DProxy(fig, ax3d_id)
+        else:
+            return AxesProxy(fig, idx)
+
     if nrows == 1 and ncols == 1:
-        axes = AxesProxy(fig, 0)
+        axes = _make_ax(0)
     elif nrows == 1 or ncols == 1:
         n = max(nrows, ncols)
-        axes = [AxesProxy(fig, i) for i in range(n)]
+        axes = [_make_ax(i) for i in range(n)]
     else:
         axes = []
         for r in range(nrows):
-            row = [AxesProxy(fig, r * ncols + c) for c in range(ncols)]
+            row = [_make_ax(r * ncols + c) for c in range(ncols)]
             axes.append(row)
 
     return FigureProxy(fig, axes), axes
