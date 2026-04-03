@@ -68,8 +68,8 @@ def test_axes_options():
     fig.axes_set_ylabel(ax_id, "Y Axis")
     fig.axes_set_xlim(ax_id, 0.0, 4.0)
     fig.axes_set_ylim(ax_id, 0.0, 8.0)
-    fig.axes_grid(ax_id, True)
-    fig.axes_legend(ax_id)
+    fig.axes_grid(ax_id, True, {})
+    fig.axes_legend(ax_id, {})
     data = fig.render_to_png_bytes()
     assert len(data) > 0
 

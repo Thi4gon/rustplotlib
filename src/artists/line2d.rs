@@ -11,6 +11,7 @@ pub struct Line2D {
     pub linestyle: LineStyle,
     pub marker: MarkerStyle,
     pub marker_size: f32,
+    pub marker_every: usize,
     pub label: Option<String>,
     pub alpha: f32,
 }
@@ -25,6 +26,7 @@ impl Line2D {
             linestyle: LineStyle::Solid,
             marker: MarkerStyle::None,
             marker_size: 6.0,
+            marker_every: 1,
             label: None,
             alpha: 1.0,
         }
@@ -66,11 +68,14 @@ impl Artist for Line2D {
             }
         }
 
-        // Draw markers
+        // Draw markers (respecting marker_every)
         if self.marker != MarkerStyle::None {
+            let every = self.marker_every.max(1);
             for i in 0..n {
-                let (px, py) = transform.transform_xy(self.x[i], self.y[i]);
-                draw_marker(pixmap, self.marker, px, py, self.marker_size, self.color, self.alpha);
+                if i % every == 0 {
+                    let (px, py) = transform.transform_xy(self.x[i], self.y[i]);
+                    draw_marker(pixmap, self.marker, px, py, self.marker_size, self.color, self.alpha);
+                }
             }
         }
     }

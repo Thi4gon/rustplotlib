@@ -6,6 +6,20 @@ import numpy as np
 _current_figure = None
 _current_axes_id = None
 
+# Global rcParams dict (matplotlib compatibility — accepts any key/value)
+rcParams = {
+    'font.family': ['sans-serif'],
+    'mathtext.fontset': 'dejavusans',
+    'font.size': 10,
+    'axes.labelsize': 12,
+    'axes.titlesize': 14,
+    'xtick.labelsize': 10,
+    'ytick.labelsize': 10,
+    'legend.fontsize': 10,
+    'figure.figsize': [6.4, 4.8],
+    'figure.dpi': 100,
+}
+
 
 class AxesProxy:
     """Python wrapper around a Rust axes, accessed by ID."""
@@ -79,10 +93,35 @@ class AxesProxy:
             self._fig.axes_set_ylim(self._id, float(bottom), float(top))
 
     def legend(self, *args, **kwargs):
-        self._fig.axes_legend(self._id)
+        kw = {}
+        if 'loc' in kwargs:
+            kw['loc'] = kwargs['loc']
+        if 'prop' in kwargs:
+            kw['prop'] = str(kwargs['prop'])  # pass as string, ignored on Rust side
+        self._fig.axes_legend(self._id, kw)
 
     def grid(self, visible=True, **kwargs):
-        self._fig.axes_grid(self._id, visible)
+        kw = {}
+        if 'color' in kwargs:
+            kw['color'] = kwargs['color']
+        if 'linewidth' in kwargs:
+            kw['linewidth'] = float(kwargs['linewidth'])
+        if 'alpha' in kwargs:
+            kw['alpha'] = float(kwargs['alpha'])
+        if 'linestyle' in kwargs:
+            kw['linestyle'] = kwargs['linestyle']
+        self._fig.axes_grid(self._id, bool(visible), kw)
+
+    def text(self, x, y, s, **kwargs):
+        kw = {}
+        if 'fontsize' in kwargs:
+            kw['fontsize'] = float(kwargs['fontsize'])
+        if 'color' in kwargs:
+            kw['color'] = kwargs['color']
+        self._fig.axes_text(self._id, float(x), float(y), str(s), kw)
+
+    def add_patch(self, patch):
+        pass  # Stub for patches.Rectangle etc.
 
 
 class FigureProxy:
@@ -288,6 +327,18 @@ def legend(*args, **kwargs):
 
 def grid(visible=True, **kwargs):
     _gca().grid(visible, **kwargs)
+
+
+def text(x, y, s, **kwargs):
+    _gca().text(x, y, s, **kwargs)
+
+
+def xticks(*args, **kwargs):
+    pass  # Accept fontsize, ticks, labels, etc.
+
+
+def yticks(*args, **kwargs):
+    pass  # Accept fontsize, ticks, labels, etc.
 
 
 def tight_layout(**kwargs):

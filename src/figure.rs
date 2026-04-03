@@ -88,6 +88,12 @@ impl RustFigure {
             Some(v.extract::<f32>()?)
         } else { None };
 
+        let markevery = kwargs.get_item("markevery")?
+            .map(|v| v.extract::<usize>().unwrap_or(1));
+
+        // Accept and ignore markerfacecolor (for hollow markers — not yet implemented)
+        let _ = kwargs.get_item("markerfacecolor")?;
+
         ax.plot(
             x, y,
             color,
@@ -95,6 +101,7 @@ impl RustFigure {
             linestyle.as_deref(),
             marker.as_deref(),
             marker_size,
+            markevery,
             label,
             alpha,
         );
@@ -270,17 +277,71 @@ impl RustFigure {
         Ok(())
     }
 
-    fn axes_legend(&mut self, ax_id: usize) -> PyResult<()> {
+    fn axes_legend(&mut self, ax_id: usize, kwargs: &Bound<'_, PyDict>) -> PyResult<()> {
         let ax = self.axes.get_mut(ax_id)
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
         ax.show_legend = true;
+
+        if let Some(v) = kwargs.get_item("loc")? {
+            ax.legend_loc = v.extract::<String>()?;
+        }
+        // Accept and ignore 'prop' (font properties)
+        let _ = kwargs.get_item("prop")?;
+
         Ok(())
     }
 
-    fn axes_grid(&mut self, ax_id: usize, visible: bool) -> PyResult<()> {
+    fn axes_grid(&mut self, ax_id: usize, visible: bool, kwargs: &Bound<'_, PyDict>) -> PyResult<()> {
         let ax = self.axes.get_mut(ax_id)
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
         ax.grid_visible = visible;
+
+        if let Some(c) = kwargs.get_item("color")? {
+            ax.grid_color = colors::parse_color_value(&c)?;
+        }
+        if let Some(v) = kwargs.get_item("linewidth")? {
+            ax.grid_linewidth = v.extract::<f32>()?;
+        }
+        if let Some(v) = kwargs.get_item("alpha")? {
+            ax.grid_alpha = v.extract::<f32>()?;
+        }
+        // Accept linestyle but don't process it yet (grid linestyle is basic)
+        let _ = kwargs.get_item("linestyle")?;
+
+        Ok(())
+    }
+
+    fn axes_text(
+        &mut self,
+        ax_id: usize,
+        x: f64,
+        y: f64,
+        text: String,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let fontsize = if let Some(v) = kwargs.get_item("fontsize")? {
+            v.extract::<f32>()?
+        } else {
+            12.0
+        };
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            colors::parse_color_value(&c)?
+        } else {
+            crate::colors::Color::new(0, 0, 0, 255)
+        };
+
+        ax.texts.push(crate::axes::TextAnnotation {
+            x,
+            y,
+            text,
+            fontsize,
+            color,
+        });
+
         Ok(())
     }
 

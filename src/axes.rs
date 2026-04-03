@@ -27,6 +27,15 @@ const TAB10: [(u8, u8, u8); 10] = [
     (23, 190, 207),   // cyan
 ];
 
+/// A text annotation drawn on the axes.
+pub struct TextAnnotation {
+    pub x: f64,
+    pub y: f64,
+    pub text: String,
+    pub fontsize: f32,
+    pub color: Color,
+}
+
 pub struct Axes {
     artists: Vec<Box<dyn Artist>>,
     pub title: Option<String>,
@@ -35,11 +44,16 @@ pub struct Axes {
     pub xlim: Option<(f64, f64)>,
     pub ylim: Option<(f64, f64)>,
     pub grid_visible: bool,
+    pub grid_color: Color,
+    pub grid_linewidth: f32,
+    pub grid_alpha: f32,
     pub show_legend: bool,
+    pub legend_loc: String,
     color_cycle_idx: usize,
     pub title_size: f32,
     pub label_size: f32,
     pub tick_size: f32,
+    pub texts: Vec<TextAnnotation>,
 }
 
 impl Axes {
@@ -52,11 +66,16 @@ impl Axes {
             xlim: None,
             ylim: None,
             grid_visible: false,
+            grid_color: Color::new(220, 220, 220, 255),
+            grid_linewidth: 0.5,
+            grid_alpha: 1.0,
             show_legend: false,
+            legend_loc: "upper right".to_string(),
             color_cycle_idx: 0,
             title_size: 14.0,
             label_size: 12.0,
             tick_size: 10.0,
+            texts: Vec::new(),
         }
     }
 
@@ -77,6 +96,7 @@ impl Axes {
         linestyle: Option<&str>,
         marker: Option<&str>,
         marker_size: Option<f32>,
+        marker_every: Option<usize>,
         label: Option<String>,
         alpha: Option<f32>,
     ) {
@@ -86,6 +106,7 @@ impl Axes {
         if let Some(ls) = linestyle { line.linestyle = LineStyle::from_str(ls); }
         if let Some(m) = marker { line.marker = MarkerStyle::from_str(m); }
         if let Some(ms) = marker_size { line.marker_size = ms; }
+        if let Some(me) = marker_every { line.marker_every = me; }
         line.label = label;
         if let Some(a) = alpha { line.alpha = a; }
         self.artists.push(Box::new(line));
@@ -213,12 +234,14 @@ impl Axes {
             let x_ticks = compute_auto_ticks(xmin, xmax, 10);
             let y_ticks = compute_auto_ticks(ymin, ymax, 8);
 
+            let mut grid_color = self.grid_color;
+            grid_color.a = (self.grid_alpha * 255.0) as u8;
             let mut grid_paint = Paint::default();
-            grid_paint.set_color(tiny_skia::Color::from_rgba8(220, 220, 220, 255));
+            grid_paint.set_color(grid_color.to_tiny_skia());
             grid_paint.anti_alias = true;
 
             let mut grid_stroke = Stroke::default();
-            grid_stroke.width = 0.5;
+            grid_stroke.width = self.grid_linewidth;
 
             // Vertical grid lines
             for &tx in &x_ticks {
@@ -376,7 +399,23 @@ impl Axes {
             );
         }
 
-        // 9. Draw legend if enabled
+        // 9. Draw text annotations
+        for ann in &self.texts {
+            let (px, py) = transform.transform_xy(ann.x, ann.y);
+            draw_text(
+                pixmap,
+                &ann.text,
+                px,
+                py,
+                ann.fontsize,
+                ann.color,
+                TextAnchorX::Left,
+                TextAnchorY::Center,
+                0.0,
+            );
+        }
+
+        // 10. Draw legend if enabled
         if self.show_legend {
             let mut entries = Vec::new();
             for artist in &self.artists {
@@ -388,8 +427,25 @@ impl Axes {
                 }
             }
             if !entries.is_empty() {
-                let legend_x = right - 10.0 - 120.0; // top-right area inside plot
-                let legend_y = top + 10.0;
+                let legend_w = 120.0_f32;
+                let legend_margin = 10.0_f32;
+                let (legend_x, legend_y) = match self.legend_loc.as_str() {
+                    "upper left" => (left + legend_margin, top + legend_margin),
+                    "lower right" => {
+                        let entry_count = entries.len() as f32;
+                        let legend_h = 12.0 + entry_count * 15.0;
+                        (right - legend_margin - legend_w, bottom - legend_margin - legend_h)
+                    }
+                    "lower left" => {
+                        let entry_count = entries.len() as f32;
+                        let legend_h = 12.0 + entry_count * 15.0;
+                        (left + legend_margin, bottom - legend_margin - legend_h)
+                    }
+                    _ => {
+                        // "upper right" (default)
+                        (right - legend_margin - legend_w, top + legend_margin)
+                    }
+                };
                 draw_legend(pixmap, &entries, legend_x, legend_y);
             }
         }
