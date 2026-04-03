@@ -10,6 +10,8 @@ use tiny_skia::{PathBuilder, StrokeDash};
 use crate::colors::Color;
 use crate::transforms::Transform;
 
+use crate::artists::legend::LegendEntry;
+
 /// Trait that all drawable artist types implement.
 pub trait Artist: Send {
     /// Draw this artist onto the pixmap using the given transform.
@@ -23,6 +25,18 @@ pub trait Artist: Send {
 
     /// Return the representative color for this artist (used in legends).
     fn legend_color(&self) -> Color;
+
+    /// Return a full legend entry with line style, marker, and color information.
+    fn legend_entry(&self) -> Option<LegendEntry> {
+        // Default implementation: colored square swatch (for bar/hist)
+        self.legend_label().map(|label| LegendEntry {
+            label: label.to_string(),
+            color: self.legend_color(),
+            line_style: None,
+            marker: None,
+            linewidth: 1.5,
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------

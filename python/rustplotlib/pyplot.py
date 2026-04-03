@@ -84,11 +84,15 @@ class AxesProxy:
     def set_ylabel(self, label, fontsize=None, **kwargs):
         self._fig.axes_set_ylabel(self._id, str(label), fontsize)
 
-    def set_xlim(self, left=None, right=None, **kwargs):
+    def set_xlim(self, left=None, right=None, xmin=None, xmax=None, **kwargs):
+        left = left if left is not None else xmin
+        right = right if right is not None else xmax
         if left is not None and right is not None:
             self._fig.axes_set_xlim(self._id, float(left), float(right))
 
-    def set_ylim(self, bottom=None, top=None, **kwargs):
+    def set_ylim(self, bottom=None, top=None, ymin=None, ymax=None, **kwargs):
+        bottom = bottom if bottom is not None else ymin
+        top = top if top is not None else ymax
         if bottom is not None and top is not None:
             self._fig.axes_set_ylim(self._id, float(bottom), float(top))
 

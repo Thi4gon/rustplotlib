@@ -6,7 +6,7 @@ use crate::artists::scatter::Scatter;
 use crate::artists::bar::Bar;
 use crate::artists::hist::Histogram;
 use crate::artists::image::Image;
-use crate::artists::legend::{LegendEntry, draw_legend};
+use crate::artists::legend::draw_legend;
 use crate::artists::{LineStyle, MarkerStyle};
 use crate::colors::Color;
 use crate::text::{draw_text, TextAnchorX, TextAnchorY};
@@ -105,7 +105,13 @@ impl Axes {
         if let Some(lw) = linewidth { line.linewidth = lw; }
         if let Some(ls) = linestyle { line.linestyle = LineStyle::from_str(ls); }
         if let Some(m) = marker { line.marker = MarkerStyle::from_str(m); }
-        if let Some(ms) = marker_size { line.marker_size = ms; }
+        if let Some(ms) = marker_size {
+            if ms <= 0.0 {
+                line.marker = MarkerStyle::None;
+            } else {
+                line.marker_size = ms;
+            }
+        }
         if let Some(me) = marker_every { line.marker_every = me; }
         line.label = label;
         if let Some(a) = alpha { line.alpha = a; }
@@ -419,11 +425,8 @@ impl Axes {
         if self.show_legend {
             let mut entries = Vec::new();
             for artist in &self.artists {
-                if let Some(label) = artist.legend_label() {
-                    entries.push(LegendEntry {
-                        label: label.to_string(),
-                        color: artist.legend_color(),
-                    });
+                if let Some(entry) = artist.legend_entry() {
+                    entries.push(entry);
                 }
             }
             if !entries.is_empty() {

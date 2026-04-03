@@ -1,4 +1,5 @@
 use crate::artists::{Artist, MarkerStyle, draw_marker};
+use crate::artists::legend::LegendEntry;
 use crate::colors::Color;
 use crate::transforms::Transform;
 use tiny_skia::Pixmap;
@@ -73,5 +74,15 @@ impl Artist for Scatter {
 
     fn legend_color(&self) -> Color {
         self.color
+    }
+
+    fn legend_entry(&self) -> Option<LegendEntry> {
+        self.legend_label().map(|label| LegendEntry {
+            label: label.to_string(),
+            color: self.color,
+            line_style: None,
+            marker: Some(self.marker),
+            linewidth: 1.5,
+        })
     }
 }

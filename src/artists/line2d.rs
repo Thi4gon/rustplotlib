@@ -1,4 +1,5 @@
 use crate::artists::{Artist, LineStyle, MarkerStyle, draw_marker};
+use crate::artists::legend::LegendEntry;
 use crate::colors::Color;
 use crate::transforms::Transform;
 use tiny_skia::{Paint, PathBuilder, Stroke, Pixmap};
@@ -104,5 +105,15 @@ impl Artist for Line2D {
 
     fn legend_color(&self) -> Color {
         self.color
+    }
+
+    fn legend_entry(&self) -> Option<LegendEntry> {
+        self.legend_label().map(|label| LegendEntry {
+            label: label.to_string(),
+            color: self.color,
+            line_style: Some(self.linestyle),
+            marker: if self.marker != MarkerStyle::None { Some(self.marker) } else { None },
+            linewidth: self.linewidth,
+        })
     }
 }

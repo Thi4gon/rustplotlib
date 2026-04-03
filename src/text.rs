@@ -5,6 +5,125 @@ use crate::colors::Color;
 
 static FONT_DATA: &[u8] = include_bytes!("fonts/DejaVuSans.ttf");
 
+/// Strip common LaTeX formatting to produce readable plain text.
+/// Not a full LaTeX renderer — just removes/converts common syntax.
+pub fn strip_latex(text: &str) -> String {
+    let mut result = text.to_string();
+
+    // Remove $ delimiters
+    result = result.replace("$", "");
+
+    // \text{...} → contents
+    while let Some(start) = result.find("\\text{") {
+        if let Some(end) = result[start..].find('}') {
+            let content = result[start + 6..start + end].to_string();
+            result = format!("{}{}{}", &result[..start], content, &result[start + end + 1..]);
+        } else {
+            break;
+        }
+    }
+
+    // \mathrm{...} → contents
+    while let Some(start) = result.find("\\mathrm{") {
+        if let Some(end) = result[start..].find('}') {
+            let content = result[start + 8..start + end].to_string();
+            result = format!("{}{}{}", &result[..start], content, &result[start + end + 1..]);
+        } else {
+            break;
+        }
+    }
+
+    // Common Greek letters
+    let greek = [
+        ("\\alpha", "α"), ("\\beta", "β"), ("\\gamma", "γ"), ("\\delta", "δ"),
+        ("\\epsilon", "ε"), ("\\theta", "θ"), ("\\lambda", "λ"), ("\\mu", "μ"),
+        ("\\pi", "π"), ("\\sigma", "σ"), ("\\tau", "τ"), ("\\phi", "φ"),
+        ("\\omega", "ω"), ("\\Delta", "Δ"), ("\\Sigma", "Σ"), ("\\Omega", "Ω"),
+        ("\\rho", "ρ"), ("\\nu", "ν"), ("\\xi", "ξ"), ("\\psi", "ψ"),
+        ("\\chi", "χ"), ("\\eta", "η"), ("\\zeta", "ζ"), ("\\kappa", "κ"),
+    ];
+    for (latex, unicode) in &greek {
+        result = result.replace(latex, unicode);
+    }
+
+    // Subscripts: x_1 → x₁
+    let subscript_digits = [
+        ("_0", "₀"), ("_1", "₁"), ("_2", "₂"), ("_3", "₃"), ("_4", "₄"),
+        ("_5", "₅"), ("_6", "₆"), ("_7", "₇"), ("_8", "₈"), ("_9", "₉"),
+    ];
+    for (latex, unicode) in &subscript_digits {
+        result = result.replace(latex, unicode);
+    }
+
+    // Superscripts: x^2 → x²
+    let superscript_digits = [
+        ("^0", "⁰"), ("^1", "¹"), ("^2", "²"), ("^3", "³"), ("^4", "⁴"),
+        ("^5", "⁵"), ("^6", "⁶"), ("^7", "⁷"), ("^8", "⁸"), ("^9", "⁹"),
+    ];
+    for (latex, unicode) in &superscript_digits {
+        result = result.replace(latex, unicode);
+    }
+
+    // Remove remaining braces from _{...} and ^{...}
+    while let Some(start) = result.find("_{") {
+        if let Some(end) = result[start..].find('}') {
+            let content = result[start + 2..start + end].to_string();
+            result = format!("{}{}{}", &result[..start], content, &result[start + end + 1..]);
+        } else {
+            break;
+        }
+    }
+    while let Some(start) = result.find("^{") {
+        if let Some(end) = result[start..].find('}') {
+            let content = result[start + 2..start + end].to_string();
+            result = format!("{}{}{}", &result[..start], content, &result[start + end + 1..]);
+        } else {
+            break;
+        }
+    }
+
+    // Remove common commands
+    result = result.replace("\\,", " ");
+    result = result.replace("\\;", " ");
+    result = result.replace("\\!", "");
+    result = result.replace("\\quad", " ");
+    result = result.replace("\\qquad", "  ");
+    result = result.replace("\\cdot", "\u{00B7}");
+    result = result.replace("\\times", "\u{00D7}");
+    result = result.replace("\\pm", "\u{00B1}");
+    result = result.replace("\\leq", "\u{2264}");
+    result = result.replace("\\geq", "\u{2265}");
+    result = result.replace("\\neq", "\u{2260}");
+    result = result.replace("\\approx", "\u{2248}");
+    result = result.replace("\\infty", "\u{221E}");
+    result = result.replace("\\sum", "\u{03A3}");
+    result = result.replace("\\prod", "\u{03A0}");
+    result = result.replace("\\int", "\u{222B}");
+    result = result.replace("\\partial", "\u{2202}");
+    result = result.replace("\\nabla", "\u{2207}");
+    result = result.replace("\\sqrt", "\u{221A}");
+    result = result.replace("\\frac", "");
+    result = result.replace("\\left", "");
+    result = result.replace("\\right", "");
+    result = result.replace("\\bar", "");
+    result = result.replace("\\hat", "");
+    result = result.replace("\\vec", "");
+    result = result.replace("\\ddot", "");
+    result = result.replace("\\dot", "");
+    result = result.replace("\\overline", "");
+
+    // Remove standalone {} braces
+    result = result.replace("{", "");
+    result = result.replace("}", "");
+
+    // Clean up multiple spaces
+    while result.contains("  ") {
+        result = result.replace("  ", " ");
+    }
+
+    result.trim().to_string()
+}
+
 /// Horizontal text anchor.
 #[derive(Debug, Clone, Copy)]
 pub enum TextAnchorX {
@@ -23,8 +142,18 @@ pub enum TextAnchorY {
 }
 
 /// Measure the width and height of a text string at a given pixel size.
+/// LaTeX formatting is stripped before measuring.
 /// Returns (width, height).
 pub fn measure_text(text: &str, size: f32) -> (f32, f32) {
+    let text = strip_latex(text);
+    if text.is_empty() {
+        return (0.0, 0.0);
+    }
+    measure_text_raw(&text, size)
+}
+
+/// Measure the width and height of an already-processed text string (no LaTeX stripping).
+fn measure_text_raw(text: &str, size: f32) -> (f32, f32) {
     let font = FontRef::try_from_slice(FONT_DATA).expect("Failed to load embedded font");
     let scaled = font.as_scaled(PxScale::from(size));
 
@@ -68,10 +197,15 @@ pub fn draw_text(
         return;
     }
 
+    let text = strip_latex(text);
+    if text.is_empty() {
+        return;
+    }
+
     let font = FontRef::try_from_slice(FONT_DATA).expect("Failed to load embedded font");
     let scaled = font.as_scaled(PxScale::from(size));
 
-    let (text_width, _text_height) = measure_text(text, size);
+    let (text_width, _text_height) = measure_text_raw(&text, size);
 
     // Compute the offset from the anchor point to the top-left baseline origin.
     let offset_x = match anchor_x {
@@ -94,7 +228,7 @@ pub fn draw_text(
 
     if rotation.abs() < 1e-6 {
         // No rotation: direct rendering for performance.
-        draw_text_glyphs(pixmap, text, x + offset_x, y + offset_y, &scaled, &font, color, pw, ph);
+        draw_text_glyphs(pixmap, &text, x + offset_x, y + offset_y, &scaled, &font, color, pw, ph);
     } else {
         // With rotation: render to a temporary pixmap, then composite with rotation.
         // We render the text at (0, ascent) in a scratch buffer, then blit with rotation.
@@ -104,7 +238,7 @@ pub fn draw_text(
         if let Some(mut scratch) = tiny_skia::Pixmap::new(scratch_w, scratch_h) {
             draw_text_glyphs(
                 &mut scratch,
-                text,
+                &text,
                 0.0,
                 ascent,
                 &scaled,
