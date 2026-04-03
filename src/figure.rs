@@ -847,6 +847,373 @@ impl RustFigure {
         Ok(())
     }
 
+    fn axes_axhspan(
+        &mut self,
+        ax_id: usize,
+        ymin: f64,
+        ymax: f64,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            0.3
+        };
+
+        ax.axhspan(ymin, ymax, color, alpha);
+        Ok(())
+    }
+
+    fn axes_axvspan(
+        &mut self,
+        ax_id: usize,
+        xmin: f64,
+        xmax: f64,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            0.3
+        };
+
+        ax.axvspan(xmin, xmax, color, alpha);
+        Ok(())
+    }
+
+    fn axes_contour(
+        &mut self,
+        ax_id: usize,
+        x: Vec<Vec<f64>>,
+        y: Vec<Vec<f64>>,
+        z: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let levels = if let Some(v) = kwargs.get_item("levels")? {
+            Some(v.extract::<Vec<f64>>()?)
+        } else { None };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            v.extract::<f32>()?
+        } else {
+            1.0
+        };
+
+        // colors param not handled via kwarg parsing for simplicity
+        ax.contour(x, y, z, levels, None, linewidth);
+        Ok(())
+    }
+
+    fn axes_contourf(
+        &mut self,
+        ax_id: usize,
+        x: Vec<Vec<f64>>,
+        y: Vec<Vec<f64>>,
+        z: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let levels = if let Some(v) = kwargs.get_item("levels")? {
+            Some(v.extract::<Vec<f64>>()?)
+        } else { None };
+
+        ax.contourf(x, y, z, levels, None);
+        Ok(())
+    }
+
+    fn axes_hexbin(
+        &mut self,
+        ax_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let gridsize = if let Some(v) = kwargs.get_item("gridsize")? {
+            v.extract::<usize>()?
+        } else {
+            20
+        };
+
+        let cmap = if let Some(v) = kwargs.get_item("cmap")? {
+            v.extract::<String>()?
+        } else {
+            "viridis".to_string()
+        };
+
+        let mincnt = if let Some(v) = kwargs.get_item("mincnt")? {
+            v.extract::<usize>()?
+        } else {
+            1
+        };
+
+        ax.hexbin(x, y, gridsize, cmap, mincnt);
+        Ok(())
+    }
+
+    fn axes_add_patch(
+        &mut self,
+        ax_id: usize,
+        patch_type: String,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let facecolor = if let Some(c) = kwargs.get_item("facecolor")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let edgecolor = if let Some(c) = kwargs.get_item("edgecolor")? {
+            colors::parse_color_value(&c)?
+        } else {
+            crate::colors::Color::new(0, 0, 0, 255)
+        };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            v.extract::<f32>()?
+        } else {
+            1.0
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            1.0
+        };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let patch = match patch_type.as_str() {
+            "rectangle" => {
+                let x = kwargs.get_item("x")?.map(|v| v.extract::<f64>()).transpose()?.unwrap_or(0.0);
+                let y = kwargs.get_item("y")?.map(|v| v.extract::<f64>()).transpose()?.unwrap_or(0.0);
+                let width = kwargs.get_item("width")?.map(|v| v.extract::<f64>()).transpose()?.unwrap_or(1.0);
+                let height = kwargs.get_item("height")?.map(|v| v.extract::<f64>()).transpose()?.unwrap_or(1.0);
+                crate::artists::patches::Patch::new_rectangle(
+                    x, y, width, height, facecolor, edgecolor, linewidth, alpha, label,
+                )
+            }
+            "circle" => {
+                let cx = kwargs.get_item("cx")?.map(|v| v.extract::<f64>()).transpose()?.unwrap_or(0.0);
+                let cy = kwargs.get_item("cy")?.map(|v| v.extract::<f64>()).transpose()?.unwrap_or(0.0);
+                let radius = kwargs.get_item("radius")?.map(|v| v.extract::<f64>()).transpose()?.unwrap_or(1.0);
+                crate::artists::patches::Patch::new_circle(
+                    (cx, cy), radius, facecolor, edgecolor, linewidth, alpha, label,
+                )
+            }
+            "polygon" => {
+                let points_flat = kwargs.get_item("points")?.map(|v| v.extract::<Vec<(f64, f64)>>()).transpose()?.unwrap_or_default();
+                crate::artists::patches::Patch::new_polygon(
+                    points_flat, facecolor, edgecolor, linewidth, alpha, label,
+                )
+            }
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    format!("Unknown patch type: {}", patch_type),
+                ));
+            }
+        };
+
+        ax.add_patch(patch);
+        Ok(())
+    }
+
+    fn axes_set_polar(&mut self, ax_id: usize, polar: bool) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.set_polar(polar);
+        Ok(())
+    }
+
+    fn axes_twinx(&mut self, ax_id: usize) -> PyResult<usize> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.twinx();
+        // Return a special ID: we encode the twin as parent_id * 1000 + 1
+        // The twin axes is embedded inside the parent, so we use a sentinel ID scheme.
+        Ok(ax_id * 1000 + 999)
+    }
+
+    /// Plot on a twin axes.
+    fn twin_axes_plot(
+        &mut self,
+        twin_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let linestyle = if let Some(v) = kwargs.get_item("linestyle")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let marker = if let Some(v) = kwargs.get_item("marker")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let marker_size = if let Some(v) = kwargs.get_item("markersize")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let markevery = kwargs.get_item("markevery")?
+            .map(|v| v.extract::<usize>().unwrap_or(1));
+
+        let parent_id = twin_id / 1000;
+        let twin = self.axes.get_mut(parent_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
+            .twin_axes.as_mut()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twin axes"))?;
+        twin.plot(
+            x, y, color, linewidth, linestyle.as_deref(),
+            marker.as_deref(), marker_size, markevery, label, alpha,
+        );
+        Ok(())
+    }
+
+    #[pyo3(signature = (twin_id, label, fontsize=None))]
+    fn twin_axes_set_ylabel(&mut self, twin_id: usize, label: String, fontsize: Option<f32>) -> PyResult<()> {
+        let parent_id = twin_id / 1000;
+        let twin = self.axes.get_mut(parent_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
+            .twin_axes.as_mut()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twin axes"))?;
+        twin.ylabel = Some(label);
+        if let Some(fs) = fontsize {
+            twin.label_size = fs;
+        }
+        Ok(())
+    }
+
+    fn twin_axes_set_ylim(&mut self, twin_id: usize, lo: f64, hi: f64) -> PyResult<()> {
+        let parent_id = twin_id / 1000;
+        let twin = self.axes.get_mut(parent_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
+            .twin_axes.as_mut()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twin axes"))?;
+        twin.ylim = Some((lo, hi));
+        Ok(())
+    }
+
+    fn twin_axes_legend(&mut self, twin_id: usize, kwargs: &Bound<'_, PyDict>) -> PyResult<()> {
+        let parent_id = twin_id / 1000;
+        let twin = self.axes.get_mut(parent_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
+            .twin_axes.as_mut()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twin axes"))?;
+        twin.show_legend = true;
+        if let Some(v) = kwargs.get_item("loc")? {
+            twin.legend_loc = v.extract::<String>()?;
+        }
+        Ok(())
+    }
+
+    fn twin_axes_scatter(
+        &mut self,
+        twin_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let sizes = if let Some(v) = kwargs.get_item("s")? {
+            Some(v.extract::<Vec<f32>>()?)
+        } else { None };
+
+        let marker = if let Some(v) = kwargs.get_item("marker")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let parent_id = twin_id / 1000;
+        let twin = self.axes.get_mut(parent_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
+            .twin_axes.as_mut()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twin axes"))?;
+        twin.scatter(x, y, color, sizes, marker.as_deref(), label, alpha);
+        Ok(())
+    }
+
+    fn twin_axes_bar(
+        &mut self,
+        twin_id: usize,
+        x: Vec<f64>,
+        heights: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let width = if let Some(v) = kwargs.get_item("width")? {
+            Some(v.extract::<f64>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let parent_id = twin_id / 1000;
+        let twin = self.axes.get_mut(parent_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
+            .twin_axes.as_mut()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twin axes"))?;
+        twin.bar(x, heights, color, width, label, alpha);
+        Ok(())
+    }
+
     fn num_axes(&self) -> usize {
         self.axes.len()
     }

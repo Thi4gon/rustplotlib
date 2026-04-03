@@ -319,7 +319,124 @@ class AxesProxy:
         self._fig.axes_invert_yaxis(self._id)
 
     def add_patch(self, patch):
-        pass  # Stub for patches.Rectangle etc.
+        """Add a patch object (Rectangle, Circle, Polygon) to the axes."""
+        from rustplotlib.patches import Rectangle, Circle, Polygon
+        kw = {}
+        if hasattr(patch, 'facecolor') and patch.facecolor is not None:
+            kw['facecolor'] = patch.facecolor
+        if hasattr(patch, 'edgecolor') and patch.edgecolor is not None:
+            kw['edgecolor'] = patch.edgecolor
+        if hasattr(patch, 'linewidth'):
+            kw['linewidth'] = float(getattr(patch, 'linewidth', 1.0))
+        if hasattr(patch, 'alpha') and patch.alpha is not None:
+            kw['alpha'] = float(patch.alpha)
+        if hasattr(patch, 'label') and patch.label is not None:
+            kw['label'] = str(patch.label)
+
+        if isinstance(patch, Rectangle):
+            kw['x'] = float(patch.xy[0])
+            kw['y'] = float(patch.xy[1])
+            kw['width'] = float(patch.width)
+            kw['height'] = float(patch.height)
+            self._fig.axes_add_patch(self._id, "rectangle", kw)
+        elif isinstance(patch, Circle):
+            kw['cx'] = float(patch.xy[0])
+            kw['cy'] = float(patch.xy[1])
+            kw['radius'] = float(patch.radius)
+            self._fig.axes_add_patch(self._id, "circle", kw)
+        elif isinstance(patch, Polygon):
+            kw['points'] = [(float(p[0]), float(p[1])) for p in patch.xy]
+            self._fig.axes_add_patch(self._id, "polygon", kw)
+        # else: silently ignore unknown patch types
+        return self
+
+    def axhspan(self, ymin, ymax, color=None, alpha=0.3, **kwargs):
+        kw = {"alpha": float(alpha)}
+        if color is not None:
+            kw["color"] = color
+        self._fig.axes_axhspan(self._id, float(ymin), float(ymax), kw)
+        return self
+
+    def axvspan(self, xmin, xmax, color=None, alpha=0.3, **kwargs):
+        kw = {"alpha": float(alpha)}
+        if color is not None:
+            kw["color"] = color
+        self._fig.axes_axvspan(self._id, float(xmin), float(xmax), kw)
+        return self
+
+    def contour(self, *args, levels=None, linewidth=1.0, **kwargs):
+        x, y, z = _parse_contour_args(*args)
+        kw = {"linewidth": float(linewidth)}
+        if levels is not None:
+            kw["levels"] = [float(l) for l in levels]
+        self._fig.axes_contour(self._id, x, y, z, kw)
+        return self
+
+    def contourf(self, *args, levels=None, **kwargs):
+        x, y, z = _parse_contour_args(*args)
+        kw = {}
+        if levels is not None:
+            kw["levels"] = [float(l) for l in levels]
+        self._fig.axes_contourf(self._id, x, y, z, kw)
+        return self
+
+    def hexbin(self, x, y, gridsize=20, cmap="viridis", mincnt=1, **kwargs):
+        x, y = _to_list(x), _to_list(y)
+        kw = {"gridsize": int(gridsize), "cmap": str(cmap), "mincnt": int(mincnt)}
+        self._fig.axes_hexbin(self._id, x, y, kw)
+        return self
+
+    def twinx(self):
+        twin_id = self._fig.axes_twinx(self._id)
+        return TwinAxesProxy(self._fig, twin_id)
+
+
+class TwinAxesProxy:
+    """Python wrapper for a twin (right-side y-axis) axes."""
+
+    def __init__(self, figure, twin_id):
+        self._fig = figure
+        self._id = twin_id
+
+    def plot(self, *args, **kwargs):
+        x, y, kwargs = _parse_plot_args(*args, **kwargs)
+        self._fig.twin_axes_plot(self._id, x, y, kwargs)
+        return self
+
+    def scatter(self, x, y, s=None, c=None, marker="o", alpha=1.0, label=None, **kwargs):
+        x, y = _to_list(x), _to_list(y)
+        kw = {"marker": marker, "alpha": alpha}
+        if s is not None:
+            kw["s"] = list(np.atleast_1d(s).astype(float))
+        if c is not None:
+            kw["color"] = c
+        if label is not None:
+            kw["label"] = label
+        self._fig.twin_axes_scatter(self._id, x, y, kw)
+        return self
+
+    def bar(self, x, height, width=0.8, color=None, label=None, alpha=1.0, **kwargs):
+        x, height = _to_list(x), _to_list(height)
+        kw = {"width": width, "alpha": alpha}
+        if color is not None:
+            kw["color"] = color
+        if label is not None:
+            kw["label"] = label
+        self._fig.twin_axes_bar(self._id, x, height, kw)
+        return self
+
+    def set_ylabel(self, label, fontsize=None, **kwargs):
+        self._fig.twin_axes_set_ylabel(self._id, str(label), fontsize)
+
+    def set_ylim(self, bottom=None, top=None, **kwargs):
+        if bottom is not None and top is not None:
+            self._fig.twin_axes_set_ylim(self._id, float(bottom), float(top))
+
+    def legend(self, *args, **kwargs):
+        kw = {}
+        if 'loc' in kwargs:
+            kw['loc'] = kwargs['loc']
+        self._fig.twin_axes_legend(self._id, kw)
 
 
 class FigureProxy:
@@ -362,6 +479,24 @@ def _to_2d_list(data):
     if isinstance(data, np.ndarray):
         return data.astype(float).tolist()
     return [[float(v) for v in row] for row in data]
+
+
+def _parse_contour_args(*args):
+    """Parse contour arguments: contour(Z) or contour(X, Y, Z)."""
+    if len(args) == 1:
+        z = _to_2d_list(args[0])
+        nrows = len(z)
+        ncols = len(z[0]) if nrows > 0 else 0
+        x = [[float(c) for c in range(ncols)] for _ in range(nrows)]
+        y = [[float(r)] * ncols for r in range(nrows)]
+        return x, y, z
+    elif len(args) >= 3:
+        x = _to_2d_list(args[0])
+        y = _to_2d_list(args[1])
+        z = _to_2d_list(args[2])
+        return x, y, z
+    else:
+        raise ValueError("contour requires 1 or 3 positional arguments: contour(Z) or contour(X, Y, Z)")
 
 
 def _parse_plot_args(*args, **kwargs):
@@ -545,6 +680,35 @@ def axhline(y=0, **kwargs):
 
 def axvline(x=0, **kwargs):
     _gca().axvline(x, **kwargs)
+
+
+def axhspan(ymin, ymax, **kwargs):
+    _gca().axhspan(ymin, ymax, **kwargs)
+
+
+def axvspan(xmin, xmax, **kwargs):
+    _gca().axvspan(xmin, xmax, **kwargs)
+
+
+def contour(*args, **kwargs):
+    _gca().contour(*args, **kwargs)
+
+
+def contourf(*args, **kwargs):
+    _gca().contourf(*args, **kwargs)
+
+
+def hexbin(x, y, **kwargs):
+    _gca().hexbin(x, y, **kwargs)
+
+
+def subplot_polar(**kwargs):
+    """Create a polar subplot."""
+    global _current_figure, _current_axes_id
+    _ensure_figure()
+    ax_id = _current_axes_id
+    _current_figure.axes_set_polar(ax_id, True)
+    return _gca()
 
 
 def title(text, **kwargs):

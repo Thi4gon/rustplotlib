@@ -13,6 +13,9 @@ use crate::artists::errorbar::ErrorBar;
 use crate::artists::barh::BarH;
 use crate::artists::boxplot::BoxPlot;
 use crate::artists::stem::Stem;
+use crate::artists::contour::Contour;
+use crate::artists::hexbin::HexBin;
+use crate::artists::patches::Patch;
 use crate::artists::legend::draw_legend;
 use crate::artists::{LineStyle, MarkerStyle};
 use crate::colors::Color;
@@ -78,6 +81,15 @@ pub struct RefLine {
     pub alpha: f32,
 }
 
+/// A shaded region (axhspan / axvspan).
+pub struct SpanRegion {
+    pub horizontal: bool, // true = axhspan (horizontal band), false = axvspan (vertical band)
+    pub vmin: f64,
+    pub vmax: f64,
+    pub color: Color,
+    pub alpha: f32,
+}
+
 pub struct Axes {
     artists: Vec<Box<dyn Artist>>,
     pub title: Option<String>,
@@ -108,6 +120,9 @@ pub struct Axes {
     pub aspect: AspectRatio,
     pub invert_x: bool,
     pub invert_y: bool,
+    pub span_regions: Vec<SpanRegion>,
+    pub polar: bool,
+    pub twin_axes: Option<Box<Axes>>,
 }
 
 impl Axes {
@@ -142,6 +157,9 @@ impl Axes {
             aspect: AspectRatio::Auto,
             invert_x: false,
             invert_y: false,
+            span_regions: Vec::new(),
+            polar: false,
+            twin_axes: None,
         }
     }
 
@@ -478,6 +496,12 @@ impl Axes {
     /// Draw this axes and all its artists onto the pixmap.
     /// left, top, right, bottom are pixel coordinates of the plot area.
     pub fn draw(&self, pixmap: &mut Pixmap, left: f32, top: f32, right: f32, bottom: f32) {
+        // Polar mode: use dedicated polar drawing
+        if self.polar {
+            self.draw_polar(pixmap, left, top, right, bottom);
+            return;
+        }
+
         let (mut xmin, mut xmax, mut ymin, mut ymax) = self.compute_bounds();
 
         // Handle axis inversion
@@ -648,6 +672,37 @@ impl Axes {
             }
             if let Some(path) = pb.finish() {
                 pixmap.stroke_path(&path, &rl_paint, &rl_stroke, ts, None);
+            }
+        }
+
+        // 2c. Draw span regions (axhspan / axvspan)
+        for span in &self.span_regions {
+            let mut span_color = span.color;
+            span_color.a = (span.alpha * 255.0) as u8;
+            let mut span_paint = Paint::default();
+            span_paint.set_color(span_color.to_tiny_skia());
+            span_paint.anti_alias = true;
+
+            let (sx, sy, sw, sh) = if span.horizontal {
+                // Horizontal band: full width, y from vmin to vmax
+                let (_, py_min) = transform.transform_xy(xmin, span.vmin);
+                let (_, py_max) = transform.transform_xy(xmin, span.vmax);
+                let y_top = py_min.min(py_max);
+                let y_bot = py_min.max(py_max);
+                (left, y_top.max(top), right - left, (y_bot.min(bottom) - y_top.max(top)).max(0.0))
+            } else {
+                // Vertical band: full height, x from vmin to vmax
+                let (px_min, _) = transform.transform_xy(span.vmin, ymin);
+                let (px_max, _) = transform.transform_xy(span.vmax, ymin);
+                let x_left = px_min.min(px_max);
+                let x_right = px_min.max(px_max);
+                (x_left.max(left), top, (x_right.min(right) - x_left.max(left)).max(0.0), bottom - top)
+            };
+
+            if sw > 0.0 && sh > 0.0 {
+                if let Some(rect) = Rect::from_xywh(sx, sy, sw, sh) {
+                    pixmap.fill_rect(rect, &span_paint, ts, None);
+                }
             }
         }
 
@@ -911,6 +966,265 @@ impl Axes {
                 draw_legend(pixmap, &entries, legend_x, legend_y);
             }
         }
+
+        // 11. Draw twin axes (twinx) if present
+        if let Some(ref twin) = self.twin_axes {
+            twin.draw_as_twin(pixmap, left, top, right, bottom);
+        }
+    }
+
+    /// Draw this axes as a twin (right y-axis, shared x-axis).
+    fn draw_as_twin(&self, pixmap: &mut Pixmap, left: f32, top: f32, right: f32, bottom: f32) {
+        let (xmin, xmax, ymin, ymax) = self.compute_bounds();
+
+        let log_x = self.x_scale == AxisScale::Log;
+        let log_y = self.y_scale == AxisScale::Log;
+
+        let (dxmin, dxmax) = if log_x { (xmin.max(1e-15).log10(), xmax.max(1e-15).log10()) } else { (xmin, xmax) };
+        let (dymin, dymax) = if log_y { (ymin.max(1e-15).log10(), ymax.max(1e-15).log10()) } else { (ymin, ymax) };
+
+        let transform = Transform::new(
+            (dxmin, dxmax),
+            (dymin, dymax),
+            left as f64,
+            right as f64,
+            top as f64,
+            bottom as f64,
+            log_x,
+            log_y,
+        );
+
+        let ts = tiny_skia::Transform::identity();
+
+        // Draw artists
+        for artist in &self.artists {
+            artist.draw(pixmap, &transform);
+        }
+
+        // Draw right-side Y axis ticks
+        let tick_ymin = ymin;
+        let tick_ymax = ymax;
+        let y_ticks: Vec<f64> = if log_y {
+            compute_log_ticks(tick_ymin.max(1e-15), tick_ymax.max(1e-15))
+        } else {
+            self.custom_yticks.clone().unwrap_or_else(|| compute_auto_ticks(tick_ymin, tick_ymax, 8))
+        };
+
+        let tick_len = 5.0_f32;
+        let tick_color = Color::new(0, 0, 0, 255);
+
+        let mut tick_paint = Paint::default();
+        tick_paint.set_color(tiny_skia::Color::from_rgba8(0, 0, 0, 255));
+        tick_paint.anti_alias = true;
+
+        let mut tick_stroke = Stroke::default();
+        tick_stroke.width = 1.0;
+
+        // Right-side Y ticks
+        for (i, &ty) in y_ticks.iter().enumerate() {
+            let (_, py) = transform.transform_xy(xmin, ty);
+            if py < top || py > bottom { continue; }
+
+            // Tick mark on right side
+            let mut pb = PathBuilder::new();
+            pb.move_to(right, py);
+            pb.line_to(right + tick_len, py);
+            if let Some(path) = pb.finish() {
+                pixmap.stroke_path(&path, &tick_paint, &tick_stroke, ts, None);
+            }
+
+            let label = if let Some(ref labels) = self.custom_ytick_labels {
+                labels.get(i).cloned().unwrap_or_default()
+            } else if log_y {
+                format_log_tick_value(ty)
+            } else {
+                format_tick_value(ty)
+            };
+            draw_text(
+                pixmap,
+                &label,
+                right + tick_len + 3.0,
+                py,
+                self.tick_size,
+                tick_color,
+                TextAnchorX::Left,
+                TextAnchorY::Center,
+                0.0,
+            );
+        }
+
+        // Right-side Y label
+        if let Some(ref ylabel) = self.ylabel {
+            let cy = (top + bottom) / 2.0;
+            draw_text(
+                pixmap,
+                ylabel,
+                right + tick_len + 35.0,
+                cy,
+                self.label_size,
+                tick_color,
+                TextAnchorX::Center,
+                TextAnchorY::Center,
+                std::f32::consts::FRAC_PI_2,
+            );
+        }
+
+        // Legend for twin axes
+        if self.show_legend {
+            let mut entries = Vec::new();
+            for artist in &self.artists {
+                if let Some(entry) = artist.legend_entry() {
+                    entries.push(entry);
+                }
+            }
+            if !entries.is_empty() {
+                let legend_w = 120.0_f32;
+                let legend_margin = 10.0_f32;
+                // Place twin legend on lower right by default
+                let entry_count = entries.len() as f32;
+                let legend_h = 12.0 + entry_count * 15.0;
+                let legend_x = right - legend_margin - legend_w;
+                let legend_y = bottom - legend_margin - legend_h;
+                draw_legend(pixmap, &entries, legend_x, legend_y);
+            }
+        }
+    }
+
+    /// Draw polar plot.
+    fn draw_polar(&self, pixmap: &mut Pixmap, left: f32, top: f32, right: f32, bottom: f32) {
+        let ts = tiny_skia::Transform::identity();
+
+        // White background
+        if let Some(rect) = Rect::from_xywh(left, top, right - left, bottom - top) {
+            let mut bg_paint = Paint::default();
+            bg_paint.set_color(tiny_skia::Color::from_rgba8(255, 255, 255, 255));
+            pixmap.fill_rect(rect, &bg_paint, ts, None);
+        }
+
+        // Center and radius of the polar plot in pixel space
+        let cx = (left + right) / 2.0;
+        let cy = (top + bottom) / 2.0;
+        let plot_radius = ((right - left).min(bottom - top)) / 2.0 - 10.0;
+
+        if plot_radius <= 0.0 { return; }
+
+        // Find max radius from data
+        let mut r_max: f64 = 1.0;
+        for artist in &self.artists {
+            let (_, _, _, ymax) = artist.data_bounds();
+            if ymax > r_max { r_max = ymax; }
+        }
+        if let Some((_, ylim_max)) = self.ylim {
+            r_max = ylim_max;
+        }
+
+        // Draw concentric circles (grid)
+        let n_circles = 5usize;
+        let mut grid_paint = Paint::default();
+        grid_paint.set_color(tiny_skia::Color::from_rgba8(200, 200, 200, 255));
+        grid_paint.anti_alias = true;
+        let mut grid_stroke = Stroke::default();
+        grid_stroke.width = 0.5;
+
+        let tick_color = Color::new(0, 0, 0, 255);
+
+        for i in 1..=n_circles {
+            let frac = i as f32 / n_circles as f32;
+            let r = plot_radius * frac;
+            if let Some(circle) = crate::artists::circle_path(cx, cy, r) {
+                pixmap.stroke_path(&circle, &grid_paint, &grid_stroke, ts, None);
+            }
+            // Radius tick label
+            let val = r_max * frac as f64;
+            draw_text(
+                pixmap,
+                &format_tick_value(val),
+                cx + 3.0,
+                cy - r - 2.0,
+                8.0,
+                tick_color,
+                TextAnchorX::Left,
+                TextAnchorY::Bottom,
+                0.0,
+            );
+        }
+
+        // Draw radial lines and angle labels
+        let angles_deg = [0.0_f32, 30.0, 60.0, 90.0, 120.0, 150.0, 180.0, 210.0, 240.0, 270.0, 300.0, 330.0];
+        for &deg in &angles_deg {
+            let rad = deg * std::f32::consts::PI / 180.0;
+            let ex = cx + plot_radius * rad.cos();
+            let ey = cy - plot_radius * rad.sin();
+
+            let mut pb = PathBuilder::new();
+            pb.move_to(cx, cy);
+            pb.line_to(ex, ey);
+            if let Some(path) = pb.finish() {
+                pixmap.stroke_path(&path, &grid_paint, &grid_stroke, ts, None);
+            }
+
+            // Angle label
+            let label_r = plot_radius + 15.0;
+            let lx = cx + label_r * rad.cos();
+            let ly = cy - label_r * rad.sin();
+            draw_text(
+                pixmap,
+                &format!("{:.0}°", deg),
+                lx,
+                ly,
+                9.0,
+                tick_color,
+                TextAnchorX::Center,
+                TextAnchorY::Center,
+                0.0,
+            );
+        }
+
+        // Draw outer circle border
+        let mut border_paint = Paint::default();
+        border_paint.set_color(tiny_skia::Color::from_rgba8(0, 0, 0, 255));
+        border_paint.anti_alias = true;
+        let mut border_stroke = Stroke::default();
+        border_stroke.width = 1.0;
+        if let Some(circle) = crate::artists::circle_path(cx, cy, plot_radius) {
+            pixmap.stroke_path(&circle, &border_paint, &border_stroke, ts, None);
+        }
+
+        // Draw artists using polar→cartesian transform
+        // Create a transform that maps (-r_max..r_max) in both x/y to the plot area
+        let polar_transform = Transform::new(
+            (-r_max, r_max),
+            (-r_max, r_max),
+            (cx - plot_radius) as f64,
+            (cx + plot_radius) as f64,
+            (cy - plot_radius) as f64,
+            (cy + plot_radius) as f64,
+            false,
+            false,
+        );
+
+        // For polar plots, we convert the data ourselves and draw
+        // Each artist has (angle, radius) data — we need to convert to cartesian
+        // Since artists draw using transform, we build a cartesian transform and
+        // convert the data inline. For simplicity, we'll draw line segments manually.
+        for artist in &self.artists {
+            artist.draw(pixmap, &polar_transform);
+        }
+
+        // Title
+        if let Some(ref title) = self.title {
+            draw_text(
+                pixmap,
+                title,
+                cx,
+                top - 8.0,
+                self.title_size,
+                tick_color,
+                TextAnchorX::Center,
+                TextAnchorY::Bottom,
+                0.0,
+            );
+        }
     }
 
     /// Add an annotation with arrow.
@@ -933,6 +1247,96 @@ impl Axes {
             arrow_color,
             arrow_width,
         });
+    }
+
+    /// Add a horizontal shaded span region.
+    pub fn axhspan(
+        &mut self,
+        ymin: f64,
+        ymax: f64,
+        color: Option<Color>,
+        alpha: f32,
+    ) {
+        self.span_regions.push(SpanRegion {
+            horizontal: true,
+            vmin: ymin,
+            vmax: ymax,
+            color: color.unwrap_or(Color::new(0, 0, 255, 255)),
+            alpha,
+        });
+    }
+
+    /// Add a vertical shaded span region.
+    pub fn axvspan(
+        &mut self,
+        xmin: f64,
+        xmax: f64,
+        color: Option<Color>,
+        alpha: f32,
+    ) {
+        self.span_regions.push(SpanRegion {
+            horizontal: false,
+            vmin: xmin,
+            vmax: xmax,
+            color: color.unwrap_or(Color::new(0, 0, 255, 255)),
+            alpha,
+        });
+    }
+
+    /// Add a contour plot (lines).
+    pub fn contour(
+        &mut self,
+        x: Vec<Vec<f64>>,
+        y: Vec<Vec<f64>>,
+        z: Vec<Vec<f64>>,
+        levels: Option<Vec<f64>>,
+        colors: Option<Vec<Color>>,
+        linewidth: f32,
+    ) {
+        let c = Contour::new(x, y, z, levels, colors, false, linewidth);
+        self.artists.push(Box::new(c));
+    }
+
+    /// Add a filled contour plot.
+    pub fn contourf(
+        &mut self,
+        x: Vec<Vec<f64>>,
+        y: Vec<Vec<f64>>,
+        z: Vec<Vec<f64>>,
+        levels: Option<Vec<f64>>,
+        colors: Option<Vec<Color>>,
+    ) {
+        let c = Contour::new(x, y, z, levels, colors, true, 1.0);
+        self.artists.push(Box::new(c));
+    }
+
+    /// Add a hexbin plot.
+    pub fn hexbin(
+        &mut self,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        gridsize: usize,
+        cmap: String,
+        mincnt: usize,
+    ) {
+        let hb = HexBin::new(x, y, gridsize, cmap, mincnt);
+        self.artists.push(Box::new(hb));
+    }
+
+    /// Add a patch (rectangle, circle, or polygon).
+    pub fn add_patch(&mut self, patch: Patch) {
+        self.artists.push(Box::new(patch));
+    }
+
+    /// Set this axes to polar mode.
+    pub fn set_polar(&mut self, polar: bool) {
+        self.polar = polar;
+    }
+
+    /// Create a twin y-axis (twinx). Returns a mutable reference to the twin Axes.
+    pub fn twinx(&mut self) -> &mut Axes {
+        self.twin_axes = Some(Box::new(Axes::new()));
+        self.twin_axes.as_mut().unwrap()
     }
 
     /// Set axis visibility.

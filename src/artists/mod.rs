@@ -11,6 +11,9 @@ pub mod errorbar;
 pub mod barh;
 pub mod boxplot;
 pub mod stem;
+pub mod contour;
+pub mod hexbin;
+pub mod patches;
 
 use tiny_skia::{PathBuilder, StrokeDash};
 
