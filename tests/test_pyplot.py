@@ -1,5 +1,5 @@
 import os
-import rustplot.pyplot as plt
+import rustplotlib.pyplot as plt
 
 
 def test_basic_plot():

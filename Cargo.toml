@@ -1,10 +1,10 @@
 [package]
-name = "rustplot"
+name = "rustplotlib"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "_rustplot"
+name = "_rustplotlib"
 crate-type = ["cdylib"]
 
 [dependencies]

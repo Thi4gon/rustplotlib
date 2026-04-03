@@ -1,4 +1,4 @@
-from rustplot._rustplot import Transform
+from rustplotlib._rustplotlib import Transform
 
 def test_data_to_pixel():
     t = Transform(

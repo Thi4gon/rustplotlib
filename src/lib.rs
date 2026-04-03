@@ -10,7 +10,7 @@ mod transforms;
 mod window;
 
 #[pymodule]
-fn _rustplot(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _rustplotlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", "0.1.0")?;
     m.add_class::<transforms::Transform>()?;
     m.add_class::<figure::RustFigure>()?;

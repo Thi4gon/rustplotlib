@@ -1,13 +1,13 @@
-# RustPlot
+# RustPlotLib
 
 A high-performance matplotlib drop-in replacement powered by Rust.
 
-RustPlot reimplements matplotlib's core plotting functionality in Rust using [tiny-skia](https://github.com/nickel-org/tiny-skia) for rasterization and [PyO3](https://pyo3.rs/) for Python bindings. Just swap your import and get **up to 30x faster** plot generation.
+RustPlotLib reimplements matplotlib's core plotting functionality in Rust using [tiny-skia](https://github.com/nickel-org/tiny-skia) for rasterization and [PyO3](https://pyo3.rs/) for Python bindings. Just swap your import and get **up to 30x faster** plot generation.
 
 ## Installation
 
 ```bash
-pip install rustplot
+pip install rustplotlib
 ```
 
 ## Usage
@@ -17,7 +17,7 @@ pip install rustplot
 # import matplotlib.pyplot as plt
 
 # With this:
-import rustplot.pyplot as plt
+import rustplotlib.pyplot as plt
 
 # Everything else stays the same!
 plt.plot([1, 2, 3, 4], [1, 4, 2, 3], label="data")
@@ -43,7 +43,7 @@ plt.show()
 
 Benchmarked against matplotlib (lower is better):
 
-| Benchmark | matplotlib | rustplot | Speedup |
+| Benchmark | matplotlib | rustplotlib | Speedup |
 |---|---|---|---|
 | Line Plot (10k pts) | 0.064s | 0.002s | **30.8x** |
 | Scatter (5k pts) | 0.029s | 0.017s | **1.7x** |
@@ -54,7 +54,7 @@ Benchmarked against matplotlib (lower is better):
 ## Subplots Example
 
 ```python
-import rustplot.pyplot as plt
+import rustplotlib.pyplot as plt
 import numpy as np
 
 fig, axes = plt.subplots(2, 2, figsize=(10, 8))
@@ -86,8 +86,8 @@ fig.savefig("subplots.png")
 Requires Rust and Python 3.9+:
 
 ```bash
-git clone https://github.com/Thi4gon/rustplot.git
-cd rustplot
+git clone https://github.com/Thi4gon/rustplotlib.git
+cd rustplotlib
 pip install maturin
 maturin develop --release
 ```

@@ -1367,7 +1367,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustplot"
+name = "rustplotlib"
 version = "0.1.0"
 dependencies = [
  "ab_glyph",

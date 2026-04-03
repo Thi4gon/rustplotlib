@@ -1,4 +1,4 @@
-"""Benchmark: rustplot vs matplotlib performance comparison."""
+"""Benchmark: rustplotlib vs matplotlib performance comparison."""
 import time
 import numpy as np
 import os
@@ -84,10 +84,10 @@ def benchmark_subplots(plt_module, name):
 
 def run_benchmarks():
     print("=" * 60)
-    print("RUSTPLOT vs MATPLOTLIB — Performance Benchmark")
+    print("RUSTPLOTLIB vs MATPLOTLIB — Performance Benchmark")
     print("=" * 60)
 
-    import rustplot.pyplot as rplt
+    import rustplotlib.pyplot as rplt
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as mplt
@@ -108,11 +108,11 @@ def run_benchmarks():
         speedup = t_mpl / t_rust if t_rust > 0 else float("inf")
         results.append((name, t_mpl, t_rust, speedup))
         print(f"  matplotlib: {t_mpl:.4f}s")
-        print(f"  rustplot:   {t_rust:.4f}s")
+        print(f"  rustplotlib: {t_rust:.4f}s")
         print(f"  speedup:    {speedup:.1f}x")
 
     print("\n" + "=" * 60)
-    print(f"{'Benchmark':<25} {'matplotlib':>12} {'rustplot':>12} {'speedup':>10}")
+    print(f"{'Benchmark':<25} {'matplotlib':>12} {'rustplotlib':>12} {'speedup':>10}")
     print("-" * 60)
     for name, t_mpl, t_rust, speedup in results:
         print(f"{name:<25} {t_mpl:>11.4f}s {t_rust:>11.4f}s {speedup:>9.1f}x")

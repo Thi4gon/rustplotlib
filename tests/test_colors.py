@@ -1,4 +1,4 @@
-from rustplot._rustplot import parse_color
+from rustplotlib._rustplotlib import parse_color
 
 def test_named_color():
     assert parse_color("red") == (255, 0, 0, 255)

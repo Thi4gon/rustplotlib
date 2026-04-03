@@ -1,4 +1,4 @@
-from rustplot._rustplot import auto_ticks, format_tick
+from rustplotlib._rustplotlib import auto_ticks, format_tick
 
 def test_auto_ticks_simple():
     ticks = auto_ticks(0.0, 10.0)

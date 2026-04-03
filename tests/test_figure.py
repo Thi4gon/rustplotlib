@@ -1,4 +1,4 @@
-from rustplot._rustplot import RustFigure
+from rustplotlib._rustplotlib import RustFigure
 
 
 def test_create_figure():

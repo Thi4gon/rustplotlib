@@ -1,6 +1,6 @@
-"""rustplot.pyplot — matplotlib-compatible plotting API powered by Rust."""
+"""rustplotlib.pyplot — matplotlib-compatible plotting API powered by Rust."""
 
-from rustplot._rustplot import RustFigure
+from rustplotlib._rustplotlib import RustFigure
 import numpy as np
 
 _current_figure = None

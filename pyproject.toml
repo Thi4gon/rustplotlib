@@ -3,7 +3,7 @@ requires = ["maturin>=1.7,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "rustplot"
+name = "rustplotlib"
 version = "0.1.0"
 description = "Matplotlib drop-in replacement powered by Rust"
 requires-python = ">=3.9"
@@ -21,12 +21,12 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Thi4gon/rustplot"
-Repository = "https://github.com/Thi4gon/rustplot"
-Issues = "https://github.com/Thi4gon/rustplot/issues"
+Homepage = "https://github.com/Thi4gon/rustplotlib"
+Repository = "https://github.com/Thi4gon/rustplotlib"
+Issues = "https://github.com/Thi4gon/rustplotlib/issues"
 
 [tool.maturin]
 bindings = "pyo3"
 python-source = "python"
-module-name = "rustplot._rustplot"
+module-name = "rustplotlib._rustplotlib"
 features = ["pyo3/extension-module"]
