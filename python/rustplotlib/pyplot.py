@@ -5,6 +5,7 @@ import numpy as np
 
 _current_figure = None
 _current_axes_id = None
+_current_style = "default"
 
 # Global rcParams dict (matplotlib compatibility — accepts any key/value)
 rcParams = {
@@ -19,6 +20,38 @@ rcParams = {
     'figure.figsize': [6.4, 4.8],
     'figure.dpi': 100,
 }
+
+
+class SpineProxy:
+    """Proxy for a single spine (top/right/bottom/left)."""
+
+    def __init__(self, figure, ax_id, which):
+        self._fig = figure
+        self._id = ax_id
+        self._which = which
+
+    def set_visible(self, visible):
+        self._fig.axes_set_spine_visible(self._id, self._which, visible)
+
+    def set_color(self, color):
+        pass
+
+    def set_linewidth(self, lw):
+        pass
+
+    def set_lw(self, lw):
+        pass
+
+
+class SpinesProxy:
+    """Proxy for all spines of an axes."""
+
+    def __init__(self, figure, ax_id):
+        self._fig = figure
+        self._id = ax_id
+
+    def __getitem__(self, key):
+        return SpineProxy(self._fig, self._id, key)
 
 
 class AxesProxy:
@@ -390,6 +423,28 @@ class AxesProxy:
         twin_id = self._fig.axes_twinx(self._id)
         return TwinAxesProxy(self._fig, twin_id)
 
+    @property
+    def spines(self):
+        return SpinesProxy(self._fig, self._id)
+
+    def tick_params(self, axis='both', direction='out', length=5.0, width=1.0,
+                    labelsize=None, **kwargs):
+        kw = {}
+        if direction:
+            kw['direction'] = direction
+        if length:
+            kw['length'] = float(length)
+        if width:
+            kw['width'] = float(width)
+        if labelsize:
+            kw['labelsize'] = float(labelsize)
+        if 'color' in kwargs:
+            kw['color'] = kwargs['color']
+        self._fig.axes_tick_params(self._id, kw)
+
+    def set_facecolor(self, color):
+        self._fig.axes_set_facecolor(self._id, color)
+
 
 class TwinAxesProxy:
     """Python wrapper for a twin (right-side y-axis) axes."""
@@ -462,6 +517,9 @@ class FigureProxy:
 
     def tight_layout(self, **kwargs):
         pass
+
+    def set_facecolor(self, color):
+        self._fig.set_facecolor(color)
 
     def show(self):
         self._fig.show()
@@ -558,11 +616,52 @@ def _parse_fmt(fmt, kwargs):
             break
 
 
+def _apply_current_style(fig, ax_ids=None):
+    """Apply the current rcParams style colors to a Rust figure and its axes."""
+    # Figure background
+    fig_fc = rcParams.get("figure.facecolor")
+    if fig_fc:
+        try:
+            fig.set_facecolor(fig_fc)
+        except Exception:
+            pass
+
+    # Apply to each axes
+    if ax_ids is None:
+        ax_ids = list(range(fig.num_axes()))
+    for ax_id in ax_ids:
+        axes_fc = rcParams.get("axes.facecolor")
+        if axes_fc:
+            try:
+                fig.axes_set_facecolor(ax_id, axes_fc)
+            except Exception:
+                pass
+        text_c = rcParams.get("text.color")
+        if text_c:
+            try:
+                fig.axes_set_text_color(ax_id, text_c)
+            except Exception:
+                pass
+        edge_c = rcParams.get("axes.edgecolor")
+        if edge_c:
+            try:
+                fig.axes_set_spine_color(ax_id, edge_c)
+            except Exception:
+                pass
+        xtick_c = rcParams.get("xtick.color")
+        if xtick_c:
+            try:
+                fig.axes_set_tick_color(ax_id, xtick_c)
+            except Exception:
+                pass
+
+
 def _ensure_figure():
     global _current_figure, _current_axes_id
     if _current_figure is None:
         _current_figure = RustFigure(640, 480, 100)
         _current_axes_id = _current_figure.add_axes()
+        _apply_current_style(_current_figure)
 
 
 def _gcf():
@@ -590,6 +689,7 @@ def figure(figsize=None, dpi=100, **kwargs):
     else:
         _current_figure = RustFigure(640, 480, dpi)
     _current_axes_id = _current_figure.add_axes()
+    _apply_current_style(_current_figure)
     return FigureProxy(_current_figure, [_gca()])
 
 
@@ -603,6 +703,7 @@ def subplots(nrows=1, ncols=1, figsize=None, dpi=100, **kwargs):
     fig.setup_subplots(nrows, ncols)
     _current_figure = fig
     _current_axes_id = 0
+    _apply_current_style(fig)
 
     if nrows == 1 and ncols == 1:
         axes = AxesProxy(fig, 0)

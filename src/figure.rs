@@ -17,6 +17,7 @@ pub struct RustFigure {
     suptitle_fontsize: f32,
     hspace: f32,
     wspace: f32,
+    bg_color: crate::colors::Color,
 }
 
 #[pymethods]
@@ -35,6 +36,7 @@ impl RustFigure {
             suptitle_fontsize: 16.0,
             hspace: 0.2,
             wspace: 0.2,
+            bg_color: crate::colors::Color::new(240, 240, 240, 255),
         }
     }
 
@@ -1218,6 +1220,85 @@ impl RustFigure {
         self.axes.len()
     }
 
+    fn axes_tick_params(&mut self, ax_id: usize, kwargs: &Bound<'_, PyDict>) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let direction = if let Some(v) = kwargs.get_item("direction")? {
+            v.extract::<String>()?
+        } else {
+            "out".to_string()
+        };
+
+        let length = if let Some(v) = kwargs.get_item("length")? {
+            v.extract::<f32>()?
+        } else {
+            ax.tick_length
+        };
+
+        let width = if let Some(v) = kwargs.get_item("width")? {
+            v.extract::<f32>()?
+        } else {
+            ax.tick_width
+        };
+
+        let labelsize = if let Some(v) = kwargs.get_item("labelsize")? {
+            v.extract::<f32>()?
+        } else {
+            ax.tick_label_size
+        };
+
+        ax.set_tick_params(&direction, length, width, labelsize);
+
+        // Also accept color param
+        if let Some(c) = kwargs.get_item("color")? {
+            let color = colors::parse_color_value(&c)?;
+            ax.set_tick_color(color);
+        }
+
+        Ok(())
+    }
+
+    fn axes_set_spine_visible(&mut self, ax_id: usize, which: String, visible: bool) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.set_spine_visible(&which, visible);
+        Ok(())
+    }
+
+    fn axes_set_facecolor(&mut self, ax_id: usize, color: &Bound<'_, pyo3::PyAny>) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.set_bg_color(colors::parse_color_value(color)?);
+        Ok(())
+    }
+
+    fn set_facecolor(&mut self, color: &Bound<'_, pyo3::PyAny>) -> PyResult<()> {
+        self.bg_color = colors::parse_color_value(color)?;
+        Ok(())
+    }
+
+    fn axes_set_text_color(&mut self, ax_id: usize, color: &Bound<'_, pyo3::PyAny>) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.set_text_color(colors::parse_color_value(color)?);
+        Ok(())
+    }
+
+    fn axes_set_tick_color(&mut self, ax_id: usize, color: &Bound<'_, pyo3::PyAny>) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.set_tick_color(colors::parse_color_value(color)?);
+        Ok(())
+    }
+
+    fn axes_set_spine_color(&mut self, ax_id: usize, color: &Bound<'_, pyo3::PyAny>) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.set_spine_color(colors::parse_color_value(color)?);
+        Ok(())
+    }
+
     fn render_to_png_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         let pixmap = self.render_pixmap_opts(None, false);
         let png_data = pixmap.encode_png()
@@ -1372,10 +1453,10 @@ impl RustFigure {
             .expect("Failed to create pixmap");
 
         if !transparent {
-            // Fill with light gray background (figure background)
+            // Fill with figure background color
             let bg_paint = {
                 let mut p = tiny_skia::Paint::default();
-                p.set_color(tiny_skia::Color::from_rgba8(240, 240, 240, 255));
+                p.set_color(self.bg_color.to_tiny_skia());
                 p
             };
             if let Some(rect) = tiny_skia::Rect::from_xywh(0.0, 0.0, pw as f32, ph as f32) {
@@ -1439,13 +1520,19 @@ impl RustFigure {
         if let Some(ref suptitle) = self.suptitle {
             let cx = pw as f32 / 2.0;
             let y = 10.0 * scale + self.suptitle_fontsize * scale * 0.5;
+            // Use text color from the first axes if available, otherwise black
+            let suptitle_color = if let Some(ax) = self.axes.first() {
+                ax.text_color
+            } else {
+                crate::colors::Color::new(0, 0, 0, 255)
+            };
             crate::text::draw_text(
                 &mut pixmap,
                 suptitle,
                 cx,
                 y,
                 self.suptitle_fontsize * scale,
-                crate::colors::Color::new(0, 0, 0, 255),
+                suptitle_color,
                 crate::text::TextAnchorX::Center,
                 crate::text::TextAnchorY::Center,
                 0.0,

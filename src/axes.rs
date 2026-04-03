@@ -37,6 +37,24 @@ pub enum AspectRatio {
     Equal,
 }
 
+/// Tick direction.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TickDirection {
+    Out,
+    In,
+    InOut,
+}
+
+impl TickDirection {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "in" => TickDirection::In,
+            "inout" => TickDirection::InOut,
+            _ => TickDirection::Out,
+        }
+    }
+}
+
 /// Tab10 color palette (same as matplotlib's default).
 const TAB10: [(u8, u8, u8); 10] = [
     (31, 119, 180),   // blue
@@ -123,6 +141,19 @@ pub struct Axes {
     pub span_regions: Vec<SpanRegion>,
     pub polar: bool,
     pub twin_axes: Option<Box<Axes>>,
+    // Style fields
+    pub bg_color: Color,
+    pub tick_color: Color,
+    pub text_color: Color,
+    // Spine customization
+    pub spine_visible: [bool; 4], // [top, right, bottom, left]
+    pub spine_color: Color,
+    pub spine_linewidth: f32,
+    // Tick params
+    pub tick_direction: TickDirection,
+    pub tick_length: f32,
+    pub tick_width: f32,
+    pub tick_label_size: f32,
 }
 
 impl Axes {
@@ -160,6 +191,16 @@ impl Axes {
             span_regions: Vec::new(),
             polar: false,
             twin_axes: None,
+            bg_color: Color::new(255, 255, 255, 255),
+            tick_color: Color::new(0, 0, 0, 255),
+            text_color: Color::new(0, 0, 0, 255),
+            spine_visible: [true, true, true, true],
+            spine_color: Color::new(0, 0, 0, 255),
+            spine_linewidth: 1.0,
+            tick_direction: TickDirection::Out,
+            tick_length: 5.0,
+            tick_width: 1.0,
+            tick_label_size: 10.0,
         }
     }
 
@@ -598,11 +639,11 @@ impl Axes {
         let tick_ymin = ymin_abs;
         let tick_ymax = ymax_abs;
 
-        // 1. Draw white background
+        // 1. Draw background
         if self.axes_visible {
             if let Some(rect) = Rect::from_xywh(left, top, right - left, bottom - top) {
                 let mut bg_paint = Paint::default();
-                bg_paint.set_color(tiny_skia::Color::from_rgba8(255, 255, 255, 255));
+                bg_paint.set_color(self.bg_color.to_tiny_skia());
                 pixmap.fill_rect(rect, &bg_paint, ts, None);
             }
         }
@@ -773,15 +814,50 @@ impl Axes {
         }
 
         if self.axes_visible {
-            // 4. Draw axes border
-            if let Some(rect) = Rect::from_xywh(left, top, right - left, bottom - top) {
-                let border_path = PathBuilder::from_rect(rect);
-                let mut border_paint = Paint::default();
-                border_paint.set_color(tiny_skia::Color::from_rgba8(0, 0, 0, 255));
-                border_paint.anti_alias = true;
-                let mut stroke = Stroke::default();
-                stroke.width = 1.0;
-                pixmap.stroke_path(&border_path, &border_paint, &stroke, ts, None);
+            // 4. Draw spines (individual axis borders)
+            {
+                let mut spine_paint = Paint::default();
+                spine_paint.set_color(self.spine_color.to_tiny_skia());
+                spine_paint.anti_alias = true;
+                let mut spine_stroke = Stroke::default();
+                spine_stroke.width = self.spine_linewidth;
+
+                // bottom spine
+                if self.spine_visible[2] {
+                    let mut pb = PathBuilder::new();
+                    pb.move_to(left, bottom);
+                    pb.line_to(right, bottom);
+                    if let Some(path) = pb.finish() {
+                        pixmap.stroke_path(&path, &spine_paint, &spine_stroke, ts, None);
+                    }
+                }
+                // top spine
+                if self.spine_visible[0] {
+                    let mut pb = PathBuilder::new();
+                    pb.move_to(left, top);
+                    pb.line_to(right, top);
+                    if let Some(path) = pb.finish() {
+                        pixmap.stroke_path(&path, &spine_paint, &spine_stroke, ts, None);
+                    }
+                }
+                // left spine
+                if self.spine_visible[3] {
+                    let mut pb = PathBuilder::new();
+                    pb.move_to(left, top);
+                    pb.line_to(left, bottom);
+                    if let Some(path) = pb.finish() {
+                        pixmap.stroke_path(&path, &spine_paint, &spine_stroke, ts, None);
+                    }
+                }
+                // right spine
+                if self.spine_visible[1] {
+                    let mut pb = PathBuilder::new();
+                    pb.move_to(right, top);
+                    pb.line_to(right, bottom);
+                    if let Some(path) = pb.finish() {
+                        pixmap.stroke_path(&path, &spine_paint, &spine_stroke, ts, None);
+                    }
+                }
             }
 
             // 5. Draw tick marks and labels
@@ -791,15 +867,22 @@ impl Axes {
             let y_ticks: Vec<f64> = if log_y { y_ticks_data.clone() } else {
                 self.custom_yticks.clone().unwrap_or_else(|| compute_auto_ticks(tick_ymin, tick_ymax, 8))
             };
-            let tick_len = 5.0_f32;
-            let tick_color = Color::new(0, 0, 0, 255);
+            let tick_len = self.tick_length;
+            let tick_color = self.tick_color;
 
             let mut tick_paint = Paint::default();
-            tick_paint.set_color(tiny_skia::Color::from_rgba8(0, 0, 0, 255));
+            tick_paint.set_color(tick_color.to_tiny_skia());
             tick_paint.anti_alias = true;
 
             let mut tick_stroke = Stroke::default();
-            tick_stroke.width = 1.0;
+            tick_stroke.width = self.tick_width;
+
+            // Compute tick offsets based on direction
+            let (tick_out, tick_in) = match self.tick_direction {
+                TickDirection::Out => (tick_len, 0.0_f32),
+                TickDirection::In => (0.0_f32, tick_len),
+                TickDirection::InOut => (tick_len, tick_len),
+            };
 
             // X ticks
             for (i, &tx) in x_ticks.iter().enumerate() {
@@ -808,8 +891,8 @@ impl Axes {
 
                 // Tick mark
                 let mut pb = PathBuilder::new();
-                pb.move_to(px, bottom);
-                pb.line_to(px, bottom + tick_len);
+                pb.move_to(px, bottom - tick_in);
+                pb.line_to(px, bottom + tick_out);
                 if let Some(path) = pb.finish() {
                     pixmap.stroke_path(&path, &tick_paint, &tick_stroke, ts, None);
                 }
@@ -826,8 +909,8 @@ impl Axes {
                     pixmap,
                     &label,
                     px,
-                    bottom + tick_len + 2.0,
-                    self.tick_size,
+                    bottom + tick_out + 2.0,
+                    self.tick_label_size,
                     tick_color,
                     TextAnchorX::Center,
                     TextAnchorY::Top,
@@ -842,8 +925,8 @@ impl Axes {
 
                 // Tick mark
                 let mut pb = PathBuilder::new();
-                pb.move_to(left, py);
-                pb.line_to(left - tick_len, py);
+                pb.move_to(left + tick_in, py);
+                pb.line_to(left - tick_out, py);
                 if let Some(path) = pb.finish() {
                     pixmap.stroke_path(&path, &tick_paint, &tick_stroke, ts, None);
                 }
@@ -859,9 +942,9 @@ impl Axes {
                 draw_text(
                     pixmap,
                     &label,
-                    left - tick_len - 3.0,
+                    left - tick_out - 3.0,
                     py,
-                    self.tick_size,
+                    self.tick_label_size,
                     tick_color,
                     TextAnchorX::Right,
                     TextAnchorY::Center,
@@ -876,9 +959,9 @@ impl Axes {
                     pixmap,
                     xlabel,
                     cx,
-                    bottom + tick_len + self.tick_size + 10.0,
+                    bottom + tick_out + self.tick_label_size + 10.0,
                     self.label_size,
-                    tick_color,
+                    self.text_color,
                     TextAnchorX::Center,
                     TextAnchorY::Top,
                     0.0,
@@ -891,10 +974,10 @@ impl Axes {
                 draw_text(
                     pixmap,
                     ylabel,
-                    left - tick_len - 35.0,
+                    left - tick_out - 35.0,
                     cy,
                     self.label_size,
-                    tick_color,
+                    self.text_color,
                     TextAnchorX::Center,
                     TextAnchorY::Center,
                     -std::f32::consts::FRAC_PI_2,
@@ -905,14 +988,13 @@ impl Axes {
         // 6. Draw title (always, even with axes off)
         if let Some(ref title) = self.title {
             let cx = (left + right) / 2.0;
-            let tick_color = Color::new(0, 0, 0, 255);
             draw_text(
                 pixmap,
                 title,
                 cx,
                 top - 8.0,
                 self.title_size,
-                tick_color,
+                self.text_color,
                 TextAnchorX::Center,
                 TextAnchorY::Bottom,
                 0.0,
@@ -1342,5 +1424,49 @@ impl Axes {
     /// Set axis visibility.
     pub fn set_axis_visible(&mut self, visible: bool) {
         self.axes_visible = visible;
+    }
+
+    /// Set tick parameters.
+    pub fn set_tick_params(&mut self, direction: &str, length: f32, width: f32, labelsize: f32) {
+        self.tick_direction = TickDirection::from_str(direction);
+        self.tick_length = length;
+        self.tick_width = width;
+        self.tick_label_size = labelsize;
+    }
+
+    /// Set spine visibility.
+    pub fn set_spine_visible(&mut self, which: &str, visible: bool) {
+        match which {
+            "top" => self.spine_visible[0] = visible,
+            "right" => self.spine_visible[1] = visible,
+            "bottom" => self.spine_visible[2] = visible,
+            "left" => self.spine_visible[3] = visible,
+            _ => {}
+        }
+    }
+
+    /// Set background color.
+    pub fn set_bg_color(&mut self, color: Color) {
+        self.bg_color = color;
+    }
+
+    /// Set text color for title and labels.
+    pub fn set_text_color(&mut self, color: Color) {
+        self.text_color = color;
+    }
+
+    /// Set tick color.
+    pub fn set_tick_color(&mut self, color: Color) {
+        self.tick_color = color;
+    }
+
+    /// Set spine color.
+    pub fn set_spine_color(&mut self, color: Color) {
+        self.spine_color = color;
+    }
+
+    /// Set spine linewidth.
+    pub fn set_spine_linewidth(&mut self, lw: f32) {
+        self.spine_linewidth = lw;
     }
 }
