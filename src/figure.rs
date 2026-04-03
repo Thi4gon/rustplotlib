@@ -223,24 +223,36 @@ impl RustFigure {
         Ok(())
     }
 
-    fn axes_set_title(&mut self, ax_id: usize, title: String) -> PyResult<()> {
+    #[pyo3(signature = (ax_id, title, fontsize=None))]
+    fn axes_set_title(&mut self, ax_id: usize, title: String, fontsize: Option<f32>) -> PyResult<()> {
         let ax = self.axes.get_mut(ax_id)
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
         ax.title = Some(title);
+        if let Some(fs) = fontsize {
+            ax.title_size = fs;
+        }
         Ok(())
     }
 
-    fn axes_set_xlabel(&mut self, ax_id: usize, label: String) -> PyResult<()> {
+    #[pyo3(signature = (ax_id, label, fontsize=None))]
+    fn axes_set_xlabel(&mut self, ax_id: usize, label: String, fontsize: Option<f32>) -> PyResult<()> {
         let ax = self.axes.get_mut(ax_id)
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
         ax.xlabel = Some(label);
+        if let Some(fs) = fontsize {
+            ax.label_size = fs;
+        }
         Ok(())
     }
 
-    fn axes_set_ylabel(&mut self, ax_id: usize, label: String) -> PyResult<()> {
+    #[pyo3(signature = (ax_id, label, fontsize=None))]
+    fn axes_set_ylabel(&mut self, ax_id: usize, label: String, fontsize: Option<f32>) -> PyResult<()> {
         let ax = self.axes.get_mut(ax_id)
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
         ax.ylabel = Some(label);
+        if let Some(fs) = fontsize {
+            ax.label_size = fs;
+        }
         Ok(())
     }
 
@@ -308,6 +320,12 @@ impl RustFigure {
                 .map_err(|e| pyo3::exceptions::PyIOError::new_err(format!("Failed to write PNG: {}", e)))?;
         }
         Ok(())
+    }
+
+    fn show(&self) -> PyResult<()> {
+        let pixmap = self.render_pixmap();
+        crate::window::show_pixmap(&pixmap)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
     }
 }
 

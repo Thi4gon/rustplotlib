@@ -7,6 +7,7 @@ mod figure;
 mod text;
 mod ticker;
 mod transforms;
+mod window;
 
 #[pymodule]
 fn _rustplot(m: &Bound<'_, PyModule>) -> PyResult<()> {
