@@ -52,14 +52,26 @@ impl Artist for Line2D {
 
         let ts = tiny_skia::Transform::identity();
 
-        // Draw line segments if linestyle is not None
+        // Draw line segments if linestyle is not None (with NaN gap handling)
         if self.linestyle != LineStyle::None && n >= 2 {
             let mut pb = PathBuilder::new();
-            let (px, py) = transform.transform_xy(self.x[0], self.y[0]);
-            pb.move_to(px, py);
-            for i in 1..n {
-                let (px, py) = transform.transform_xy(self.x[i], self.y[i]);
-                pb.line_to(px, py);
+            let mut in_path = false;
+            for i in 0..n {
+                let x = self.x[i];
+                let y = self.y[i];
+
+                if x.is_nan() || y.is_nan() || x.is_infinite() || y.is_infinite() {
+                    in_path = false;
+                    continue;
+                }
+
+                let (px, py) = transform.transform_xy(x, y);
+                if !in_path {
+                    pb.move_to(px, py);
+                    in_path = true;
+                } else {
+                    pb.line_to(px, py);
+                }
             }
             if let Some(path) = pb.finish() {
                 let mut stroke = Stroke::default();
@@ -69,12 +81,17 @@ impl Artist for Line2D {
             }
         }
 
-        // Draw markers (respecting marker_every)
+        // Draw markers (respecting marker_every, skipping NaN/infinite points)
         if self.marker != MarkerStyle::None {
             let every = self.marker_every.max(1);
             for i in 0..n {
                 if i % every == 0 {
-                    let (px, py) = transform.transform_xy(self.x[i], self.y[i]);
+                    let x = self.x[i];
+                    let y = self.y[i];
+                    if x.is_nan() || y.is_nan() || x.is_infinite() || y.is_infinite() {
+                        continue;
+                    }
+                    let (px, py) = transform.transform_xy(x, y);
                     draw_marker(pixmap, self.marker, px, py, self.marker_size, self.color, self.alpha);
                 }
             }
@@ -91,10 +108,18 @@ impl Artist for Line2D {
         let mut ymin = f64::MAX;
         let mut ymax = f64::MIN;
         for i in 0..n {
-            if self.x[i] < xmin { xmin = self.x[i]; }
-            if self.x[i] > xmax { xmax = self.x[i]; }
-            if self.y[i] < ymin { ymin = self.y[i]; }
-            if self.y[i] > ymax { ymax = self.y[i]; }
+            let x = self.x[i];
+            let y = self.y[i];
+            if x.is_nan() || y.is_nan() || x.is_infinite() || y.is_infinite() {
+                continue;
+            }
+            if x < xmin { xmin = x; }
+            if x > xmax { xmax = x; }
+            if y < ymin { ymin = y; }
+            if y > ymax { ymax = y; }
+        }
+        if xmin == f64::MAX {
+            return (0.0, 1.0, 0.0, 1.0);
         }
         (xmin, xmax, ymin, ymax)
     }

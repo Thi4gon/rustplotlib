@@ -6,5 +6,14 @@ from rustplotlib import gridspec
 from rustplotlib import cycler
 from rustplotlib import animation
 from rustplotlib import widgets
+from rustplotlib import dates
+from rustplotlib import backends
 
-__all__ = ["pyplot", "style", "colors", "gridspec", "cycler", "animation", "widgets", "__version__"]
+__all__ = ["pyplot", "style", "colors", "gridspec", "cycler", "animation", "widgets",
+           "dates", "backends", "__version__"]
+
+
+def use(backend):
+    """Set the rendering backend (compatibility stub)."""
+    from rustplotlib import backends
+    backends._current_backend = backend.lower()

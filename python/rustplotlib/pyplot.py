@@ -63,6 +63,12 @@ class AxesProxy:
 
     def plot(self, *args, **kwargs):
         x, y, kwargs = _parse_plot_args(*args, **kwargs)
+        # Handle categorical (string) x values
+        if x and isinstance(x[0], str):
+            positions, labels = _handle_categorical(x)
+            x = [float(p) for p in positions]
+            self._fig.axes_set_xticks(self._id, x)
+            self._fig.axes_set_xticklabels(self._id, labels)
         self._fig.axes_plot(self._id, x, y, kwargs)
         return self
 
@@ -79,7 +85,14 @@ class AxesProxy:
         return self
 
     def bar(self, x, height, width=0.8, bottom=None, color=None, label=None, alpha=1.0, **kwargs):
-        x, height = _to_list(x), _to_list(height)
+        # Handle categorical (string) x values
+        cat_labels = None
+        if x and isinstance(x[0], str):
+            positions, cat_labels = _handle_categorical(x)
+            x = [float(p) for p in positions]
+        else:
+            x = _to_list(x)
+        height = _to_list(height)
         kw = {"width": width, "alpha": alpha}
         if color is not None:
             kw["color"] = color
@@ -87,6 +100,9 @@ class AxesProxy:
             kw["label"] = label
         if bottom is not None:
             kw["bottom"] = float(bottom)
+        if cat_labels is not None:
+            self._fig.axes_set_xticks(self._id, x)
+            self._fig.axes_set_xticklabels(self._id, cat_labels)
         self._fig.axes_bar(self._id, x, height, kw)
         return self
 
@@ -741,6 +757,16 @@ class FigureProxy:
 
 
 def _to_list(data):
+    # Handle pandas Series/Index
+    try:
+        import pandas as pd
+        if isinstance(data, pd.Series):
+            return data.astype(float).tolist()
+        if isinstance(data, pd.Index):
+            return data.astype(float).tolist()
+    except ImportError:
+        pass
+
     if isinstance(data, np.ndarray):
         return data.astype(float).flatten().tolist()
     if isinstance(data, (list, tuple)):
@@ -749,6 +775,12 @@ def _to_list(data):
 
 
 def _to_2d_list(data):
+    try:
+        import pandas as pd
+        if isinstance(data, pd.DataFrame):
+            return data.values.astype(float).tolist()
+    except ImportError:
+        pass
     if isinstance(data, np.ndarray):
         return data.astype(float).tolist()
     return [[float(v) for v in row] for row in data]
@@ -772,6 +804,13 @@ def _parse_contour_args(*args):
         raise ValueError("contour requires 1 or 3 positional arguments: contour(Z) or contour(X, Y, Z)")
 
 
+def _is_string_sequence(data):
+    """Check if data is a sequence of strings (categorical data)."""
+    if isinstance(data, (list, tuple)) and data and isinstance(data[0], str):
+        return True
+    return False
+
+
 def _parse_plot_args(*args, **kwargs):
     """Parse matplotlib-style plot arguments: plot(y), plot(x, y), plot(x, y, fmt)."""
     x = None
@@ -784,15 +823,23 @@ def _parse_plot_args(*args, **kwargs):
         y = _to_list(plain_args[0])
         x = list(range(len(y)))
     elif len(plain_args) == 2:
-        if isinstance(plain_args[1], str):
+        if isinstance(plain_args[1], str) and not _is_string_sequence(plain_args):
             y = _to_list(plain_args[0])
             x = list(range(len(y)))
             fmt = plain_args[1]
         else:
-            x = _to_list(plain_args[0])
+            # Keep string x values as-is for categorical handling
+            if _is_string_sequence(plain_args[0]):
+                x = list(plain_args[0])
+            else:
+                x = _to_list(plain_args[0])
             y = _to_list(plain_args[1])
     elif len(plain_args) >= 3:
-        x = _to_list(plain_args[0])
+        # Keep string x values as-is for categorical handling
+        if _is_string_sequence(plain_args[0]):
+            x = list(plain_args[0])
+        else:
+            x = _to_list(plain_args[0])
         y = _to_list(plain_args[1])
         if isinstance(plain_args[2], str):
             fmt = plain_args[2]
@@ -800,8 +847,9 @@ def _parse_plot_args(*args, **kwargs):
     if fmt:
         _parse_fmt(fmt, kwargs)
 
-    # Ensure x values are float for Rust
-    x = [float(v) for v in x]
+    # Ensure x values are float for Rust (skip if categorical strings)
+    if not (x and isinstance(x[0], str)):
+        x = [float(v) for v in x]
 
     return x, y, kwargs
 
@@ -1123,3 +1171,23 @@ def close(*args):
     global _current_figure, _current_axes_id
     _current_figure = None
     _current_axes_id = None
+
+
+def switch_backend(backend):
+    """Switch rendering backend (compatibility stub)."""
+    from rustplotlib import backends
+    backends._current_backend = backend.lower()
+
+
+# Also support matplotlib.use() pattern
+def use(backend):
+    switch_backend(backend)
+
+
+def _handle_categorical(data):
+    """Convert string data to numeric positions + tick labels."""
+    if data and isinstance(data[0], str):
+        labels = list(data)
+        positions = list(range(len(labels)))
+        return positions, labels
+    return _to_list(data), None
