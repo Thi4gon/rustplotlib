@@ -22,6 +22,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Build and test
         run: |
+          python -m venv .venv
+          source .venv/bin/activate
           pip install maturin numpy pytest
           maturin develop
           pytest tests/ -v --ignore=tests/test_benchmark.py
