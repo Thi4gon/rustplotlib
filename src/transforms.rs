@@ -4,14 +4,14 @@ use pyo3::prelude::*;
 #[pyclass]
 #[derive(Debug, Clone)]
 pub struct Transform {
-    data_xmin: f64,
-    data_xmax: f64,
-    data_ymin: f64,
-    data_ymax: f64,
-    pixel_left: f64,
-    pixel_right: f64,
-    pixel_top: f64,
-    pixel_bottom: f64,
+    pub data_xmin: f64,
+    pub data_xmax: f64,
+    pub data_ymin: f64,
+    pub data_ymax: f64,
+    pub pixel_left: f64,
+    pub pixel_right: f64,
+    pub pixel_top: f64,
+    pub pixel_bottom: f64,
 }
 
 #[pymethods]
