@@ -124,6 +124,63 @@ class AxesProxy:
             kw['color'] = kwargs['color']
         self._fig.axes_text(self._id, float(x), float(y), str(s), kw)
 
+    def fill_between(self, x, y1, y2=0, alpha=0.3, color=None, label=None, **kwargs):
+        x = _to_list(x)
+        y1 = _to_list(y1)
+        if isinstance(y2, (int, float)):
+            y2 = [float(y2)] * len(x)
+        else:
+            y2 = _to_list(y2)
+        kw = {"alpha": float(alpha)}
+        if color is not None:
+            kw["color"] = color
+        if label is not None:
+            kw["label"] = label
+        self._fig.axes_fill_between(self._id, x, y1, y2, kw)
+        return self
+
+    def step(self, x, y, color=None, linewidth=None, linestyle=None,
+             label=None, alpha=None, **kwargs):
+        x, y = _to_list(x), _to_list(y)
+        where_style = kwargs.pop("where", "pre")
+        kw = {"where": where_style}
+        if color is not None:
+            kw["color"] = color
+        if linewidth is not None:
+            kw["linewidth"] = float(linewidth)
+        if linestyle is not None:
+            kw["linestyle"] = linestyle
+        if label is not None:
+            kw["label"] = label
+        if alpha is not None:
+            kw["alpha"] = float(alpha)
+        self._fig.axes_step(self._id, x, y, kw)
+        return self
+
+    def pie(self, sizes, labels=None, colors=None, startangle=90, **kwargs):
+        sizes = _to_list(sizes)
+        kw = {"startangle": float(startangle)}
+        if labels is not None:
+            kw["labels"] = list(labels)
+        if colors is not None:
+            kw["colors"] = list(colors)
+        self._fig.axes_pie(self._id, sizes, kw)
+        return self
+
+    def axhline(self, y=0, color=None, linestyle="--", linewidth=1.0, alpha=1.0, **kwargs):
+        kw = {"linestyle": linestyle, "linewidth": float(linewidth), "alpha": float(alpha)}
+        if color is not None:
+            kw["color"] = color
+        self._fig.axes_axhline(self._id, float(y), kw)
+        return self
+
+    def axvline(self, x=0, color=None, linestyle="--", linewidth=1.0, alpha=1.0, **kwargs):
+        kw = {"linestyle": linestyle, "linewidth": float(linewidth), "alpha": float(alpha)}
+        if color is not None:
+            kw["color"] = color
+        self._fig.axes_axvline(self._id, float(x), kw)
+        return self
+
     def add_patch(self, patch):
         pass  # Stub for patches.Rectangle etc.
 
@@ -301,6 +358,26 @@ def hist(x, **kwargs):
 
 def imshow(data, **kwargs):
     _gca().imshow(data, **kwargs)
+
+
+def fill_between(x, y1, y2=0, **kwargs):
+    _gca().fill_between(x, y1, y2, **kwargs)
+
+
+def step(x, y, **kwargs):
+    _gca().step(x, y, **kwargs)
+
+
+def pie(sizes, **kwargs):
+    _gca().pie(sizes, **kwargs)
+
+
+def axhline(y=0, **kwargs):
+    _gca().axhline(y, **kwargs)
+
+
+def axvline(x=0, **kwargs):
+    _gca().axvline(x, **kwargs)
 
 
 def title(text, **kwargs):

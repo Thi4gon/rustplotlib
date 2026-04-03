@@ -4,6 +4,9 @@ pub mod bar;
 pub mod hist;
 pub mod image;
 pub mod legend;
+pub mod fill_between;
+pub mod step;
+pub mod pie;
 
 use tiny_skia::{PathBuilder, StrokeDash};
 

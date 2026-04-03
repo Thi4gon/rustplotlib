@@ -6,6 +6,9 @@ use crate::artists::scatter::Scatter;
 use crate::artists::bar::Bar;
 use crate::artists::hist::Histogram;
 use crate::artists::image::Image;
+use crate::artists::fill_between::FillBetween;
+use crate::artists::step::{Step, StepWhere};
+use crate::artists::pie::PieChart;
 use crate::artists::legend::draw_legend;
 use crate::artists::{LineStyle, MarkerStyle};
 use crate::colors::Color;
@@ -36,6 +39,16 @@ pub struct TextAnnotation {
     pub color: Color,
 }
 
+/// A reference line (axhline / axvline).
+pub struct RefLine {
+    pub horizontal: bool, // true = axhline, false = axvline
+    pub value: f64,
+    pub color: Color,
+    pub linestyle: LineStyle,
+    pub linewidth: f32,
+    pub alpha: f32,
+}
+
 pub struct Axes {
     artists: Vec<Box<dyn Artist>>,
     pub title: Option<String>,
@@ -54,6 +67,7 @@ pub struct Axes {
     pub label_size: f32,
     pub tick_size: f32,
     pub texts: Vec<TextAnnotation>,
+    pub ref_lines: Vec<RefLine>,
 }
 
 impl Axes {
@@ -76,6 +90,7 @@ impl Axes {
             label_size: 12.0,
             tick_size: 10.0,
             texts: Vec::new(),
+            ref_lines: Vec::new(),
         }
     }
 
@@ -178,6 +193,100 @@ impl Axes {
         self.artists.push(Box::new(img));
     }
 
+    /// Add a fill_between area.
+    pub fn fill_between(
+        &mut self,
+        x: Vec<f64>,
+        y1: Vec<f64>,
+        y2: Vec<f64>,
+        color: Option<Color>,
+        alpha: Option<f32>,
+        label: Option<String>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let a = alpha.unwrap_or(0.3);
+        let mut fb = FillBetween::new(x, y1, y2, c, a);
+        fb.label = label;
+        self.artists.push(Box::new(fb));
+    }
+
+    /// Add a step plot.
+    pub fn step(
+        &mut self,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        color: Option<Color>,
+        linewidth: Option<f32>,
+        linestyle: Option<&str>,
+        label: Option<String>,
+        alpha: Option<f32>,
+        where_style: Option<&str>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let mut s = Step::new(x, y, c);
+        if let Some(lw) = linewidth { s.linewidth = lw; }
+        if let Some(ls) = linestyle { s.linestyle = LineStyle::from_str(ls); }
+        s.label = label;
+        if let Some(a) = alpha { s.alpha = a; }
+        if let Some(ws) = where_style { s.where_style = StepWhere::from_str(ws); }
+        self.artists.push(Box::new(s));
+    }
+
+    /// Add a pie chart.
+    pub fn pie(
+        &mut self,
+        sizes: Vec<f64>,
+        labels: Vec<String>,
+        colors: Vec<Color>,
+        start_angle: f32,
+    ) {
+        let pie_colors = if colors.is_empty() {
+            PieChart::default_colors(sizes.len())
+        } else {
+            colors
+        };
+        let chart = PieChart::new(sizes, labels, pie_colors, start_angle);
+        self.artists.push(Box::new(chart));
+    }
+
+    /// Add a horizontal reference line.
+    pub fn axhline(
+        &mut self,
+        y: f64,
+        color: Option<Color>,
+        linestyle: &str,
+        linewidth: f32,
+        alpha: f32,
+    ) {
+        self.ref_lines.push(RefLine {
+            horizontal: true,
+            value: y,
+            color: color.unwrap_or(Color::new(0, 0, 0, 255)),
+            linestyle: LineStyle::from_str(linestyle),
+            linewidth,
+            alpha,
+        });
+    }
+
+    /// Add a vertical reference line.
+    pub fn axvline(
+        &mut self,
+        x: f64,
+        color: Option<Color>,
+        linestyle: &str,
+        linewidth: f32,
+        alpha: f32,
+    ) {
+        self.ref_lines.push(RefLine {
+            horizontal: false,
+            value: x,
+            color: color.unwrap_or(Color::new(0, 0, 0, 255)),
+            linestyle: LineStyle::from_str(linestyle),
+            linewidth,
+            alpha,
+        });
+    }
+
     /// Compute the combined data bounds from all artists with 5% margin.
     fn compute_bounds(&self) -> (f64, f64, f64, f64) {
         let mut xmin = f64::MAX;
@@ -269,6 +378,33 @@ impl Axes {
                 if let Some(path) = pb.finish() {
                     pixmap.stroke_path(&path, &grid_paint, &grid_stroke, ts, None);
                 }
+            }
+        }
+
+        // 2b. Draw reference lines (axhline / axvline)
+        for rl in &self.ref_lines {
+            let mut rl_color = rl.color;
+            rl_color.a = (rl.alpha * 255.0) as u8;
+            let mut rl_paint = Paint::default();
+            rl_paint.set_color(rl_color.to_tiny_skia());
+            rl_paint.anti_alias = true;
+
+            let mut rl_stroke = Stroke::default();
+            rl_stroke.width = rl.linewidth;
+            rl_stroke.dash = rl.linestyle.to_dash(rl.linewidth);
+
+            let mut pb = PathBuilder::new();
+            if rl.horizontal {
+                let (_, py) = transform.transform_xy(xmin, rl.value);
+                pb.move_to(left, py);
+                pb.line_to(right, py);
+            } else {
+                let (px, _) = transform.transform_xy(rl.value, ymin);
+                pb.move_to(px, top);
+                pb.line_to(px, bottom);
+            }
+            if let Some(path) = pb.finish() {
+                pixmap.stroke_path(&path, &rl_paint, &rl_stroke, ts, None);
             }
         }
 
