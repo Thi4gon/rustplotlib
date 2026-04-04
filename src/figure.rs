@@ -1885,6 +1885,39 @@ impl RustFigure {
         Ok(())
     }
 
+    fn axes_add_line_collection(
+        &mut self,
+        ax_id: usize,
+        segments: Vec<Vec<(f64, f64)>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            v.extract::<String>().ok()
+        } else { None };
+
+        let zorder = if let Some(v) = kwargs.get_item("zorder")? {
+            Some(v.extract::<i32>()?)
+        } else { None };
+
+        ax.add_line_collection(segments, color, None, linewidth, None, alpha, label, zorder);
+        Ok(())
+    }
+
     fn axes_fancy_arrow(
         &mut self,
         ax_id: usize,

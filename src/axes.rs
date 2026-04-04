@@ -17,6 +17,7 @@ use crate::artists::pcolormesh::PColorMesh;
 use crate::artists::sankey::Sankey;
 use crate::artists::arrow::Arrow;
 use crate::artists::fancy_arrow::{FancyArrow, ArrowStyle, ConnectionStyle};
+use crate::artists::line_collection::LineCollection;
 use crate::artists::step::{Step, StepWhere};
 use crate::artists::pie::PieChart;
 use crate::artists::errorbar::ErrorBar;
@@ -3126,6 +3127,29 @@ impl Axes {
         fa.label = label;
         if let Some(z) = zorder { fa.zorder = z; }
         self.artists.push(Box::new(fa));
+    }
+
+    /// Add a LineCollection (batch of line segments) to the axes.
+    pub fn add_line_collection(
+        &mut self,
+        segments: Vec<Vec<(f64, f64)>>,
+        color: Option<Color>,
+        colors: Option<Vec<Color>>,
+        linewidth: Option<f32>,
+        linewidths: Option<Vec<f32>>,
+        alpha: Option<f32>,
+        label: Option<String>,
+        zorder: Option<i32>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let mut lc = LineCollection::new(segments, c);
+        if let Some(cs) = colors { lc.colors = cs; }
+        if let Some(lw) = linewidth { lc.default_linewidth = lw; }
+        if let Some(lws) = linewidths { lc.linewidths = lws; }
+        if let Some(a) = alpha { lc.alpha = a; }
+        lc.label = label;
+        if let Some(z) = zorder { lc.zorder = z; }
+        self.artists.push(Box::new(lc));
     }
 
     /// Add an infinite line through a point (axline).

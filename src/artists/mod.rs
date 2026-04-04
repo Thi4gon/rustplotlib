@@ -33,6 +33,7 @@ pub mod pcolormesh;
 pub mod sankey;
 pub mod arrow;
 pub mod fancy_arrow;
+pub mod line_collection;
 
 use tiny_skia::{PathBuilder, StrokeDash};
 

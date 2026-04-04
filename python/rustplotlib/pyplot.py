@@ -912,6 +912,31 @@ class AxesProxy:
     def invert_yaxis(self):
         self._fig.axes_invert_yaxis(self._id)
 
+    def add_collection(self, collection):
+        """Add a collection (LineCollection, PatchCollection) to the axes via Rust."""
+        from rustplotlib.collections import LineCollection, PatchCollection
+        if isinstance(collection, LineCollection):
+            # Convert segments to list of list of (f64, f64)
+            segments = []
+            for seg in collection.segments:
+                pts = [(float(p[0]), float(p[1])) for p in seg]
+                segments.append(pts)
+            kw = {}
+            if collection._color is not None:
+                kw['color'] = collection._color
+            if collection._linewidth is not None:
+                kw['linewidth'] = float(collection._linewidth)
+            if collection._alpha is not None:
+                kw['alpha'] = float(collection._alpha)
+            if collection._label is not None:
+                kw['label'] = str(collection._label)
+            self._fig.axes_add_line_collection(self._id, segments, kw)
+        elif isinstance(collection, PatchCollection):
+            # Render each patch individually
+            for patch in collection.patches:
+                self.add_patch(patch)
+        return collection
+
     def add_patch(self, patch):
         """Add a patch object (Rectangle, Circle, Polygon, FancyArrowPatch) to the axes."""
         from rustplotlib.patches import Rectangle, Circle, Polygon, FancyArrowPatch

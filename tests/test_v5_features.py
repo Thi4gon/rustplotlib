@@ -146,6 +146,118 @@ class TestNewColormaps:
                 os.unlink(f.name)
 
 
+class TestLineCollection:
+    """Test LineCollection rendered via Rust."""
+
+    def test_basic_line_collection(self):
+        import rustplotlib.pyplot as plt
+        from rustplotlib.collections import LineCollection
+        import numpy as np
+
+        segments = [[(0, 0), (1, 1), (2, 0)], [(0, 1), (1, 2), (2, 1)]]
+        lc = LineCollection(segments, color='red', linewidth=2)
+        fig, ax = plt.subplots()
+        ax.add_collection(lc)
+        ax.set_xlim(-0.5, 2.5)
+        ax.set_ylim(-0.5, 2.5)
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            plt.savefig(f.name)
+            assert os.path.getsize(f.name) > 0
+            os.unlink(f.name)
+
+    def test_many_segments(self):
+        import rustplotlib.pyplot as plt
+        from rustplotlib.collections import LineCollection
+        import numpy as np
+
+        segments = []
+        for i in range(50):
+            x = np.linspace(0, 5, 30)
+            y = np.sin(x + i * 0.2)
+            segments.append(list(zip(x.tolist(), y.tolist())))
+
+        lc = LineCollection(segments, color='blue', alpha=0.5)
+        fig, ax = plt.subplots()
+        ax.add_collection(lc)
+        ax.set_xlim(0, 5)
+        ax.set_ylim(-2, 2)
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            plt.savefig(f.name)
+            assert os.path.getsize(f.name) > 0
+            os.unlink(f.name)
+
+    def test_line_collection_properties(self):
+        from rustplotlib.collections import LineCollection
+        lc = LineCollection([[(0, 0), (1, 1)]], color='green')
+        lc.set_linewidth(3.0)
+        assert lc._linewidth == 3.0
+        lc.set_alpha(0.7)
+        assert lc._alpha == 0.7
+        lc.set_color('red')
+        assert lc._color == 'red'
+
+    def test_patch_collection_stub(self):
+        from rustplotlib.collections import PatchCollection
+        from rustplotlib.patches import Rectangle
+        patches = [Rectangle((0, 0), 1, 1), Rectangle((2, 2), 1, 1)]
+        pc = PatchCollection(patches)
+        assert len(pc.patches) == 2
+
+    def test_rust_parse_fmt(self):
+        """Test that format string parsing is done in Rust."""
+        from rustplotlib._rustplotlib import parse_fmt
+        c, ls, m = parse_fmt('r--o')
+        assert c == 'r'
+        assert ls == '--'
+        assert m == 'o'
+
+        c, ls, m = parse_fmt('b:')
+        assert c == 'b'
+        assert ls == ':'
+
+        c, ls, m = parse_fmt('g-.')
+        assert c == 'g'
+        assert ls == '-.'
+
+    def test_rust_hit_test(self):
+        """Test hit testing in Rust."""
+        from rustplotlib._rustplotlib import hit_test_points, hit_test_line
+        # Point hit test
+        indices = hit_test_points([0.0, 5.0, 10.0], [0.0, 5.0, 10.0], 5.0, 5.0, 1.0)
+        assert 1 in indices
+
+        # No hit
+        indices = hit_test_points([0.0, 5.0], [0.0, 5.0], 100.0, 100.0, 1.0)
+        assert len(indices) == 0
+
+        # Line hit test
+        indices = hit_test_line([0.0, 10.0], [0.0, 10.0], 5.0, 5.0, 1.0)
+        assert len(indices) > 0
+
+    def test_rust_tick_formatters(self):
+        """Test tick formatting in Rust."""
+        from rustplotlib._rustplotlib import (
+            format_tick_scalar, format_tick_percent, format_tick_engineering
+        )
+        assert format_tick_scalar(42.0) == '42'
+        assert format_tick_scalar(3.14) == '3.14'
+        assert '%' in format_tick_percent(50.0, 100.0)
+        eng = format_tick_engineering(1500.0)
+        assert 'k' in eng or '1.5' in eng
+
+    def test_rust_tick_locators(self):
+        """Test tick locators in Rust."""
+        from rustplotlib._rustplotlib import tick_values_multiple, tick_values_linear
+        ticks = tick_values_multiple(0.0, 10.0, 2.0)
+        assert 2.0 in ticks
+        assert 4.0 in ticks
+
+        ticks = tick_values_linear(0.0, 1.0, 5)
+        assert len(ticks) == 5
+        assert abs(ticks[0]) < 1e-10
+        assert abs(ticks[-1] - 1.0) < 1e-10
+
+
 class TestCSSNamedColors:
     """Test CSS/X11 named colors."""
 
