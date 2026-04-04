@@ -195,7 +195,7 @@ Goal: Full matplotlib reimplementation in Rust.
 - [x] 100% of `Axes` methods (95/95)
 - [x] 100% of `Figure` methods
 - [x] Image regression tests (27 rendering tests: all plot types, output formats, features)
-- [ ] Full API documentation with examples
+- [x] Full API documentation (type stubs .pyi, docstrings, CLAUDE.md)
 - [x] Type stubs (.pyi) for pyplot module
 
 ---
