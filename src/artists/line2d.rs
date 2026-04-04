@@ -4,6 +4,7 @@ use crate::colors::Color;
 use crate::svg_renderer::{SvgRenderer, color_to_svg, linestyle_to_dash};
 use crate::transforms::Transform;
 use tiny_skia::{Paint, PathBuilder, Stroke, Pixmap};
+use std::f32::consts::PI;
 
 pub struct Line2D {
     pub x: Vec<f64>,
@@ -262,11 +263,116 @@ pub fn draw_marker_svg(
             let inner_r = r * 0.38;
             let mut pts = Vec::new();
             for i in 0..10 {
-                let angle = -std::f32::consts::FRAC_PI_2 + i as f32 * std::f32::consts::PI / 5.0;
+                let angle = -PI / 2.0 + i as f32 * PI / 5.0;
                 let radius = if i % 2 == 0 { r } else { inner_r };
                 pts.push((cx + radius * angle.cos(), cy + radius * angle.sin()));
             }
             svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::TriangleLeft => {
+            let pts = vec![
+                (cx - r, cy),
+                (cx + r, cy - r),
+                (cx + r, cy + r),
+            ];
+            svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::TriangleRight => {
+            let pts = vec![
+                (cx + r, cy),
+                (cx - r, cy - r),
+                (cx - r, cy + r),
+            ];
+            svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::Pentagon => {
+            let mut pts = Vec::new();
+            for i in 0..5usize {
+                let angle = -PI / 2.0 + i as f32 * 2.0 * PI / 5.0;
+                pts.push((cx + r * angle.cos(), cy + r * angle.sin()));
+            }
+            svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::Hexagon => {
+            let mut pts = Vec::new();
+            for i in 0..6usize {
+                let angle = -PI / 2.0 + i as f32 * 2.0 * PI / 6.0;
+                pts.push((cx + r * angle.cos(), cy + r * angle.sin()));
+            }
+            svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::HexagonFlat => {
+            let mut pts = Vec::new();
+            for i in 0..6usize {
+                let angle = i as f32 * 2.0 * PI / 6.0;
+                pts.push((cx + r * angle.cos(), cy + r * angle.sin()));
+            }
+            svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::Octagon => {
+            let start = -PI / 2.0 / 2.0;
+            let mut pts = Vec::new();
+            for i in 0..8usize {
+                let angle = start + i as f32 * 2.0 * PI / 8.0;
+                pts.push((cx + r * angle.cos(), cy + r * angle.sin()));
+            }
+            svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::VLine => {
+            svg.add_line(cx, cy - r, cx, cy + r, color, 1.5, None, opacity);
+        }
+        MarkerStyle::HLine => {
+            svg.add_line(cx - r, cy, cx + r, cy, color, 1.5, None, opacity);
+        }
+        MarkerStyle::PlusFilled => {
+            let w = r * 0.4;
+            let pts = vec![
+                (cx - w, cy - r), (cx + w, cy - r), (cx + w, cy - w),
+                (cx + r, cy - w), (cx + r, cy + w), (cx + w, cy + w),
+                (cx + w, cy + r), (cx - w, cy + r), (cx - w, cy + w),
+                (cx - r, cy + w), (cx - r, cy - w), (cx - w, cy - w),
+            ];
+            svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::CrossFilled => {
+            let w = r * 0.35;
+            let d = r * 0.707;
+            let wd = w * 0.707;
+            let pts = vec![
+                (cx, cy - wd * 2.0),
+                (cx + d - wd, cy - d + wd),
+                (cx + d + wd, cy - d - wd),
+                (cx + wd * 2.0, cy),
+                (cx + d + wd, cy + d + wd),
+                (cx + d - wd, cy + d - wd),
+                (cx, cy + wd * 2.0),
+                (cx - d + wd, cy + d - wd),
+                (cx - d - wd, cy + d + wd),
+                (cx - wd * 2.0, cy),
+                (cx - d - wd, cy - d - wd),
+                (cx - d + wd, cy - d + wd),
+            ];
+            svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::TriDown => {
+            svg.add_line(cx, cy, cx, cy + r, color, 1.5, None, opacity);
+            svg.add_line(cx, cy, cx - r * 0.866, cy - r * 0.5, color, 1.5, None, opacity);
+            svg.add_line(cx, cy, cx + r * 0.866, cy - r * 0.5, color, 1.5, None, opacity);
+        }
+        MarkerStyle::TriUp => {
+            svg.add_line(cx, cy, cx, cy - r, color, 1.5, None, opacity);
+            svg.add_line(cx, cy, cx - r * 0.866, cy + r * 0.5, color, 1.5, None, opacity);
+            svg.add_line(cx, cy, cx + r * 0.866, cy + r * 0.5, color, 1.5, None, opacity);
+        }
+        MarkerStyle::TriLeft => {
+            svg.add_line(cx, cy, cx - r, cy, color, 1.5, None, opacity);
+            svg.add_line(cx, cy, cx + r * 0.5, cy - r * 0.866, color, 1.5, None, opacity);
+            svg.add_line(cx, cy, cx + r * 0.5, cy + r * 0.866, color, 1.5, None, opacity);
+        }
+        MarkerStyle::TriRight => {
+            svg.add_line(cx, cy, cx + r, cy, color, 1.5, None, opacity);
+            svg.add_line(cx, cy, cx - r * 0.5, cy - r * 0.866, color, 1.5, None, opacity);
+            svg.add_line(cx, cy, cx - r * 0.5, cy + r * 0.866, color, 1.5, None, opacity);
         }
     }
 }

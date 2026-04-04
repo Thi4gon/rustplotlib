@@ -138,10 +138,24 @@ pub enum MarkerStyle {
     Square,
     TriangleUp,
     TriangleDown,
+    TriangleLeft,
+    TriangleRight,
     Plus,
     Cross,
     Diamond,
     Star,
+    Pentagon,
+    Hexagon,
+    HexagonFlat,
+    Octagon,
+    VLine,
+    HLine,
+    PlusFilled,
+    CrossFilled,
+    TriDown,
+    TriUp,
+    TriLeft,
+    TriRight,
 }
 
 impl MarkerStyle {
@@ -152,10 +166,24 @@ impl MarkerStyle {
             "s" => MarkerStyle::Square,
             "^" => MarkerStyle::TriangleUp,
             "v" => MarkerStyle::TriangleDown,
+            "<" => MarkerStyle::TriangleLeft,
+            ">" => MarkerStyle::TriangleRight,
             "+" => MarkerStyle::Plus,
             "x" => MarkerStyle::Cross,
             "D" | "d" => MarkerStyle::Diamond,
             "*" => MarkerStyle::Star,
+            "p" => MarkerStyle::Pentagon,
+            "h" => MarkerStyle::Hexagon,
+            "H" => MarkerStyle::HexagonFlat,
+            "8" => MarkerStyle::Octagon,
+            "|" => MarkerStyle::VLine,
+            "_" => MarkerStyle::HLine,
+            "P" => MarkerStyle::PlusFilled,
+            "X" => MarkerStyle::CrossFilled,
+            "1" => MarkerStyle::TriDown,
+            "2" => MarkerStyle::TriUp,
+            "3" => MarkerStyle::TriLeft,
+            "4" => MarkerStyle::TriRight,
             "none" | "" => MarkerStyle::None,
             _ => MarkerStyle::None,
         }
@@ -176,6 +204,23 @@ pub fn circle_path(cx: f32, cy: f32, r: f32) -> Option<tiny_skia::Path> {
     pb.cubic_to(cx + r, cy + k, cx + k, cy + r, cx, cy + r);
     pb.cubic_to(cx - k, cy + r, cx - r, cy + k, cx - r, cy);
     pb.cubic_to(cx - r, cy - k, cx - k, cy - r, cx, cy - r);
+    pb.close();
+    pb.finish()
+}
+
+/// Build a regular polygon path with n sides centered at (cx, cy) with given radius and start angle.
+pub fn regular_polygon_path(cx: f32, cy: f32, r: f32, n: usize, start_angle: f32) -> Option<tiny_skia::Path> {
+    let mut pb = PathBuilder::new();
+    for i in 0..n {
+        let angle = start_angle + i as f32 * 2.0 * std::f32::consts::PI / n as f32;
+        let px = cx + r * angle.cos();
+        let py = cy + r * angle.sin();
+        if i == 0 {
+            pb.move_to(px, py);
+        } else {
+            pb.line_to(px, py);
+        }
+    }
     pb.close();
     pb.finish()
 }
@@ -306,6 +351,172 @@ pub fn draw_marker(
         MarkerStyle::Star => {
             if let Some(path) = star_path(cx, cy, r) {
                 pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, ts, None);
+            }
+        }
+        MarkerStyle::TriangleLeft => {
+            let mut pb = PathBuilder::new();
+            pb.move_to(cx - r, cy);
+            pb.line_to(cx + r, cy - r);
+            pb.line_to(cx + r, cy + r);
+            pb.close();
+            if let Some(path) = pb.finish() {
+                pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, ts, None);
+            }
+        }
+        MarkerStyle::TriangleRight => {
+            let mut pb = PathBuilder::new();
+            pb.move_to(cx + r, cy);
+            pb.line_to(cx - r, cy - r);
+            pb.line_to(cx - r, cy + r);
+            pb.close();
+            if let Some(path) = pb.finish() {
+                pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, ts, None);
+            }
+        }
+        MarkerStyle::Pentagon => {
+            if let Some(path) = regular_polygon_path(cx, cy, r, 5, -std::f32::consts::FRAC_PI_2) {
+                pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, ts, None);
+            }
+        }
+        MarkerStyle::Hexagon => {
+            // pointy-top hexagon
+            if let Some(path) = regular_polygon_path(cx, cy, r, 6, -std::f32::consts::FRAC_PI_2) {
+                pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, ts, None);
+            }
+        }
+        MarkerStyle::HexagonFlat => {
+            // flat-top hexagon
+            if let Some(path) = regular_polygon_path(cx, cy, r, 6, 0.0) {
+                pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, ts, None);
+            }
+        }
+        MarkerStyle::Octagon => {
+            if let Some(path) = regular_polygon_path(cx, cy, r, 8, -std::f32::consts::FRAC_PI_2 / 2.0) {
+                pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, ts, None);
+            }
+        }
+        MarkerStyle::VLine => {
+            let mut pb = PathBuilder::new();
+            pb.move_to(cx, cy - r);
+            pb.line_to(cx, cy + r);
+            if let Some(path) = pb.finish() {
+                let mut stroke = tiny_skia::Stroke::default();
+                stroke.width = 1.5;
+                pixmap.stroke_path(&path, &paint, &stroke, ts, None);
+            }
+        }
+        MarkerStyle::HLine => {
+            let mut pb = PathBuilder::new();
+            pb.move_to(cx - r, cy);
+            pb.line_to(cx + r, cy);
+            if let Some(path) = pb.finish() {
+                let mut stroke = tiny_skia::Stroke::default();
+                stroke.width = 1.5;
+                pixmap.stroke_path(&path, &paint, &stroke, ts, None);
+            }
+        }
+        MarkerStyle::PlusFilled => {
+            // Filled plus: thick cross shape (octagonal plus)
+            let w = r * 0.4; // half-width of the arms
+            let mut pb = PathBuilder::new();
+            pb.move_to(cx - w, cy - r);
+            pb.line_to(cx + w, cy - r);
+            pb.line_to(cx + w, cy - w);
+            pb.line_to(cx + r, cy - w);
+            pb.line_to(cx + r, cy + w);
+            pb.line_to(cx + w, cy + w);
+            pb.line_to(cx + w, cy + r);
+            pb.line_to(cx - w, cy + r);
+            pb.line_to(cx - w, cy + w);
+            pb.line_to(cx - r, cy + w);
+            pb.line_to(cx - r, cy - w);
+            pb.line_to(cx - w, cy - w);
+            pb.close();
+            if let Some(path) = pb.finish() {
+                pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, ts, None);
+            }
+        }
+        MarkerStyle::CrossFilled => {
+            // Filled X: rotated filled plus
+            let w = r * 0.35;
+            let d = r * 0.707;
+            let wd = w * 0.707;
+            let mut pb = PathBuilder::new();
+            pb.move_to(cx, cy - wd * 2.0);
+            pb.line_to(cx + d - wd, cy - d + wd);
+            pb.line_to(cx + d + wd, cy - d - wd);
+            pb.line_to(cx + wd * 2.0, cy);
+            pb.line_to(cx + d + wd, cy + d + wd);
+            pb.line_to(cx + d - wd, cy + d - wd);
+            pb.line_to(cx, cy + wd * 2.0);
+            pb.line_to(cx - d + wd, cy + d - wd);
+            pb.line_to(cx - d - wd, cy + d + wd);
+            pb.line_to(cx - wd * 2.0, cy);
+            pb.line_to(cx - d - wd, cy - d - wd);
+            pb.line_to(cx - d + wd, cy - d + wd);
+            pb.close();
+            if let Some(path) = pb.finish() {
+                pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, ts, None);
+            }
+        }
+        MarkerStyle::TriDown => {
+            // Center point + line going down
+            let mut pb = PathBuilder::new();
+            pb.move_to(cx, cy);
+            pb.line_to(cx, cy + r);
+            pb.move_to(cx, cy);
+            pb.line_to(cx - r * 0.866, cy - r * 0.5);
+            pb.move_to(cx, cy);
+            pb.line_to(cx + r * 0.866, cy - r * 0.5);
+            if let Some(path) = pb.finish() {
+                let mut stroke = tiny_skia::Stroke::default();
+                stroke.width = 1.5;
+                pixmap.stroke_path(&path, &paint, &stroke, ts, None);
+            }
+        }
+        MarkerStyle::TriUp => {
+            // Center point + line going up
+            let mut pb = PathBuilder::new();
+            pb.move_to(cx, cy);
+            pb.line_to(cx, cy - r);
+            pb.move_to(cx, cy);
+            pb.line_to(cx - r * 0.866, cy + r * 0.5);
+            pb.move_to(cx, cy);
+            pb.line_to(cx + r * 0.866, cy + r * 0.5);
+            if let Some(path) = pb.finish() {
+                let mut stroke = tiny_skia::Stroke::default();
+                stroke.width = 1.5;
+                pixmap.stroke_path(&path, &paint, &stroke, ts, None);
+            }
+        }
+        MarkerStyle::TriLeft => {
+            // Center point + line going left
+            let mut pb = PathBuilder::new();
+            pb.move_to(cx, cy);
+            pb.line_to(cx - r, cy);
+            pb.move_to(cx, cy);
+            pb.line_to(cx + r * 0.5, cy - r * 0.866);
+            pb.move_to(cx, cy);
+            pb.line_to(cx + r * 0.5, cy + r * 0.866);
+            if let Some(path) = pb.finish() {
+                let mut stroke = tiny_skia::Stroke::default();
+                stroke.width = 1.5;
+                pixmap.stroke_path(&path, &paint, &stroke, ts, None);
+            }
+        }
+        MarkerStyle::TriRight => {
+            // Center point + line going right
+            let mut pb = PathBuilder::new();
+            pb.move_to(cx, cy);
+            pb.line_to(cx + r, cy);
+            pb.move_to(cx, cy);
+            pb.line_to(cx - r * 0.5, cy - r * 0.866);
+            pb.move_to(cx, cy);
+            pb.line_to(cx - r * 0.5, cy + r * 0.866);
+            if let Some(path) = pb.finish() {
+                let mut stroke = tiny_skia::Stroke::default();
+                stroke.width = 1.5;
+                pixmap.stroke_path(&path, &paint, &stroke, ts, None);
             }
         }
     }
