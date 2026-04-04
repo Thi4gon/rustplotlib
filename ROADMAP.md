@@ -196,6 +196,16 @@ Goal: Full matplotlib reimplementation in Rust.
 - [x] 100% of `Figure` methods
 - [x] Image regression tests (27 rendering tests: all plot types, output formats, features)
 - [x] Full API documentation (type stubs .pyi, docstrings, CLAUDE.md)
+- [x] All 15 image interpolation modes (hanning, hamming, hermite, kaiser, quadric, catrom, gaussian, bessel, mitchell, sinc)
+- [x] Complete TeX accents (hat, tilde, vec, dot, overline, underline, overbrace)
+- [x] TeX delimiters (left/right, langle/rangle, ceil/floor)
+- [x] 20+ additional math operators (wedge, vee, otimes, oplus, arrows, dots)
+- [x] Functional date handling (DateFormatter, AutoDateLocator, DayLocator, etc.)
+- [x] sharex/sharey axis synchronization
+- [x] indicate_inset / indicate_inset_zoom
+- [x] secondary_xaxis / secondary_yaxis
+- [x] ArtistAnimation.save() functional
+- [x] WebAgg toolbar (Pan, Zoom, Home, Save, scroll wheel)
 - [x] Type stubs (.pyi) for pyplot module
 
 ---

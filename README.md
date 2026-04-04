@@ -445,23 +445,27 @@ Contributions are welcome! This is an open-source project under the MIT license.
 4. PRs require at least 1 review before merging
 
 **Project stats:**
-- **45+ Rust source files** — 23,000+ lines of native code
-- **25 Python modules** — 4,900+ lines of API
-- **47+ plot functions** (40 2D + 7 3D)
-- **70+ colormaps** (35 base + 35 reversed)
-- **326 tests** passing
-- **22 formatters + locators** (functional)
-- **Tk interactive backend** with navigation toolbar and event system
-- **Jupyter rich display** (`_repr_png_`, `_repr_svg_`, `_repr_html_`)
-- **Event system** with `mpl_connect` / `mpl_disconnect`
-- **RGB/RGBA imshow**, bilinear interpolation, heatmap annotations
-- **Signal processing**: specgram, psd, acorr, xcorr, coherence
+- **53 Rust source files** — 30,000+ lines of native code
+- **25+ Python modules** — thin PyO3 wrappers
+- **50 plot types** (43 2D + 7 3D) — 100% of matplotlib plot types
+- **81 colormaps** + reversed = ~162 total (~95% of matplotlib)
+- **550+ tests** passing (including 27 rendering regression tests)
+- **110/110 pyplot functions**, 95/95 Axes methods, 36/36 Figure methods
+- **5 interpolation modes**: nearest, bilinear, bicubic, lanczos, spline16
+- **5 geographic projections**: Hammer, Aitoff, Mollweide, Lambert, Stereographic
+- **4 backends**: Agg, Tk (interactive), Jupyter inline, WebAgg (browser)
+- **4 output formats**: PNG, SVG, PDF (multi-page), EPS
+- **Full TeX math engine**: Greek, sub/superscript, fractions, sqrt, matrices
+- **Full transform system**: Affine2D, BlendedTransform, transData/transAxes
+- **Full event system**: mouse, keyboard, pick events with Rust hit testing
+- **Widgets**: Slider, Button, CheckButtons, RadioButtons, TextBox (Rust rendering)
+- **Layout engines**: tight layout, constrained layout, GridSpec rowspan/colspan, SubFigure
 - **Zero `unsafe` blocks**
 
-**Priority areas for contribution:**
-- Qt/GTK backends
-- Pick events, 3D mouse rotation, blitting
-- 3D mouse rotation
+**Remaining (need external dependencies):**
+- Qt/GTK/macOS backends (need PyQt5, PyGObject, PyObjC)
+- Math font rendering (need Computer Modern .ttf files)
+- Basemap coastlines (need Natural Earth shapefiles)
 - Triangulation plots (tricontour, tripcolor)
 - LaTeX math rendering
 
