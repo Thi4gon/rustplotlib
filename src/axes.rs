@@ -441,6 +441,7 @@ impl Axes {
                 "bilinear" => ImageInterpolation::Bilinear,
                 "bicubic" => ImageInterpolation::Bicubic,
                 "lanczos" => ImageInterpolation::Lanczos,
+                "spline16" | "spline" => ImageInterpolation::Spline16,
                 _ => ImageInterpolation::Nearest,
             };
         }
@@ -456,6 +457,7 @@ impl Axes {
                 "bilinear" => ImageInterpolation::Bilinear,
                 "bicubic" => ImageInterpolation::Bicubic,
                 "lanczos" => ImageInterpolation::Lanczos,
+                "spline16" | "spline" => ImageInterpolation::Spline16,
                 _ => ImageInterpolation::Nearest,
             };
         }
@@ -471,6 +473,7 @@ impl Axes {
                 "bilinear" => ImageInterpolation::Bilinear,
                 "bicubic" => ImageInterpolation::Bicubic,
                 "lanczos" => ImageInterpolation::Lanczos,
+                "spline16" | "spline" => ImageInterpolation::Spline16,
                 _ => ImageInterpolation::Nearest,
             };
         }
