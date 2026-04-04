@@ -175,29 +175,63 @@ class FigureManagerWebAgg(FigureManagerBase):
 
 
 def _generate_html():
-    """Generate the HTML page for the WebAgg viewer."""
+    """Generate the HTML page for the WebAgg viewer with toolbar."""
     return """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <title>RustPlotLib — WebAgg</title>
     <style>
+        * { box-sizing: border-box; }
         body { margin: 0; background: #1a1a2e; display: flex; justify-content: center;
                align-items: center; min-height: 100vh; font-family: system-ui; }
         #container { background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-                     padding: 8px; }
-        #figure { cursor: crosshair; }
-        #status { color: #888; font-size: 12px; padding: 4px 8px; }
+                     padding: 0; overflow: hidden; }
+        #toolbar { display: flex; gap: 4px; padding: 6px 8px; background: #f0f0f0;
+                   border-bottom: 1px solid #ccc; }
+        #toolbar button { padding: 4px 12px; border: 1px solid #aaa; border-radius: 4px;
+                          background: white; cursor: pointer; font-size: 13px; }
+        #toolbar button:hover { background: #e0e0e0; }
+        #toolbar button.active { background: #4a90d9; color: white; border-color: #3a70b9; }
+        #figure { cursor: crosshair; display: block; }
+        #status { color: #666; font-size: 12px; padding: 4px 8px; background: #f8f8f8;
+                  border-top: 1px solid #eee; }
     </style>
 </head>
 <body>
     <div id="container">
+        <div id="toolbar">
+            <button onclick="setMode('pan')" id="btn-pan">Pan</button>
+            <button onclick="setMode('zoom')" id="btn-zoom">Zoom</button>
+            <button onclick="resetView()" id="btn-home">Home</button>
+            <button onclick="saveImage()" id="btn-save">Save</button>
+        </div>
         <img id="figure" src="/figure.png" draggable="false">
-        <div id="status">Ready — click to interact</div>
+        <div id="status">Ready</div>
     </div>
     <script>
         const img = document.getElementById('figure');
         const status = document.getElementById('status');
+        let mode = null; // null, 'pan', 'zoom'
+        let dragStart = null;
+
+        function setMode(m) {
+            mode = (mode === m) ? null : m;
+            document.querySelectorAll('#toolbar button').forEach(b => b.classList.remove('active'));
+            if (mode) document.getElementById('btn-' + mode).classList.add('active');
+            img.style.cursor = mode === 'pan' ? 'grab' : mode === 'zoom' ? 'zoom-in' : 'crosshair';
+        }
+
+        function resetView() {
+            sendEvent('key_press_event', {key: 'h', x: 0, y: 0});
+        }
+
+        function saveImage() {
+            const a = document.createElement('a');
+            a.href = '/figure.png';
+            a.download = 'figure.png';
+            a.click();
+        }
 
         function sendEvent(type, data) {
             fetch('/api/event', {
@@ -205,32 +239,49 @@ def _generate_html():
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({type, ...data})
             }).then(() => {
-                // Refresh image after event
                 img.src = '/figure.png?' + Date.now();
             });
         }
 
         img.addEventListener('mousedown', e => {
             const rect = img.getBoundingClientRect();
-            sendEvent('button_press_event', {
-                x: e.clientX - rect.left, y: e.clientY - rect.top,
-                button: e.button + 1
-            });
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            dragStart = {x, y};
+            sendEvent('button_press_event', {x, y, button: e.button + 1});
         });
 
         img.addEventListener('mouseup', e => {
             const rect = img.getBoundingClientRect();
-            sendEvent('button_release_event', {
-                x: e.clientX - rect.left, y: e.clientY - rect.top,
-                button: e.button + 1
-            });
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (dragStart && mode === 'zoom') {
+                // Send zoom region
+                sendEvent('key_press_event', {key: 'zoom',
+                    x: Math.min(dragStart.x, x), y: Math.min(dragStart.y, y),
+                    x2: Math.max(dragStart.x, x), y2: Math.max(dragStart.y, y)
+                });
+            }
+
+            sendEvent('button_release_event', {x, y, button: e.button + 1});
+            dragStart = null;
         });
 
         img.addEventListener('mousemove', e => {
             const rect = img.getBoundingClientRect();
             const x = (e.clientX - rect.left).toFixed(0);
             const y = (e.clientY - rect.top).toFixed(0);
-            status.textContent = `x=${x}  y=${y}`;
+            status.textContent = `x=${x}  y=${y}` + (mode ? ` [${mode}]` : '');
+        });
+
+        img.addEventListener('wheel', e => {
+            e.preventDefault();
+            const rect = img.getBoundingClientRect();
+            sendEvent('scroll_event', {
+                x: e.clientX - rect.left, y: e.clientY - rect.top,
+                step: e.deltaY > 0 ? -1 : 1
+            });
         });
 
         document.addEventListener('keydown', e => {
