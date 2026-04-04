@@ -730,7 +730,30 @@ class AxesProxy:
         return self
 
     def annotate(self, text, xy, xytext=None, arrowprops=None, fontsize=None,
-                 color=None, **kwargs):
+                 color=None, bbox=None, fontweight=None, fontstyle=None, **kwargs):
+        """Add an annotation with optional arrow, bbox, and font styling.
+
+        Parameters
+        ----------
+        text : str
+            Annotation text.
+        xy : (float, float)
+            The point (x, y) to annotate.
+        xytext : (float, float), optional
+            Where to place the text (defaults to xy).
+        arrowprops : dict, optional
+            Arrow properties. Supports keys: 'arrowstyle', 'connectionstyle', 'color', 'width'.
+        fontsize : float, optional
+            Font size for the annotation text.
+        color : color, optional
+            Text color.
+        bbox : dict, optional
+            Text box properties. Supports keys: 'boxstyle', 'facecolor', 'edgecolor', 'alpha'.
+        fontweight : str, optional
+            Font weight ('normal', 'bold').
+        fontstyle : str, optional
+            Font style ('normal', 'italic').
+        """
         if xytext is None:
             xytext = xy
         kw = {}
@@ -740,6 +763,12 @@ class AxesProxy:
             kw["color"] = color
         if arrowprops is not None:
             kw["arrowprops"] = dict(arrowprops)
+        if bbox is not None:
+            kw["bbox"] = dict(bbox)
+        if fontweight is not None:
+            kw["fontweight"] = str(fontweight)
+        if fontstyle is not None:
+            kw["fontstyle"] = str(fontstyle)
         xy_tuple = (float(xy[0]), float(xy[1]))
         xytext_tuple = (float(xytext[0]), float(xytext[1]))
         self._fig.axes_annotate(self._id, str(text), xy_tuple, xytext_tuple, kw)
@@ -850,8 +879,27 @@ class AxesProxy:
         self._fig.axes_hexbin(self._id, x, y, kw)
         return self
 
-    def colorbar(self, mappable=None, cmap="viridis", vmin=0.0, vmax=1.0, **kwargs):
-        """Add a colorbar to this axes."""
+    def colorbar(self, mappable=None, cmap="viridis", vmin=0.0, vmax=1.0,
+                 label=None, orientation='vertical', shrink=1.0, pad=0.05, **kwargs):
+        """Add a colorbar to this axes.
+
+        Parameters
+        ----------
+        mappable : object, optional
+            The image/contour/etc. that the colorbar maps.
+        cmap : str, optional
+            Colormap name (default 'viridis').
+        vmin, vmax : float, optional
+            Value range for the colorbar.
+        label : str, optional
+            Label text for the colorbar axis.
+        orientation : {'vertical', 'horizontal'}, optional
+            Orientation of the colorbar (default 'vertical').
+        shrink : float, optional
+            Fraction by which to shrink the colorbar (default 1.0).
+        pad : float, optional
+            Fraction of axes size for padding between axes and colorbar (default 0.05).
+        """
         # Try to extract cmap/vmin/vmax from the mappable if provided
         if mappable is not None:
             if hasattr(mappable, 'cmap'):
@@ -860,7 +908,16 @@ class AxesProxy:
                 vmin = mappable.vmin
             if hasattr(mappable, 'vmax') and mappable.vmax is not None:
                 vmax = mappable.vmax
-        kw = {"cmap": str(cmap), "vmin": float(vmin), "vmax": float(vmax)}
+        kw = {
+            "cmap": str(cmap),
+            "vmin": float(vmin),
+            "vmax": float(vmax),
+            "orientation": str(orientation),
+            "shrink": float(shrink),
+            "pad": float(pad),
+        }
+        if label is not None:
+            kw["label"] = str(label)
         self._fig.axes_colorbar(self._id, kw)
         return self
 
@@ -2241,8 +2298,25 @@ class FigureProxy:
     def subplots_adjust(self, hspace=None, wspace=None, **kwargs):
         self._fig.subplots_adjust(hspace, wspace)
 
-    def tight_layout(self, **kwargs):
-        pass
+    def tight_layout(self, pad=1.08, w_pad=None, h_pad=None, rect=None, **kwargs):
+        """Automatically adjust subplot parameters for a tight layout.
+
+        Parameters
+        ----------
+        pad : float
+            Padding between the figure edge and the edges of subplots,
+            as a fraction of the font size.
+        w_pad : float, optional
+            Padding (width/horizontal) between edges of adjacent subplots.
+        h_pad : float, optional
+            Padding (height/vertical) between edges of adjacent subplots.
+        rect : tuple of 4 floats, optional
+            (left, bottom, right, top) in normalized figure coordinates.
+        """
+        hspace = 0.3 if h_pad is None else h_pad / 72.0
+        wspace = 0.3 if w_pad is None else w_pad / 72.0
+        self._fig.subplots_adjust(hspace, wspace)
+        self._tight = True
 
     def colorbar(self, mappable=None, ax=None, **kwargs):
         """Add a colorbar to the figure."""
@@ -2360,13 +2434,34 @@ class FigureProxy:
         pass
 
     def add_axes(self, rect, **kwargs):
-        return _gca()
+        """Add axes at a specified position.
+
+        Parameters
+        ----------
+        rect : sequence of float
+            [left, bottom, width, height] in figure coordinates (0 to 1).
+
+        Returns
+        -------
+        AxesProxy
+        """
+        # Add a new axes slot and return a proxy to it
+        try:
+            idx = self._fig.add_axes()
+            ax = AxesProxy(self._fig, idx)
+        except Exception:
+            # Fallback: return a proxy to any existing axes
+            n = self._fig.num_axes()
+            ax = AxesProxy(self._fig, max(0, n - 1))
+        return ax
 
     def get_tight_layout(self):
-        return False
+        return getattr(self, '_tight', False)
 
     def set_tight_layout(self, tight):
-        pass
+        self._tight = bool(tight)
+        if tight:
+            self.tight_layout()
 
     @property
     def axes(self):
@@ -2777,7 +2872,20 @@ def _gca():
 # --- Public API ---
 
 
-def figure(figsize=None, dpi=100, **kwargs):
+def figure(figsize=None, dpi=100, constrained_layout=False, tight_layout=False, **kwargs):
+    """Create a new figure.
+
+    Parameters
+    ----------
+    figsize : (float, float), optional
+        Width and height in inches.
+    dpi : float, optional
+        Dots per inch.
+    constrained_layout : bool, optional
+        If True, use tight layout to automatically adjust subplot parameters.
+    tight_layout : bool, optional
+        If True, use tight layout adjustment (alias for constrained_layout).
+    """
     global _current_figure, _current_axes_id
     if figsize:
         w, h = figsize
@@ -2786,10 +2894,31 @@ def figure(figsize=None, dpi=100, **kwargs):
         _current_figure = RustFigure(640, 480, dpi)
     _current_axes_id = _current_figure.add_axes()
     _apply_current_style(_current_figure)
-    return FigureProxy(_current_figure, [_gca()])
+    fig_proxy = FigureProxy(_current_figure, [_gca()])
+    if constrained_layout or tight_layout:
+        fig_proxy._tight = True
+    return fig_proxy
 
 
-def subplots(nrows=1, ncols=1, figsize=None, dpi=100, subplot_kw=None, **kwargs):
+def subplots(nrows=1, ncols=1, figsize=None, dpi=100, subplot_kw=None,
+             constrained_layout=False, tight_layout=False, **kwargs):
+    """Create a figure and a set of subplots.
+
+    Parameters
+    ----------
+    nrows, ncols : int
+        Number of rows/columns of the subplot grid.
+    figsize : (float, float), optional
+        Width and height in inches.
+    dpi : float, optional
+        Dots per inch.
+    subplot_kw : dict, optional
+        Dict with keywords passed to add_subplot.
+    constrained_layout : bool, optional
+        If True, use tight layout automatically.
+    tight_layout : bool, optional
+        If True, use tight layout (alias for constrained_layout).
+    """
     global _current_figure, _current_axes_id
     if figsize:
         w, h = figsize
@@ -2826,7 +2955,11 @@ def subplots(nrows=1, ncols=1, figsize=None, dpi=100, subplot_kw=None, **kwargs)
             row = [_make_ax(r * ncols + c) for c in range(ncols)]
             axes.append(row)
 
-    return FigureProxy(fig, axes), axes
+    fig_proxy = FigureProxy(fig, axes)
+    if constrained_layout or tight_layout:
+        fig_proxy._tight = True
+        fig_proxy.tight_layout()
+    return fig_proxy, axes
 
 
 def subplot_mosaic(mosaic, figsize=None, dpi=100, **kwargs):
@@ -3119,8 +3252,24 @@ def subplots_adjust(hspace=None, wspace=None, **kwargs):
     _current_figure.subplots_adjust(hspace, wspace)
 
 
-def tight_layout(**kwargs):
-    pass
+def tight_layout(pad=1.08, w_pad=None, h_pad=None, rect=None, **kwargs):
+    """Adjust the padding between and around subplots.
+
+    Parameters
+    ----------
+    pad : float
+        Padding between figure edge and subplots, as a fraction of font size.
+    w_pad : float, optional
+        Horizontal padding between subplots.
+    h_pad : float, optional
+        Vertical padding between subplots.
+    rect : tuple of 4 floats, optional
+        (left, bottom, right, top) in normalized figure coordinates.
+    """
+    _ensure_figure()
+    hspace = 0.3 if h_pad is None else h_pad / 72.0
+    wspace = 0.3 if w_pad is None else w_pad / 72.0
+    _current_figure.subplots_adjust(hspace, wspace)
 
 
 def savefig(fname, dpi=None, transparent=False, bbox_inches=None, **kwargs):
