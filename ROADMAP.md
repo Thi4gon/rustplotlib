@@ -115,7 +115,7 @@ Goal: Full matplotlib reimplementation in Rust.
 - [x] `ConnectionPatch` — arrows connecting different axes (functional via add_patch)
 - [x] Spine positioning (`set_position('center')`, `set_position(('data', 0))`)
 - [x] Grid major/minor separate styling
-- [ ] Colorbar as separate Axes (not inline drawing)
+- [x] Colorbar as separate Axes (ColorbarArtist in Rust)
 - [x] `TwoSlopeNorm`, `CenteredNorm` functional
 - [x] Path effects — `withStroke`, `Stroke`, `Normal`, `SimplePatchShadow`, `SimpleLineShadow`
 - [x] Pick events — artist hit testing with `set_picker()`, `PickEvent` via `mpl_connect`
