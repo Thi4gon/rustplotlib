@@ -109,6 +109,13 @@ impl RustFigure {
         Ok(())
     }
 
+    fn axes_set_grid_span(&mut self, ax_id: usize, row_start: usize, row_end: usize, col_start: usize, col_end: usize) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.grid_span = Some((row_start, row_end, col_start, col_end));
+        Ok(())
+    }
+
     fn setup_subplots(&mut self, nrows: usize, ncols: usize) {
         self.nrows = nrows;
         self.ncols = ncols;
@@ -3340,10 +3347,17 @@ impl RustFigure {
             let (left, top, right, bottom) = if let Some((cl, cb, cw, ch)) = ax.custom_position {
                 // Custom position: [left, bottom, width, height] in figure coordinates (0..1)
                 let l = cl as f32 * pw as f32;
-                let b = (1.0 - cb as f32 - ch as f32) * ph as f32; // flip y: bottom→top
+                let b = (1.0 - cb as f32 - ch as f32) * ph as f32;
                 let r = l + cw as f32 * pw as f32;
                 let bt = b + ch as f32 * ph as f32;
                 (l, b, r, bt)
+            } else if let Some((r0, r1, c0, c1)) = ax.grid_span {
+                // GridSpec spanning: axes covers cells [r0..r1, c0..c1]
+                let l = margin_left + c0 as f32 * (cell_w + subplot_hgap);
+                let t = margin_top + r0 as f32 * (cell_h + subplot_vgap);
+                let r = margin_left + c1 as f32 * (cell_w + subplot_hgap) - subplot_hgap + cell_w;
+                let b = margin_top + r1 as f32 * (cell_h + subplot_vgap) - subplot_vgap + cell_h;
+                (l, t, r, b)
             } else {
                 let row = idx / ncols;
                 let col = idx % ncols;

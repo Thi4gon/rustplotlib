@@ -2566,7 +2566,22 @@ class FigureProxy:
         return f'<img src="data:image/png;base64,{b64}" />'
 
     def add_subplot(self, *args, projection=None, **kwargs):
-        """Add a subplot to the figure. Supports projection='3d'."""
+        """Add a subplot to the figure. Supports projection='3d' and SubplotSpec."""
+        from rustplotlib.gridspec import SubplotSpec
+
+        # Handle SubplotSpec (GridSpec spanning)
+        if len(args) == 1 and isinstance(args[0], SubplotSpec):
+            spec = args[0]
+            gs = spec.get_gridspec()
+            nrows, ncols = gs.nrows, gs.ncols
+            self._fig.setup_subplots(nrows, ncols)
+            idx = self._fig.add_axes()
+            ax = AxesProxy(self._fig, idx)
+            # Set grid span in Rust
+            self._fig.axes_set_grid_span(idx, spec.row_start, spec.row_end,
+                                          spec.col_start, spec.col_end)
+            return ax
+
         # Parse subplot spec: add_subplot(111) or add_subplot(1, 1, 1)
         if len(args) == 1:
             spec = int(args[0])

@@ -238,6 +238,8 @@ pub struct Axes {
     pub ylabel_color: Option<Color>,
     // Custom position [left, bottom, width, height] in figure coords (0..1)
     pub custom_position: Option<(f64, f64, f64, f64)>,
+    // GridSpec spanning: (row_start, row_end, col_start, col_end)
+    pub grid_span: Option<(usize, usize, usize, usize)>,
 }
 
 /// Which grid lines to show.
@@ -323,6 +325,7 @@ impl Axes {
             xlabel_color: None,
             ylabel_color: None,
             custom_position: None,
+            grid_span: None,
         }
     }
 
