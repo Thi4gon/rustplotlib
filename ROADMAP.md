@@ -122,7 +122,8 @@ Goal: Full matplotlib reimplementation in Rust.
 
 ### Image Improvements
 - [x] Bicubic interpolation (Keys cubic kernel, scalar data)
-- [ ] Lanczos, Spline interpolation
+- [x] Lanczos interpolation (sinc-based kernel, a=3)
+- [ ] Spline interpolation
 
 ### Additional Backends
 - [ ] Qt backend (QApplication, mouse events, toolbar, save dialog)
@@ -133,8 +134,8 @@ Goal: Full matplotlib reimplementation in Rust.
 ### Interactive Features (remaining)
 - [ ] Widget visual rendering in Tk (Slider/Button draw in axes)
 - [x] Pick events (artist hit testing)
-- [ ] 3D mouse rotation
-- [ ] Blitting for fast animation updates
+- [x] 3D mouse rotation (drag to rotate azim/elev in Tk backend)
+- [x] Blitting for fast animation updates (FuncAnimation blit=True, pause/resume)
 - [ ] Interactive data cursors
 
 ---
