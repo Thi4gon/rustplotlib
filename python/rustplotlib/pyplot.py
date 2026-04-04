@@ -3046,6 +3046,67 @@ class FigureProxy:
         with open(filename, 'w') as f:
             f.write(self.to_json())
 
+    def __getstate__(self):
+        """Pickle support — serialize figure as PNG bytes."""
+        png = self._fig.render_to_png_bytes()
+        return {
+            'png': png,
+            'width': self._figwidth,
+            'height': self._figheight,
+            'json': self.to_json(),
+        }
+
+    def __setstate__(self, state):
+        """Pickle support — restore figure from saved state."""
+        from rustplotlib._rustplotlib import RustFigure
+        w = int(state.get('width', 6.4) * 100)
+        h = int(state.get('height', 4.8) * 100)
+        self._fig = RustFigure(w, h, 100)
+        self._axes = []
+        self._canvas = CanvasProxy()
+        self._canvas.figure = self
+        self._figwidth = state.get('width', 6.4)
+        self._figheight = state.get('height', 4.8)
+        self._png_cache = state.get('png', None)
+
+    def copy_to_clipboard(self):
+        """Copy the figure as PNG to the system clipboard.
+
+        Requires platform-specific support:
+        - macOS: uses pbcopy via subprocess
+        - Linux: uses xclip
+        - Windows: uses clip
+        """
+        import subprocess
+        import sys
+        import tempfile
+        import os
+
+        png_data = self._fig.render_to_png_bytes()
+
+        if sys.platform == 'darwin':
+            # macOS
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                f.write(png_data)
+                tmp = f.name
+            try:
+                subprocess.run(['osascript', '-e',
+                    f'set the clipboard to (read (POSIX file "{tmp}") as «class PNGf»)'],
+                    check=True, capture_output=True)
+            finally:
+                os.unlink(tmp)
+        elif sys.platform.startswith('linux'):
+            proc = subprocess.Popen(['xclip', '-selection', 'clipboard', '-t', 'image/png'],
+                                     stdin=subprocess.PIPE)
+            proc.communicate(png_data)
+        elif sys.platform == 'win32':
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                f.write(png_data)
+                tmp = f.name
+            # Windows doesn't have a simple CLI for image clipboard
+            # User can use the saved file
+            print(f"PNG saved to {tmp} — paste from there")
+
     def add_gridspec(self, nrows, ncols, **kwargs):
         """Create a GridSpec for this figure."""
         from rustplotlib.gridspec import GridSpec
