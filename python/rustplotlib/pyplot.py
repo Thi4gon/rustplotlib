@@ -236,26 +236,29 @@ class AxesProxy:
         self._id = ax_id
 
     def plot(self, *args, zorder=None, **kwargs):
-        x, y, kwargs = _parse_plot_args(*args, **kwargs)
-        if zorder is not None:
-            kwargs["zorder"] = int(zorder)
-        # Handle categorical (string) x values
-        if x and isinstance(x[0], str):
-            positions, labels = _handle_categorical(x)
-            x = [float(p) for p in positions]
-            self._fig.axes_set_xticks(self._id, x)
-            self._fig.axes_set_xticklabels(self._id, labels)
-        self._fig.axes_plot(self._id, x, y, kwargs)
-        proxy = Line2DProxy()
-        if 'color' in kwargs:
-            proxy._color = kwargs['color']
-        if 'label' in kwargs:
-            proxy._label = kwargs['label']
-        if 'linewidth' in kwargs:
-            proxy._linewidth = kwargs['linewidth']
-        if 'linestyle' in kwargs:
-            proxy._linestyle = kwargs['linestyle']
-        return [proxy]
+        groups = _parse_plot_args_multi(*args, **kwargs)
+        proxies = []
+        for x, y, group_kw in groups:
+            if zorder is not None:
+                group_kw["zorder"] = int(zorder)
+            # Handle categorical (string) x values
+            if x and isinstance(x[0], str):
+                positions, labels = _handle_categorical(x)
+                x = [float(p) for p in positions]
+                self._fig.axes_set_xticks(self._id, x)
+                self._fig.axes_set_xticklabels(self._id, labels)
+            self._fig.axes_plot(self._id, x, y, group_kw)
+            proxy = Line2DProxy()
+            if 'color' in group_kw:
+                proxy._color = group_kw['color']
+            if 'label' in group_kw:
+                proxy._label = group_kw['label']
+            if 'linewidth' in group_kw:
+                proxy._linewidth = group_kw['linewidth']
+            if 'linestyle' in group_kw:
+                proxy._linestyle = group_kw['linestyle']
+            proxies.append(proxy)
+        return proxies
 
     def scatter(self, x, y, s=None, c=None, marker="o", alpha=1.0, label=None, zorder=None, **kwargs):
         x, y = _to_list(x), _to_list(y)
@@ -324,8 +327,8 @@ class AxesProxy:
         self._fig.axes_imshow(self._id, data_list, kw)
         return self
 
-    def set_title(self, title, fontsize=None, **kwargs):
-        self._fig.axes_set_title(self._id, str(title), fontsize)
+    def set_title(self, title, fontsize=None, loc=None, **kwargs):
+        self._fig.axes_set_title(self._id, str(title), fontsize, loc)
 
     def set_xlabel(self, label, fontsize=None, **kwargs):
         self._fig.axes_set_xlabel(self._id, str(label), fontsize)
@@ -544,15 +547,19 @@ class AxesProxy:
         elif arg == 'on':
             self._fig.axes_set_axis_off(self._id, False)
 
-    def set_xticks(self, ticks, labels=None, **kwargs):
-        self._fig.axes_set_xticks(self._id, [float(t) for t in ticks])
-        if labels is not None:
-            self._fig.axes_set_xticklabels(self._id, [str(l) for l in labels])
+    def set_xticks(self, ticks, labels=None, minor=False, **kwargs):
+        if not minor:
+            self._fig.axes_set_xticks(self._id, [float(t) for t in ticks])
+            if labels is not None:
+                self._fig.axes_set_xticklabels(self._id, [str(l) for l in labels])
+        # minor ticks: silently ignore (not yet rendered)
 
-    def set_yticks(self, ticks, labels=None, **kwargs):
-        self._fig.axes_set_yticks(self._id, [float(t) for t in ticks])
-        if labels is not None:
-            self._fig.axes_set_yticklabels(self._id, [str(l) for l in labels])
+    def set_yticks(self, ticks, labels=None, minor=False, **kwargs):
+        if not minor:
+            self._fig.axes_set_yticks(self._id, [float(t) for t in ticks])
+            if labels is not None:
+                self._fig.axes_set_yticklabels(self._id, [str(l) for l in labels])
+        # minor ticks: silently ignore (not yet rendered)
 
     def set_xticklabels(self, labels, **kwargs):
         self._fig.axes_set_xticklabels(self._id, [str(l) for l in labels])
@@ -1064,6 +1071,63 @@ class AxesProxy:
         self._fig.axes_sankey(self._id, flows, kw)
         return self
 
+    def arrow(self, x, y, dx, dy, head_width=None, head_length=None,
+              width=None, color=None, alpha=None, label=None, zorder=None, **kwargs):
+        """Draw an arrow from (x, y) to (x+dx, y+dy)."""
+        kw = {}
+        if color is not None:
+            kw["color"] = color
+        if width is not None:
+            kw["width"] = float(width)
+        if head_width is not None:
+            kw["head_width"] = float(head_width)
+        if head_length is not None:
+            kw["head_length"] = float(head_length)
+        if alpha is not None:
+            kw["alpha"] = float(alpha)
+        if label is not None:
+            kw["label"] = label
+        if zorder is not None:
+            kw["zorder"] = int(zorder)
+        self._fig.axes_arrow(self._id, float(x), float(y), float(dx), float(dy), kw)
+        return self
+
+    def axline(self, xy1, xy2=None, slope=None, color=None, linestyle=None,
+               linewidth=None, alpha=None, **kwargs):
+        """Draw an infinite line through xy1 with given slope or through xy1 and xy2."""
+        kw = {}
+        if xy2 is not None:
+            kw["xy2"] = (float(xy2[0]), float(xy2[1]))
+        if slope is not None:
+            kw["slope"] = float(slope)
+        if color is not None:
+            kw["color"] = color
+        if linestyle is not None:
+            kw["linestyle"] = linestyle
+        if linewidth is not None:
+            kw["linewidth"] = float(linewidth)
+        if alpha is not None:
+            kw["alpha"] = float(alpha)
+        self._fig.axes_axline(self._id, (float(xy1[0]), float(xy1[1])), kw)
+        return self
+
+    def indicate_inset(self, bounds, **kwargs):
+        """Draw a rectangle and connecting lines to show an inset region."""
+        return None  # stub
+
+    def indicate_inset_zoom(self, inset_ax, **kwargs):
+        """Draw connecting lines between this axes and an inset axes."""
+        return None  # stub
+
+    def bar_label(self, container, labels=None, fmt='%g', label_type='edge',
+                  fontsize=None, **kwargs):
+        """Add labels on bar chart bars."""
+        pass  # stub
+
+    def margins(self, *args, x=None, y=None, tight=True):
+        """Set margins around data."""
+        pass  # stub
+
     def get_figure(self):
         """Return the FigureProxy that owns this axes."""
         return FigureProxy(self._fig, [self])
@@ -1538,47 +1602,94 @@ def _is_string_sequence(data):
     return False
 
 
-def _parse_plot_args(*args, **kwargs):
-    """Parse matplotlib-style plot arguments: plot(y), plot(x, y), plot(x, y, fmt)."""
-    x = None
-    y = None
-    fmt = None
+def _is_array_like(obj):
+    """Check if obj looks like an array (not a string)."""
+    if isinstance(obj, str):
+        return False
+    return hasattr(obj, '__len__') or hasattr(obj, '__iter__')
 
+
+def _parse_plot_args_multi(*args, **kwargs):
+    """Parse matplotlib-style plot arguments, handling multiple data+format groups.
+
+    Returns a list of (x, y, group_kwargs) tuples.
+    Examples:
+        plot(y)                     -> [(range(n), y, {})]
+        plot(x, y)                  -> [(x, y, {})]
+        plot(x, y, 'r-')           -> [(x, y, {color:'r', linestyle:'-'})]
+        plot(x1, y1, 'r-', x2, y2, 'b--') -> two groups
+    """
     plain_args = list(args)
+    groups = []
+    i = 0
 
-    if len(plain_args) == 1:
-        y = _to_list(plain_args[0])
-        x = list(range(len(y)))
-    elif len(plain_args) == 2:
-        if isinstance(plain_args[1], str) and not _is_string_sequence(plain_args):
-            y = _to_list(plain_args[0])
-            x = list(range(len(y)))
-            fmt = plain_args[1]
-        else:
-            # Keep string x values as-is for categorical handling
-            if _is_string_sequence(plain_args[0]):
-                x = list(plain_args[0])
+    while i < len(plain_args):
+        # Try to detect: x, y, fmt
+        if (i + 2 < len(plain_args)
+                and _is_array_like(plain_args[i])
+                and _is_array_like(plain_args[i + 1])
+                and isinstance(plain_args[i + 2], str)):
+            # x, y, fmt group
+            if _is_string_sequence(plain_args[i]):
+                x = list(plain_args[i])
             else:
-                x = _to_list(plain_args[0])
-            y = _to_list(plain_args[1])
-    elif len(plain_args) >= 3:
-        # Keep string x values as-is for categorical handling
-        if _is_string_sequence(plain_args[0]):
-            x = list(plain_args[0])
+                x = _to_list(plain_args[i])
+            y = _to_list(plain_args[i + 1])
+            fmt = plain_args[i + 2]
+            group_kw = dict(kwargs)
+            _parse_fmt(fmt, group_kw)
+            if not (x and isinstance(x[0], str)):
+                x = [float(v) for v in x]
+            groups.append((x, y, group_kw))
+            i += 3
+        elif (i + 1 < len(plain_args)
+              and _is_array_like(plain_args[i])
+              and _is_array_like(plain_args[i + 1])
+              and not isinstance(plain_args[i + 1], str)):
+            # x, y group (no fmt)
+            if _is_string_sequence(plain_args[i]):
+                x = list(plain_args[i])
+            else:
+                x = _to_list(plain_args[i])
+            y = _to_list(plain_args[i + 1])
+            if not (x and isinstance(x[0], str)):
+                x = [float(v) for v in x]
+            groups.append((x, y, dict(kwargs)))
+            i += 2
+        elif i < len(plain_args) and _is_array_like(plain_args[i]):
+            # single y (or y, fmt)
+            if (i + 1 < len(plain_args) and isinstance(plain_args[i + 1], str)):
+                y = _to_list(plain_args[i])
+                x = list(range(len(y)))
+                fmt = plain_args[i + 1]
+                group_kw = dict(kwargs)
+                _parse_fmt(fmt, group_kw)
+                x = [float(v) for v in x]
+                groups.append((x, y, group_kw))
+                i += 2
+            else:
+                y = _to_list(plain_args[i])
+                x = list(range(len(y)))
+                x = [float(v) for v in x]
+                groups.append((x, y, dict(kwargs)))
+                i += 1
         else:
-            x = _to_list(plain_args[0])
-        y = _to_list(plain_args[1])
-        if isinstance(plain_args[2], str):
-            fmt = plain_args[2]
+            # Unknown arg — skip
+            i += 1
 
-    if fmt:
-        _parse_fmt(fmt, kwargs)
+    return groups
 
-    # Ensure x values are float for Rust (skip if categorical strings)
-    if not (x and isinstance(x[0], str)):
-        x = [float(v) for v in x]
 
-    return x, y, kwargs
+def _parse_plot_args(*args, **kwargs):
+    """Parse matplotlib-style plot arguments: plot(y), plot(x, y), plot(x, y, fmt).
+
+    Returns (x, y, kwargs) for the first group (backward compatible).
+    """
+    groups = _parse_plot_args_multi(*args, **kwargs)
+    if groups:
+        return groups[0]
+    # Fallback
+    return [], [], kwargs
 
 
 def _parse_fmt(fmt, kwargs):
@@ -2294,3 +2405,73 @@ def rc_context(rc=None):
             rcParams.clear()
             rcParams.update(old)
     return _ctx()
+
+
+# --- Arrow ---
+
+def arrow(x, y, dx, dy, **kwargs):
+    """Draw an arrow from (x, y) to (x+dx, y+dy) on the current axes."""
+    _gca().arrow(x, y, dx, dy, **kwargs)
+
+
+# --- axline ---
+
+def axline(xy1, xy2=None, slope=None, **kwargs):
+    """Draw an infinite line through xy1 with given slope or through xy1 and xy2."""
+    _gca().axline(xy1, xy2=xy2, slope=slope, **kwargs)
+
+
+# --- subplot2grid ---
+
+def subplot2grid(shape, loc, rowspan=1, colspan=1, fig=None, **kwargs):
+    """Create subplot at specific grid location.
+
+    Parameters:
+        shape: (nrows, ncols) - grid shape
+        loc: (row, col) - starting position
+        rowspan: number of rows to span
+        colspan: number of columns to span
+    """
+    nrows, ncols = shape
+    row, col = loc
+    return subplot(nrows, ncols, row * ncols + col + 1, **kwargs)
+
+
+# --- imread / imsave ---
+
+def imread(fname, format=None):
+    """Read an image from file (requires Pillow).
+
+    Returns a numpy array with values in [0, 1].
+    """
+    try:
+        from PIL import Image
+        img = Image.open(fname)
+        return np.array(img) / 255.0
+    except ImportError:
+        raise ImportError("imread requires Pillow: pip install Pillow")
+
+
+def imsave(fname, arr, **kwargs):
+    """Save an array as an image (requires Pillow).
+
+    Parameters:
+        fname: output file path
+        arr: numpy array (values in [0, 1] or [0, 255])
+    """
+    try:
+        from PIL import Image
+        if arr.max() <= 1.0:
+            arr = (arr * 255).astype(np.uint8)
+        img = Image.fromarray(arr.astype(np.uint8))
+        img.save(fname)
+    except ImportError:
+        raise ImportError("imsave requires Pillow: pip install Pillow")
+
+
+# --- bar_label ---
+
+def bar_label(container, labels=None, fmt='%g', label_type='edge', fontsize=None, **kwargs):
+    """Add labels on bar chart bars (module-level)."""
+    _gca().bar_label(container, labels=labels, fmt=fmt, label_type=label_type,
+                     fontsize=fontsize, **kwargs)

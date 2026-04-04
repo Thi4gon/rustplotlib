@@ -31,6 +31,7 @@ pub mod eventplot;
 pub mod fill_polygon;
 pub mod pcolormesh;
 pub mod sankey;
+pub mod arrow;
 
 use tiny_skia::{PathBuilder, StrokeDash};
 

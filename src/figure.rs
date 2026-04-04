@@ -295,13 +295,16 @@ impl RustFigure {
         Ok(())
     }
 
-    #[pyo3(signature = (ax_id, title, fontsize=None))]
-    fn axes_set_title(&mut self, ax_id: usize, title: String, fontsize: Option<f32>) -> PyResult<()> {
+    #[pyo3(signature = (ax_id, title, fontsize=None, loc=None))]
+    fn axes_set_title(&mut self, ax_id: usize, title: String, fontsize: Option<f32>, loc: Option<String>) -> PyResult<()> {
         let ax = self.axes.get_mut(ax_id)
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
         ax.title = Some(title);
         if let Some(fs) = fontsize {
             ax.title_size = fs;
+        }
+        if let Some(l) = loc {
+            ax.set_title_loc(&l);
         }
         Ok(())
     }
@@ -1676,6 +1679,88 @@ impl RustFigure {
         } else { None };
 
         ax.streamplot(x, y, u, v, color, density, linewidth);
+        Ok(())
+    }
+
+    fn axes_arrow(
+        &mut self,
+        ax_id: usize,
+        x: f64,
+        y: f64,
+        dx: f64,
+        dy: f64,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let width = if let Some(v) = kwargs.get_item("width")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let head_width = if let Some(v) = kwargs.get_item("head_width")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let head_length = if let Some(v) = kwargs.get_item("head_length")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let zorder = if let Some(v) = kwargs.get_item("zorder")? {
+            Some(v.extract::<i32>()?)
+        } else { None };
+
+        ax.arrow(x, y, dx, dy, color, width, head_width, head_length, alpha, label, zorder);
+        Ok(())
+    }
+
+    fn axes_axline(
+        &mut self,
+        ax_id: usize,
+        xy1: (f64, f64),
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let xy2 = if let Some(v) = kwargs.get_item("xy2")? {
+            let tup: (f64, f64) = v.extract()?;
+            Some(tup)
+        } else { None };
+
+        let slope = if let Some(v) = kwargs.get_item("slope")? {
+            Some(v.extract::<f64>()?)
+        } else { None };
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let linestyle = if let Some(v) = kwargs.get_item("linestyle")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        ax.axline(xy1, xy2, slope, color, linestyle.as_deref(), linewidth, alpha);
         Ok(())
     }
 

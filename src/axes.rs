@@ -15,6 +15,7 @@ use crate::artists::eventplot::EventPlot;
 use crate::artists::fill_polygon::FillPolygon;
 use crate::artists::pcolormesh::PColorMesh;
 use crate::artists::sankey::Sankey;
+use crate::artists::arrow::Arrow;
 use crate::artists::step::{Step, StepWhere};
 use crate::artists::pie::PieChart;
 use crate::artists::errorbar::ErrorBar;
@@ -137,6 +138,17 @@ pub struct TableData {
     pub loc: String,
 }
 
+/// An infinite line through a point (axline).
+pub struct AxLine {
+    pub xy1: (f64, f64),
+    pub xy2: Option<(f64, f64)>,
+    pub slope: Option<f64>,
+    pub color: Color,
+    pub linestyle: LineStyle,
+    pub linewidth: f32,
+    pub alpha: f32,
+}
+
 pub struct Axes {
     artists: Vec<Box<dyn Artist>>,
     pub title: Option<String>,
@@ -196,6 +208,10 @@ pub struct Axes {
     pub bounded_ref_lines: Vec<BoundedRefLine>,
     // Table data
     pub table_data: Option<TableData>,
+    // Title location: "center", "left", or "right"
+    pub title_loc: String,
+    // Infinite lines (axline)
+    pub ax_lines: Vec<AxLine>,
 }
 
 /// Which grid lines to show.
@@ -270,6 +286,8 @@ impl Axes {
             grid_which: GridWhich::Major,
             bounded_ref_lines: Vec::new(),
             table_data: None,
+            title_loc: "center".to_string(),
+            ax_lines: Vec::new(),
         }
     }
 
@@ -867,6 +885,53 @@ impl Axes {
             }
         }
 
+        // 2e. Draw axline (infinite lines)
+        for al in &self.ax_lines {
+            let mut al_color = al.color;
+            al_color.a = (al.alpha * 255.0) as u8;
+            let mut al_paint = Paint::default();
+            al_paint.set_color(al_color.to_tiny_skia());
+            al_paint.anti_alias = true;
+
+            let mut al_stroke = Stroke::default();
+            al_stroke.width = al.linewidth;
+            al_stroke.dash = al.linestyle.to_dash(al.linewidth);
+
+            // Compute slope from xy1 and xy2, or use given slope
+            let slope = if let Some(ref xy2) = al.xy2 {
+                let dx = xy2.0 - al.xy1.0;
+                let dy = xy2.1 - al.xy1.1;
+                if dx.abs() < 1e-15 {
+                    // Vertical line
+                    None
+                } else {
+                    Some(dy / dx)
+                }
+            } else {
+                al.slope
+            };
+
+            let mut pb = PathBuilder::new();
+            if let Some(m) = slope {
+                // y = m*(x - x1) + y1
+                // Compute y at xmin and xmax
+                let y_at_xmin = m * (xmin - al.xy1.0) + al.xy1.1;
+                let y_at_xmax = m * (xmax - al.xy1.0) + al.xy1.1;
+                let (px1, py1) = transform.transform_xy(xmin, y_at_xmin);
+                let (px2, py2) = transform.transform_xy(xmax, y_at_xmax);
+                pb.move_to(px1, py1);
+                pb.line_to(px2, py2);
+            } else {
+                // Vertical line at x = xy1.0
+                let (px, _) = transform.transform_xy(al.xy1.0, ymin);
+                pb.move_to(px, top);
+                pb.line_to(px, bottom);
+            }
+            if let Some(path) = pb.finish() {
+                pixmap.stroke_path(&path, &al_paint, &al_stroke, ts, None);
+            }
+        }
+
         // 3. Draw each artist sorted by zorder (lower first = behind)
         {
             let mut indices: Vec<usize> = (0..self.artists.len()).collect();
@@ -1111,15 +1176,19 @@ impl Axes {
 
         // 6. Draw title (always, even with axes off)
         if let Some(ref title) = self.title {
-            let cx = (left + right) / 2.0;
+            let (title_x, title_anchor) = match self.title_loc.as_str() {
+                "left" => (left, TextAnchorX::Left),
+                "right" => (right, TextAnchorX::Right),
+                _ => ((left + right) / 2.0, TextAnchorX::Center),
+            };
             draw_text(
                 pixmap,
                 title,
-                cx,
+                title_x,
                 top - 8.0,
                 self.title_size,
                 self.text_color,
-                TextAnchorX::Center,
+                title_anchor,
                 TextAnchorY::Bottom,
                 0.0,
             );
@@ -1512,9 +1581,13 @@ impl Axes {
 
         // 6. Title
         if let Some(ref title) = self.title {
-            let cx = (left + right) / 2.0;
+            let (title_x, title_svg_anchor) = match self.title_loc.as_str() {
+                "left" => (left, "start"),
+                "right" => (right, "end"),
+                _ => ((left + right) / 2.0, "middle"),
+            };
             let text_str = color_to_svg(&self.text_color);
-            svg.add_text(cx, top - 8.0, title, self.title_size, &text_str, "middle", 0.0);
+            svg.add_text(title_x, top - 8.0, title, self.title_size, &text_str, title_svg_anchor, 0.0);
         }
 
         // 9. Text annotations
@@ -2162,14 +2235,19 @@ impl Axes {
 
         // Title
         if let Some(ref title) = self.title {
+            let (title_x, title_anchor) = match self.title_loc.as_str() {
+                "left" => (left, TextAnchorX::Left),
+                "right" => (right, TextAnchorX::Right),
+                _ => (cx, TextAnchorX::Center),
+            };
             draw_text(
                 pixmap,
                 title,
-                cx,
+                title_x,
                 top - 8.0,
                 self.title_size,
                 tick_color,
-                TextAnchorX::Center,
+                title_anchor,
                 TextAnchorY::Bottom,
                 0.0,
             );
@@ -2651,5 +2729,63 @@ impl Axes {
         if let Some(o) = orientations { s.orientations = o; }
         if let Some(a) = alpha { s.alpha = a; }
         self.artists.push(Box::new(s));
+    }
+
+    /// Add an arrow (FancyArrowPatch) from (x, y) with delta (dx, dy).
+    pub fn arrow(
+        &mut self,
+        x: f64,
+        y: f64,
+        dx: f64,
+        dy: f64,
+        color: Option<Color>,
+        width: Option<f32>,
+        head_width: Option<f32>,
+        head_length: Option<f32>,
+        alpha: Option<f32>,
+        label: Option<String>,
+        zorder: Option<i32>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let mut a = Arrow::new(x, y, dx, dy, c);
+        if let Some(w) = width { a.width = w; }
+        if let Some(hw) = head_width { a.head_width = hw; }
+        if let Some(hl) = head_length { a.head_length = hl; }
+        if let Some(al) = alpha { a.alpha = al; }
+        a.label = label;
+        if let Some(z) = zorder { a.zorder = z; }
+        self.artists.push(Box::new(a));
+    }
+
+    /// Add an infinite line through a point (axline).
+    /// Either xy2 or slope must be provided.
+    pub fn axline(
+        &mut self,
+        xy1: (f64, f64),
+        xy2: Option<(f64, f64)>,
+        slope: Option<f64>,
+        color: Option<Color>,
+        linestyle: Option<&str>,
+        linewidth: Option<f32>,
+        alpha: Option<f32>,
+    ) {
+        let c = color.unwrap_or(Color::new(0, 0, 0, 255));
+        let ls = linestyle.map(LineStyle::from_str).unwrap_or(LineStyle::Solid);
+        let lw = linewidth.unwrap_or(1.0);
+        let al = alpha.unwrap_or(1.0);
+        self.ax_lines.push(AxLine {
+            xy1,
+            xy2,
+            slope,
+            color: c,
+            linestyle: ls,
+            linewidth: lw,
+            alpha: al,
+        });
+    }
+
+    /// Set title location: "center", "left", or "right".
+    pub fn set_title_loc(&mut self, loc: &str) {
+        self.title_loc = loc.to_lowercase();
     }
 }
