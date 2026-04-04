@@ -4,8 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "rustplotlib"
-version = "5.0.0"
-description = "Matplotlib drop-in replacement powered by Rust"
+version = "5.1.0"
+description = "Matplotlib drop-in replacement powered by Rust — 50 plot types, 15 interpolation modes, 81 colormaps, up to 18.7x faster"
 requires-python = ">=3.9"
 dependencies = ["numpy"]
 license = {text = "MIT"}

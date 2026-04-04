@@ -17,7 +17,7 @@ No Python runtime dependency for rendering. No wrappers. No subprocess calls. Pu
 |---|---|---|---|
 | Rendering engine | C/C++ (AGG) | None (wrap matplotlib or call Python) | **Rust native (tiny-skia)** |
 | External dependencies | NumPy, Pillow, FreeType, etc. | Python + matplotlib required | **Zero** — self-contained |
-| Performance | Baseline | Same or slower (subprocess overhead) | **Up to 16x faster** |
+| Performance | Baseline | Same or slower (subprocess overhead) | **Up to 18.7x faster** |
 | Python API | Original | Rust-only or generates .py scripts | **Drop-in replacement** — same API |
 | Approach | Interpreted + C extensions | Wrappers / code generators | **Full reimplementation in Rust** |
 
@@ -175,62 +175,121 @@ plt.show()
 ### Output Formats
 | Method | Description |
 |---|---|
-| `savefig("file.png")` | Raster PNG (with dpi, transparent options) |
+| `savefig("file.png")` | Raster PNG (with dpi, transparent, bbox_inches='tight') |
 | `savefig("file.svg")` | Native vector SVG (real `<line>`, `<text>`, `<rect>` elements) |
 | `savefig("file.pdf")` | PDF output |
-| `show()` | Interactive window with backend auto-detection (Tk/inline/agg) |
-| `PdfPages` | Multi-page PDF export |
+| `savefig("file.eps")` | EPS output |
+| `show()` | Interactive window with backend auto-detection |
+| `PdfPages` | Multi-page PDF with zlib compression |
+| `pickle` | Save/load figures with pickle |
+| `copy_to_clipboard()` | Copy figure as PNG to system clipboard |
+| `to_json()` / `save_json()` | Export figure state as JSON |
 
 ### Backends & Interactive
 | Feature | Description |
 |---|---|
 | Backend auto-detection | Automatically selects inline (Jupyter), Tk, or Agg backend |
-| Tk backend | Interactive window with `PhotoImage` rendering (640x480) |
-| Navigation toolbar | Home, Back, Forward, Pan, Zoom, Save + status bar (7 widgets) |
+| Tk backend | Interactive window with toolbar, zoom/pan, coordinate display |
+| WebAgg backend | Browser-based interactive viewer via HTTP server |
+| Navigation toolbar | Home, Back, Forward, Pan, Zoom, Save (Tk + WebAgg) |
 | Event system | `mpl_connect` / `mpl_disconnect` with `CallbackRegistry` |
-| Mouse events | `MouseEvent` with button, x/y data, key modifiers |
-| Key events | `KeyEvent` for keyboard interaction |
-| Draw/Resize/Close events | `DrawEvent`, `ResizeEvent`, `CloseEvent` |
+| Pick events | Artist hit testing backed by Rust (`hit_test_points`, `hit_test_line`) |
+| Mouse/Key/Scroll events | Full event hierarchy: MouseEvent, KeyEvent, PickEvent, DrawEvent, ResizeEvent, CloseEvent |
 | Jupyter rich display | `_repr_png_()`, `_repr_svg_()`, `_repr_html_()` on Figure |
-| `render_to_svg_string()` | SVG output as string (PyO3) for Jupyter inline |
-| `render_to_rgba_buffer()` | Raw RGBA buffer (PyO3) for interactive backends |
+| 3D mouse rotation | Drag to rotate 3D view in Tk backend |
 
 ### Animation
 | Feature | Description |
 |---|---|
-| `FuncAnimation` | Function-based animation with frame generation |
+| `FuncAnimation` | Function-based animation with blit support, pause/resume |
+| `ArtistAnimation` | Frame-based animation from artist lists |
 | GIF export | Save animations as GIF (via Pillow) |
-| PNG sequence | Save animation frames as individual PNGs |
+| Live animation | Real-time animation in Tk backend |
+
+### Layout Engines
+| Feature | Description |
+|---|---|
+| `tight_layout()` | Dynamic margins from text measurement (Rust) |
+| `constrained_layout=True` | Constraint-based layout engine (Rust) |
+| `GridSpec(nrows, ncols)` | Grid layout with `rowspan`/`colspan` |
+| `SubFigure` | Nested sub-figures with independent layouts |
+| `Figure.add_axes([l,b,w,h])` | Custom axes positioning |
+| `make_axes_locatable` | Axes divider for colorbar positioning |
+
+### Widgets (Rust-rendered)
+| Widget | Features |
+|---|---|
+| `Slider` | Track, thumb circle, label, value display, on_changed callbacks |
+| `RangeSlider` | Tuple values, clamp, callbacks |
+| `Button` | Background, border, label, on_clicked callbacks |
+| `CheckButtons` | Toggle, get_status, callbacks |
+| `RadioButtons` | Exclusive selection, value_selected |
+| `TextBox` | on_submit, on_text_change, set_val |
+| `Cursor` | Crosshair following mouse, on_moved callbacks |
+| `MultiCursor` | Cursor spanning multiple axes |
+
+### Transform System
+| Component | Description |
+|---|---|
+| `Affine2D` | 2D affine matrix (rotate, scale, translate, compose, invert) — **Rust** |
+| `BlendedTransform` | Separate X/Y transforms — **Rust** |
+| `ax.transData` | Data coordinate transform |
+| `ax.transAxes` | Axes coordinate transform (0-1) |
+| `fig.transFigure` | Figure coordinate transform |
 
 ### Styles & Themes
 | Feature | Description |
 |---|---|
-| `style.use('dark_background')` | 6 built-in themes (default, dark_background, ggplot, seaborn, bmh, fivethirtyeight) |
+| `style.use('dark_background')` | 13 built-in themes (default, dark_background, ggplot, seaborn, bmh, fivethirtyeight, grayscale, Solarize_Light2, tableau-colorblind10, seaborn-whitegrid, seaborn-darkgrid, seaborn-dark, fast) |
+| `style.available` | List all available styles |
+| `style.context('ggplot')` | Context manager for temporary style |
 | `rcParams` | Functional global configuration (30+ supported keys) |
 | `set_facecolor()` | Figure and axes background colors |
 
 ### Colors
-- **Named:** 17 colors (red, blue, green, orange, purple, black, white, cyan, magenta, yellow, brown, pink, gray, olive, navy, teal, lime)
+- **Named:** 140+ colors including all CSS/X11 colors (steelblue, coral, tomato, gold, crimson, dodgerblue, forestgreen, etc.)
 - **Shorthand:** `"r"`, `"g"`, `"b"`, `"c"`, `"m"`, `"y"`, `"k"`, `"w"`
 - **Hex:** `"#FF0000"`, `"#f00"`, `"#FF000080"`
 - **RGB/RGBA tuples:** `(1.0, 0.0, 0.0)`, `(1.0, 0.0, 0.0, 0.5)`
+- **Grey/gray variants:** both spellings supported
 
 ### Linestyles & Markers
 - **Linestyles:** `-` (solid), `--` (dashed), `-.` (dashdot), `:` (dotted)
-- **Markers:** `.` `o` `s` `^` `v` `+` `x` `D` `*`
-- **Format strings:** `"r--o"` = red + dashed + circle markers
+- **Markers:** `.` `o` `s` `^` `v` `<` `>` `+` `x` `D` `d` `*` `p` `h` `H` `8` `|` `_` `P` `X` `1` `2` `3` `4` (24 types)
+- **Format strings:** `"r--o"` = red + dashed + circle markers (parsed in Rust)
 - **markevery:** show marker every N points
 
-### Colormaps (70+)
-35 base colormaps + all reversed variants (`_r` suffix):
+### Colormaps (81 base + reversed = ~162 total)
+`viridis` `plasma` `inferno` `magma` `cividis` `twilight` `twilight_shifted` `turbo` `hot` `cool` `coolwarm` `bwr` `seismic` `gray` `jet` `spring` `summer` `autumn` `winter` `copper` `bone` `pink` `binary` `ocean` `terrain` `rainbow` `Blues` `Reds` `Greens` `Oranges` `Purples` `Greys` `YlOrRd` `YlOrBr` `YlGnBu` `YlGn` `OrRd` `BuGn` `BuPu` `GnBu` `PuBu` `PuRd` `RdPu` `PuBuGn` `RdYlBu` `RdBu` `RdGy` `RdYlGn` `PiYG` `PRGn` `BrBG` `PuOr` `Spectral` `Set1` `Set2` `Set3` `Pastel1` `Pastel2` `tab10` `tab20` `tab20b` `tab20c` `Paired` `Accent` `Dark2` `afmhot` `brg` `CMRmap` `Wistia` `cubehelix` `hsv` `gnuplot` `gnuplot2` `gist_earth` `gist_heat` `gist_ncar` `gist_rainbow` `gist_stern` `gist_yarg` `flag` `prism`
 
-`viridis` `plasma` `inferno` `magma` `cividis` `twilight` `turbo` `hot` `cool` `gray` `jet` `spring` `summer` `autumn` `winter` `copper` `bone` `pink` `binary` `gist_heat` `ocean` `terrain` `Blues` `Reds` `Greens` `YlOrRd` `YlGnBu` `RdYlBu` `RdBu` `PiYG` `PRGn` `BrBG` `Spectral` `Set1` `Set2` `Set3` `Pastel1` `Pastel2` `tab20`
+All also available reversed with `_r` suffix.
 
-All also available as `viridis_r`, `plasma_r`, `hot_r`, etc.
+### Image Interpolation (15 modes)
+`nearest` `bilinear` `bicubic` `lanczos` `spline16` `hanning` `hamming` `hermite` `kaiser` `quadric` `catrom` `gaussian` `bessel` `mitchell` `sinc`
 
-### Text Rendering
+### Text & Math Rendering
 - Embedded DejaVu Sans font (no system font dependency)
-- LaTeX-to-Unicode conversion (`$\theta$` -> theta, `$x_1$` -> x1, Greek letters, sub/superscripts, math operators)
+- **Full TeX math engine in Rust:**
+  - Greek letters (24 lowercase + 12 uppercase)
+  - Subscript/superscript with Unicode characters
+  - Stacked fractions (`\frac{a}{b}`) with horizontal bar
+  - Square roots (`\sqrt{x}`) with radical sign
+  - Integral/sum/product with limits (`\int_a^b`, `\sum_{i=0}^n`)
+  - Accents: `\hat`, `\tilde`, `\vec`, `\dot`, `\ddot`, `\overline`, `\underline`
+  - Delimiters: `\left(`, `\right)`, `\langle`, `\rangle`, `\lceil`, `\lfloor`
+  - Matrices with bracket rendering
+  - 60+ math operators and symbols
+
+### Geographic Projections (5 types)
+| Projection | Function |
+|---|---|
+| Hammer | `hammer_project(lon, lat)` |
+| Aitoff | `aitoff_project(lon, lat)` |
+| Mollweide | `mollweide_project(lon, lat)` |
+| Lambert Conformal Conic | `lambert_project(lon, lat, lat1, lat2)` |
+| Stereographic | `stereographic_project(lon, lat, lon0, lat0)` |
+
+All with batch versions and `generate_graticule()` for grid lines.
 
 ### Data Integration
 - **Pandas:** plot directly from DataFrame/Series (optional dependency)
@@ -355,25 +414,29 @@ anim.save("wave.gif")
 
 ## Performance Benchmark
 
-Benchmarked against matplotlib on Apple Silicon (M-series). Each test runs 10 iterations, averaged:
+Benchmarked against matplotlib on Apple Silicon (M-series, release build). Each test runs 10 iterations, averaged:
 
 | Benchmark | matplotlib | rustplotlib | Speedup |
 |---|---|---|---|
-| Line Plot (10k pts) | 0.028s | 0.005s | **5.3x** |
-| Scatter (5k pts) | 0.028s | 0.021s | **1.4x** |
-| Bar Chart (50 bars) | 0.026s | 0.005s | **5.0x** |
-| Histogram (100k pts) | 0.090s | 0.006s | **16.1x** |
-| Subplots 2x2 | 0.046s | 0.011s | **4.2x** |
-| Heatmap (100x100) | 0.021s | 0.006s | **3.4x** |
-| Large Line (100k pts) | 0.110s | 0.109s | **1.0x** |
-| Multi-line (20 lines) | 0.090s | 0.037s | **2.4x** |
-| Error Bars | 0.022s | 0.004s | **6.4x** |
-| Pie Chart | 0.012s | 0.005s | **2.7x** |
-| SVG Output | 0.021s | 0.003s | **6.9x** |
-| Full Styled Plot | 0.019s | 0.006s | **3.4x** |
+| Line Plot (10k pts) | 0.024s | 0.005s | **4.7x** |
+| Scatter (5k pts) | 0.027s | 0.020s | **1.3x** |
+| Bar Chart (50 bars) | 0.024s | 0.004s | **5.7x** |
+| Histogram (100k pts) | 0.087s | 0.005s | **18.7x** |
+| Subplots 2x2 | 0.038s | 0.010s | **3.9x** |
+| Heatmap (100x100) | 0.019s | 0.005s | **3.7x** |
+| Large Line (100k pts) | 0.109s | 0.110s | **1.0x** |
+| Multi-line (20 lines) | 0.085s | 0.029s | **2.9x** |
+| Error Bars | 0.021s | 0.004s | **5.9x** |
+| Pie Chart | 0.009s | 0.004s | **2.4x** |
+| SVG Output | 0.021s | 0.003s | **7.6x** |
+| Full Styled Plot | 0.018s | 0.005s | **3.9x** |
+| **TOTAL** | **0.481s** | **0.203s** | **2.4x** |
+
+> Wins 11 out of 12 benchmarks. Up to **18.7x faster** on histogram rendering.
 
 Run the benchmark yourself:
 ```bash
+maturin develop --release
 python tests/test_benchmark.py
 ```
 
@@ -451,7 +514,7 @@ Contributions are welcome! This is an open-source project under the MIT license.
 - **81 colormaps** + reversed = ~162 total (~95% of matplotlib)
 - **550+ tests** passing (including 27 rendering regression tests)
 - **110/110 pyplot functions**, 95/95 Axes methods, 36/36 Figure methods
-- **5 interpolation modes**: nearest, bilinear, bicubic, lanczos, spline16
+- **15 interpolation modes**: nearest, bilinear, bicubic, lanczos, spline16, hanning, hamming, hermite, kaiser, quadric, catrom, gaussian, bessel, mitchell, sinc
 - **5 geographic projections**: Hammer, Aitoff, Mollweide, Lambert, Stereographic
 - **4 backends**: Agg, Tk (interactive), Jupyter inline, WebAgg (browser)
 - **4 output formats**: PNG, SVG, PDF (multi-page), EPS
@@ -466,8 +529,6 @@ Contributions are welcome! This is an open-source project under the MIT license.
 - Qt/GTK/macOS backends (need PyQt5, PyGObject, PyObjC)
 - Math font rendering (need Computer Modern .ttf files)
 - Basemap coastlines (need Natural Earth shapefiles)
-- Triangulation plots (tricontour, tripcolor)
-- LaTeX math rendering
 
 ---
 
