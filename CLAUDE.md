@@ -51,7 +51,7 @@ python/rustplotlib/           # Camada Python
 ├── dates.py, colors.py, patches.py, ...
 └── mpl_toolkits/mplot3d/     # Suporte 3D
 
-tests/                        # Testes Python (293 testes)
+tests/                        # Testes Python (298 testes)
 ```
 
 ## Stack Técnica
