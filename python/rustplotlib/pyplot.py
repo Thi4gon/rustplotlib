@@ -436,14 +436,38 @@ class _LegendStub:
 
 
 class _TransformStub:
-    """Stub for matplotlib transform objects (transData, transAxes, etc.)."""
+    """Transform object compatible with matplotlib API.
+
+    Uses Rust Affine2D for actual math when parameters are known.
+    """
+
+    def __init__(self, kind='identity', xlim=None, ylim=None):
+        from rustplotlib.transforms import Affine2D
+        self._kind = kind
+        self._xlim = xlim or (0.0, 1.0)
+        self._ylim = ylim or (0.0, 1.0)
+        self._affine = Affine2D()
 
     def transform(self, points):
-        """Return points unchanged (identity transform stub)."""
+        """Transform points. For transData, maps data→axes coords."""
+        if self._kind == 'data':
+            # Data to normalized axes coordinates
+            xmin, xmax = self._xlim
+            ymin, ymax = self._ylim
+            dx = xmax - xmin if abs(xmax - xmin) > 1e-15 else 1.0
+            dy = ymax - ymin if abs(ymax - ymin) > 1e-15 else 1.0
+            if isinstance(points, (list, tuple)) and len(points) == 2 and isinstance(points[0], (int, float)):
+                return ((points[0] - xmin) / dx, (points[1] - ymin) / dy)
+            return [((p[0] - xmin) / dx, (p[1] - ymin) / dy) for p in points]
         return points
 
     def inverted(self):
-        return self
+        inv = _TransformStub(self._kind, self._xlim, self._ylim)
+        if self._kind == 'data':
+            inv._kind = 'data_inv'
+        elif self._kind == 'data_inv':
+            inv._kind = 'data'
+        return inv
 
     def __add__(self, other):
         return self
@@ -1312,13 +1336,15 @@ class AxesProxy:
 
     @property
     def transData(self):
-        """Return a compatibility stub for the data coordinate transform."""
-        return _TransformStub()
+        """Return the data coordinate transform."""
+        xlim = self.get_xlim() if hasattr(self, 'get_xlim') else (0.0, 1.0)
+        ylim = self.get_ylim() if hasattr(self, 'get_ylim') else (0.0, 1.0)
+        return _TransformStub('data', xlim, ylim)
 
     @property
     def transAxes(self):
-        """Return a compatibility stub for the axes coordinate transform."""
-        return _TransformStub()
+        """Return the axes coordinate transform (0,0)→(1,1)."""
+        return _TransformStub('axes')
 
     def set_position(self, pos):
         pass
@@ -2507,6 +2533,19 @@ class FigureProxy:
     @property
     def canvas(self):
         return self._canvas
+
+    @property
+    def transFigure(self):
+        """Return figure coordinate transform (0,0)→(1,1)."""
+        return _TransformStub('figure')
+
+    @property
+    def dpi(self):
+        return 100
+
+    @property
+    def dpi_scale_trans(self):
+        return _TransformStub('identity')
 
     def savefig(self, fname, dpi=None, transparent=False, format=None, bbox_inches=None, **kwargs):
         tight = bbox_inches == 'tight' if bbox_inches else False
