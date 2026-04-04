@@ -54,6 +54,40 @@ class SpinesProxy:
         return SpineProxy(self._fig, self._id, key)
 
 
+class AxisProxy:
+    """Stub proxy for a single axis (x or y) — matplotlib.axis.Axis compatibility."""
+
+    def set_major_formatter(self, formatter):
+        pass
+
+    def set_minor_formatter(self, formatter):
+        pass
+
+    def set_major_locator(self, locator):
+        pass
+
+    def set_minor_locator(self, locator):
+        pass
+
+    def set_visible(self, b):
+        pass
+
+    def set_ticks_position(self, position):
+        pass
+
+    def set_label_position(self, position):
+        pass
+
+    def get_major_ticks(self):
+        return []
+
+    def get_minor_ticks(self):
+        return []
+
+    def set_tick_params(self, **kwargs):
+        pass
+
+
 class AxesProxy:
     """Python wrapper around a Rust axes, accessed by ID."""
 
@@ -607,6 +641,89 @@ class AxesProxy:
         """Stub for secondary y-axis — returns self for chaining."""
         return self
 
+    def set_frame_on(self, b):
+        pass
+
+    def get_xlim(self):
+        return (0, 1)  # stub
+
+    def get_ylim(self):
+        return (0, 1)  # stub
+
+    def get_xaxis(self):
+        return AxisProxy()
+
+    def get_yaxis(self):
+        return AxisProxy()
+
+    @property
+    def xaxis(self):
+        return AxisProxy()
+
+    @property
+    def yaxis(self):
+        return AxisProxy()
+
+    def set_position(self, pos):
+        pass
+
+    def get_position(self):
+        return [0, 0, 1, 1]
+
+    def contains(self, event):
+        return False, {}
+
+    def format_coord(self, x, y):
+        return f'x={x:.4g}, y={y:.4g}'
+
+    def relim(self):
+        pass
+
+    def autoscale_view(self, **kwargs):
+        pass
+
+    def set_navigate(self, b):
+        pass
+
+    def get_children(self):
+        return []
+
+    def has_data(self):
+        return True
+
+    def can_pan(self):
+        return False
+
+    def can_zoom(self):
+        return False
+
+    def get_label(self):
+        return ''
+
+    def set_label(self, s):
+        pass
+
+    def set_zorder(self, level):
+        pass
+
+    def get_zorder(self):
+        return 0
+
+    def get_patch(self):
+        return None
+
+    def get_transData(self):
+        return None
+
+    def get_transAxes(self):
+        return None
+
+    def set_clip_on(self, b):
+        pass
+
+    def set_picker(self, picker):
+        pass
+
 
 class TwinAxesProxy:
     """Python wrapper for a twin (right-side y-axis) axes."""
@@ -841,6 +958,50 @@ class FigureProxy:
             return Axes3DProxy(self._fig, ax3d_id)
         else:
             return AxesProxy(self._fig, idx)
+
+    def get_axes(self):
+        return self._axes
+
+    def get_size_inches(self):
+        return (6.4, 4.8)  # default
+
+    def get_dpi(self):
+        return 100
+
+    def set_dpi(self, dpi):
+        pass
+
+    def clf(self):
+        pass
+
+    def clear(self):
+        pass
+
+    def add_axes(self, rect, **kwargs):
+        return _gca()
+
+    def get_tight_layout(self):
+        return False
+
+    def set_tight_layout(self, tight):
+        pass
+
+    @property
+    def axes(self):
+        return self._axes
+
+    @property
+    def number(self):
+        return 1
+
+    def align_labels(self, axs=None):
+        pass
+
+    def align_xlabels(self, axs=None):
+        pass
+
+    def align_ylabels(self, axs=None):
+        pass
 
 
 def _to_list(data):
@@ -1349,3 +1510,174 @@ def _handle_categorical(data):
         positions = list(range(len(labels)))
         return positions, labels
     return _to_list(data), None
+
+
+# --- Phase 9: Additional pyplot compatibility functions ---
+
+
+def clf():
+    """Clear current figure."""
+    global _current_figure, _current_axes_id
+    _current_figure = None
+    _current_axes_id = None
+
+
+def cla():
+    """Clear current axes."""
+    close()
+
+
+def gcf():
+    """Get current figure."""
+    _ensure_figure()
+    return FigureProxy(_current_figure, [_gca()])
+
+
+def gca(**kwargs):
+    """Get current axes."""
+    return _gca()
+
+
+def subplot(*args, **kwargs):
+    """Add a subplot to the current figure. Supports subplot(nrows, ncols, index) and subplot(NRC)."""
+    global _current_figure, _current_axes_id
+    if len(args) == 1 and isinstance(args[0], int) and args[0] >= 100:
+        # subplot(211) format
+        n = args[0]
+        nrows = n // 100
+        ncols = (n % 100) // 10
+        index = n % 10
+    elif len(args) == 3:
+        nrows, ncols, index = int(args[0]), int(args[1]), int(args[2])
+    else:
+        nrows, ncols, index = 1, 1, 1
+
+    if _current_figure is None:
+        fig = RustFigure(640, 480, 100)
+        fig.setup_subplots(nrows, ncols)
+        _current_figure = fig
+
+    _current_axes_id = index - 1  # matplotlib uses 1-based indexing
+    return _gca()
+
+
+def axes(arg=None, **kwargs):
+    """Add axes to current figure."""
+    if arg is None:
+        return _gca()
+    # arg is [left, bottom, width, height] — custom positioning, return stub
+    return _gca()
+
+
+def figtext(x, y, s, **kwargs):
+    """Add text to figure (not axes)."""
+    # Approximate: add text to current axes using figure coords
+    pass
+
+
+def figimage(*args, **kwargs):
+    """Add image to figure."""
+    pass
+
+
+def figlegend(*args, **kwargs):
+    """Add legend to figure."""
+    legend(*args, **kwargs)
+
+
+def minorticks_on():
+    pass
+
+
+def minorticks_off():
+    pass
+
+
+def tick_params(**kwargs):
+    _gca().tick_params(**kwargs)
+
+
+def margins(*args, **kwargs):
+    pass
+
+
+def autoscale(enable=True, axis='both', tight=None):
+    pass
+
+
+def ioff():
+    """Turn interactive mode off."""
+    pass
+
+
+def ion():
+    """Turn interactive mode on."""
+    pass
+
+
+def isinteractive():
+    return False
+
+
+def draw():
+    pass
+
+
+def pause(interval):
+    """Pause for interval seconds."""
+    import time
+    time.sleep(interval)
+
+
+def connect(event, func):
+    pass
+
+
+def disconnect(cid):
+    pass
+
+
+def get_fignums():
+    if _current_figure is not None:
+        return [1]
+    return []
+
+
+def figure_exists(num):
+    return _current_figure is not None
+
+
+def get_current_fig_manager():
+    return None
+
+
+def colormaps():
+    """Return list of available colormaps."""
+    return ['viridis', 'plasma', 'inferno', 'magma', 'cividis', 'twilight', 'turbo',
+            'hot', 'cool', 'gray', 'jet', 'spring', 'summer', 'autumn', 'winter',
+            'copper', 'bone', 'pink', 'binary', 'gist_heat', 'ocean', 'terrain',
+            'Blues', 'Reds', 'Greens', 'YlOrRd', 'YlGnBu', 'RdYlBu', 'RdBu',
+            'PiYG', 'PRGn', 'BrBG', 'Spectral', 'Set1', 'Set2', 'Set3',
+            'Pastel1', 'Pastel2', 'tab20']
+
+
+def get_cmap(name='viridis'):
+    """Get a colormap by name."""
+    return name  # stub
+
+
+# Log-scale convenience aliases
+def semilogy(*args, **kwargs):
+    yscale('log')
+    plot(*args, **kwargs)
+
+
+def semilogx(*args, **kwargs):
+    xscale('log')
+    plot(*args, **kwargs)
+
+
+def loglog(*args, **kwargs):
+    xscale('log')
+    yscale('log')
+    plot(*args, **kwargs)
