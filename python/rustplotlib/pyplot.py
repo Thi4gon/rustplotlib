@@ -1196,16 +1196,119 @@ class AxesProxy:
             self.plot(x, y, **kwargs)
 
     def tricontour(self, *args, **kwargs):
-        """Stub for triangulation contour plot."""
-        pass
+        """Contour plot sobre uma triangulação.
+
+        Uso: tricontour(x, y, triangles, z) ou tricontour(x, y, z)
+        Interpola os dados numa grade regular e chama contour().
+        """
+        self._tri_contour_impl(False, *args, **kwargs)
 
     def tricontourf(self, *args, **kwargs):
-        """Stub for triangulation filled contour plot."""
-        pass
+        """Filled contour plot sobre uma triangulação.
+
+        Uso: tricontourf(x, y, triangles, z) ou tricontourf(x, y, z)
+        Interpola os dados numa grade regular e chama contourf().
+        """
+        self._tri_contour_impl(True, *args, **kwargs)
+
+    def _tri_contour_impl(self, filled, *args, **kwargs):
+        """Implementação compartilhada para tricontour/tricontourf."""
+        if len(args) >= 4:
+            x, y, triangles, z = args[0], args[1], args[2], args[3]
+        elif len(args) >= 3:
+            x, y, z = args[0], args[1], args[2]
+            triangles = None
+        else:
+            return
+
+        x = np.asarray(x, dtype=float).ravel()
+        y = np.asarray(y, dtype=float).ravel()
+        z = np.asarray(z, dtype=float).ravel()
+
+        if triangles is None:
+            n = len(x)
+            triangles = np.array([[0, i, i + 1] for i in range(1, n - 1)])
+        else:
+            triangles = np.asarray(triangles, dtype=int)
+
+        levels = kwargs.pop('levels', 10)
+        nx, ny = 50, 50
+        xi = np.linspace(float(np.min(x)), float(np.max(x)), nx)
+        yi = np.linspace(float(np.min(y)), float(np.max(y)), ny)
+        Xi, Yi = np.meshgrid(xi, yi)
+
+        Zi = _interp_triangles(x, y, z, triangles, Xi.ravel(), Yi.ravel())
+        Zi = Zi.reshape(ny, nx)
+
+        # contour/contourf esperam lista de valores, não int
+        if isinstance(levels, int):
+            z_valid = Zi[~np.isnan(Zi)]
+            if len(z_valid) > 0:
+                levels = np.linspace(float(z_valid.min()), float(z_valid.max()), levels).tolist()
+            else:
+                levels = None
+
+        if filled:
+            self.contourf(Xi, Yi, Zi, levels=levels, **kwargs)
+        else:
+            self.contour(Xi, Yi, Zi, levels=levels, **kwargs)
 
     def tripcolor(self, *args, **kwargs):
-        """Stub for triangulation pseudocolor plot."""
-        pass
+        """Pseudocolor plot sobre uma triangulação.
+
+        Uso: tripcolor(x, y, triangles, C) ou tripcolor(x, y, C)
+
+        Parâmetros
+        ----------
+        x, y : array-like
+            Coordenadas dos vértices.
+        triangles : array-like de shape (ntri, 3), opcional
+            Índices dos vértices de cada triângulo. Se None, usa triangulação fan.
+        C : array-like
+            Valores de cor. Se len(C) == len(x), valores são por vértice (média por triângulo).
+            Se len(C) == len(triangles), valores são por triângulo.
+        cmap : str
+            Nome do colormap (apenas 'viridis' com aproximação nativa; outros usam viridis).
+        """
+        if len(args) >= 4:
+            x, y, triangles, C = args[0], args[1], args[2], args[3]
+        elif len(args) == 3:
+            x, y, C = args[0], args[1], args[2]
+            triangles = None
+        else:
+            return
+
+        x = np.asarray(x, dtype=float).ravel()
+        y = np.asarray(y, dtype=float).ravel()
+        C = np.asarray(C, dtype=float).ravel()
+
+        if triangles is None:
+            n = len(x)
+            triangles = np.array([[0, i, i + 1] for i in range(1, n - 1)])
+        else:
+            triangles = np.asarray(triangles, dtype=int)
+
+        # Cor por triângulo: média dos vértices se C for por vértice
+        if len(C) == len(x):
+            tri_vals = np.array([np.mean(C[tri]) for tri in triangles])
+        else:
+            tri_vals = C[:len(triangles)]
+
+        vmin = kwargs.get('vmin', float(np.nanmin(tri_vals)))
+        vmax = kwargs.get('vmax', float(np.nanmax(tri_vals)))
+        alpha = kwargs.get('alpha', 1.0)
+
+        if vmax <= vmin:
+            vmax = vmin + 1.0
+        norm = np.clip((tri_vals - vmin) / (vmax - vmin), 0, 1)
+
+        for i, tri in enumerate(triangles):
+            t = float(norm[i])
+            r, g, b = _viridis_approx(t)
+            color = f'#{r:02x}{g:02x}{b:02x}'
+            tx = [float(x[tri[0]]), float(x[tri[1]]), float(x[tri[2]])]
+            ty = [float(y[tri[0]]), float(y[tri[1]]), float(y[tri[2]])]
+            self.fill(tx, ty, color=color, alpha=alpha)
 
     def matshow(self, data, cmap=None, **kwargs):
         """Display a matrix as an image with integer ticks."""
@@ -1929,6 +2032,76 @@ class FigureProxy:
             if 'ncol' in kwargs:
                 kw['ncol'] = int(kwargs['ncol'])
             self._fig.axes_legend(n - 1, kw)
+
+
+def _viridis_approx(t):
+    """Aproximação do colormap viridis. t em [0, 1], retorna (r, g, b) como ints 0-255."""
+    t = float(np.clip(t, 0, 1))
+    # Aproximação linear por partes do viridis
+    if t < 0.25:
+        r = int(255 * (0.267 + 0.008 * t))
+        g = int(255 * (0.005 + 1.0 * t))
+        b = int(255 * (0.33 + 0.46 * t))
+    elif t < 0.5:
+        r = int(255 * (0.27 + 0.02 * (t - 0.25)))
+        g = int(255 * np.clip(0.25 + 0.8 * (t - 0.25), 0, 1))
+        b = int(255 * np.clip(0.44 + 0.2 * (t - 0.25), 0, 1))
+    elif t < 0.75:
+        r = int(255 * np.clip(0.27 + 1.4 * (t - 0.5), 0, 1))
+        g = int(255 * np.clip(0.45 + 0.9 * (t - 0.5), 0, 1))
+        b = int(255 * np.clip(0.49 - 0.8 * (t - 0.5), 0, 1))
+    else:
+        r = int(255 * np.clip(0.69 + 0.71 * (t - 0.75), 0, 1))
+        g = int(255 * np.clip(0.68 + 0.64 * (t - 0.75), 0, 1))
+        b = int(255 * np.clip(0.29 - 0.86 * (t - 0.75), 0, 1))
+    return (r, g, b)
+
+
+def _interp_triangles(x, y, z, triangles, xi, yi):
+    """Interpola dados dispersos usando coordenadas baricêntricas nos triângulos."""
+    zi = np.full(len(xi), np.nan)
+
+    for tri in triangles:
+        x0, y0 = x[tri[0]], y[tri[0]]
+        x1, y1 = x[tri[1]], y[tri[1]]
+        x2, y2 = x[tri[2]], y[tri[2]]
+        z0, z1, z2 = z[tri[0]], z[tri[1]], z[tri[2]]
+
+        # Bounding box para rejeição rápida
+        bx_min = min(x0, x1, x2)
+        bx_max = max(x0, x1, x2)
+        by_min = min(y0, y1, y2)
+        by_max = max(y0, y1, y2)
+
+        mask = (xi >= bx_min) & (xi <= bx_max) & (yi >= by_min) & (yi <= by_max)
+        if not np.any(mask):
+            continue
+
+        denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+        if abs(denom) < 1e-12:
+            continue
+
+        px = xi[mask]
+        py = yi[mask]
+
+        l1 = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) / denom
+        l2 = ((y2 - y0) * (px - x2) + (x0 - x2) * (py - y2)) / denom
+        l3 = 1.0 - l1 - l2
+
+        inside = (l1 >= -1e-10) & (l2 >= -1e-10) & (l3 >= -1e-10)
+        idx = np.where(mask)[0][inside]
+        zi[idx] = l1[inside] * z0 + l2[inside] * z1 + l3[inside] * z2
+
+    # Preenche NaN com vizinho mais próximo
+    nan_mask = np.isnan(zi)
+    if np.any(nan_mask) and not np.all(nan_mask):
+        valid = ~nan_mask
+        dist = (np.abs(xi[nan_mask, None] - xi[None, valid]) +
+                np.abs(yi[nan_mask, None] - yi[None, valid]))
+        from_valid = np.argmin(dist, axis=1)
+        zi[nan_mask] = zi[valid][from_valid]
+
+    return zi
 
 
 def _to_list(data):
