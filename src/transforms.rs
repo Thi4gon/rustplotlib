@@ -207,3 +207,39 @@ impl Affine2D {
         vec![self.a, self.b, self.tx, self.c, self.d, self.ty]
     }
 }
+
+/// A blended transform that uses one transform for X and another for Y.
+#[pyclass]
+#[derive(Debug, Clone)]
+pub struct BlendedTransform {
+    pub x_transform: Affine2D,
+    pub y_transform: Affine2D,
+}
+
+#[pymethods]
+impl BlendedTransform {
+    #[new]
+    pub fn new(x_transform: Affine2D, y_transform: Affine2D) -> Self {
+        Self { x_transform, y_transform }
+    }
+
+    /// Transform a point using x_transform for X and y_transform for Y.
+    pub fn transform_point(&self, x: f64, y: f64) -> (f64, f64) {
+        let (tx, _) = self.x_transform.transform_point(x, 0.0);
+        let (_, ty) = self.y_transform.transform_point(0.0, y);
+        (tx, ty)
+    }
+
+    /// Transform batch of points.
+    pub fn transform_points(&self, points: Vec<(f64, f64)>) -> Vec<(f64, f64)> {
+        points.iter().map(|(x, y)| self.transform_point(*x, *y)).collect()
+    }
+
+    /// Return inverse blended transform.
+    pub fn inverted(&self) -> BlendedTransform {
+        BlendedTransform {
+            x_transform: self.x_transform.inverted(),
+            y_transform: self.y_transform.inverted(),
+        }
+    }
+}

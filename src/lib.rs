@@ -47,6 +47,7 @@ fn _rustplotlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", "0.1.0")?;
     m.add_class::<transforms::Transform>()?;
     m.add_class::<transforms::Affine2D>()?;
+    m.add_class::<transforms::BlendedTransform>()?;
     m.add_class::<figure::RustFigure>()?;
     m.add_function(wrap_pyfunction!(colors::parse_color, m)?)?;
     m.add_function(wrap_pyfunction!(ticker::auto_ticks, m)?)?;
