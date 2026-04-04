@@ -72,6 +72,36 @@ impl RustFigure {
         idx
     }
 
+    fn axes_add_widget_slider(
+        &mut self,
+        ax_id: usize,
+        val: f64,
+        valmin: f64,
+        valmax: f64,
+        label: String,
+        color: Option<String>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        let c = color.map(|cs| colors::parse_color_str(&cs));
+        ax.add_widget_slider(val, valmin, valmax, label, c);
+        Ok(())
+    }
+
+    #[pyo3(signature = (ax_id, label, color=None))]
+    fn axes_add_widget_button(
+        &mut self,
+        ax_id: usize,
+        label: String,
+        color: Option<String>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        let c = color.map(|cs| colors::parse_color_str(&cs));
+        ax.add_widget_button(label, c);
+        Ok(())
+    }
+
     fn axes_set_position(&mut self, ax_id: usize, left: f64, bottom: f64, width: f64, height: f64) -> PyResult<()> {
         let ax = self.axes.get_mut(ax_id)
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;

@@ -34,6 +34,7 @@ pub mod sankey;
 pub mod arrow;
 pub mod fancy_arrow;
 pub mod line_collection;
+pub mod widget;
 
 use tiny_skia::{PathBuilder, StrokeDash};
 

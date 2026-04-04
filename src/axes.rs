@@ -18,6 +18,7 @@ use crate::artists::sankey::Sankey;
 use crate::artists::arrow::Arrow;
 use crate::artists::fancy_arrow::{FancyArrow, ArrowStyle, ConnectionStyle};
 use crate::artists::line_collection::LineCollection;
+use crate::artists::widget::WidgetArtist;
 use crate::artists::step::{Step, StepWhere};
 use crate::artists::pie::PieChart;
 use crate::artists::errorbar::ErrorBar;
@@ -3156,6 +3157,31 @@ impl Axes {
         lc.label = label;
         if let Some(z) = zorder { lc.zorder = z; }
         self.artists.push(Box::new(lc));
+    }
+
+    /// Add a visual widget (Slider/Button) to the axes.
+    pub fn add_widget_slider(
+        &mut self,
+        val: f64,
+        valmin: f64,
+        valmax: f64,
+        label: String,
+        color: Option<Color>,
+    ) {
+        let c = color.unwrap_or(Color::new(31, 119, 180, 255)); // tab:blue
+        let w = WidgetArtist::new_slider(val, valmin, valmax, label, c);
+        self.artists.push(Box::new(w));
+    }
+
+    /// Add a visual button widget to the axes.
+    pub fn add_widget_button(
+        &mut self,
+        label: String,
+        color: Option<Color>,
+    ) {
+        let c = color.unwrap_or(Color::new(220, 220, 220, 255));
+        let w = WidgetArtist::new_button(label, c);
+        self.artists.push(Box::new(w));
     }
 
     /// Add an infinite line through a point (axline).
