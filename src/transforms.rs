@@ -102,3 +102,108 @@ impl Transform {
         (px as f32, py as f32)
     }
 }
+
+/// A 2D affine transformation matrix:
+///   | a  b  tx |
+///   | c  d  ty |
+///   | 0  0  1  |
+#[pyclass]
+#[derive(Debug, Clone)]
+pub struct Affine2D {
+    pub a: f64,
+    pub b: f64,
+    pub c: f64,
+    pub d: f64,
+    pub tx: f64,
+    pub ty: f64,
+}
+
+#[pymethods]
+impl Affine2D {
+    #[new]
+    pub fn new() -> Self {
+        // Identity matrix
+        Self { a: 1.0, b: 0.0, c: 0.0, d: 1.0, tx: 0.0, ty: 0.0 }
+    }
+
+    /// Create a translation transform.
+    #[staticmethod]
+    pub fn translate(tx: f64, ty: f64) -> Self {
+        Self { a: 1.0, b: 0.0, c: 0.0, d: 1.0, tx, ty }
+    }
+
+    /// Create a scaling transform.
+    #[staticmethod]
+    pub fn scale(sx: f64, sy: f64) -> Self {
+        Self { a: sx, b: 0.0, c: 0.0, d: sy, tx: 0.0, ty: 0.0 }
+    }
+
+    /// Create a rotation transform (angle in radians).
+    #[staticmethod]
+    pub fn rotate(angle: f64) -> Self {
+        let cos = angle.cos();
+        let sin = angle.sin();
+        Self { a: cos, b: -sin, c: sin, d: cos, tx: 0.0, ty: 0.0 }
+    }
+
+    /// Create a rotation transform (angle in degrees).
+    #[staticmethod]
+    pub fn rotate_deg(angle: f64) -> Self {
+        Self::rotate(angle.to_radians())
+    }
+
+    /// Transform a point (x, y) → (x', y').
+    pub fn transform_point(&self, x: f64, y: f64) -> (f64, f64) {
+        (self.a * x + self.b * y + self.tx,
+         self.c * x + self.d * y + self.ty)
+    }
+
+    /// Transform an array of points.
+    pub fn transform_points(&self, points: Vec<(f64, f64)>) -> Vec<(f64, f64)> {
+        points.iter().map(|(x, y)| self.transform_point(*x, *y)).collect()
+    }
+
+    /// Compose with another Affine2D: self * other.
+    pub fn compose(&self, other: &Affine2D) -> Affine2D {
+        Affine2D {
+            a: self.a * other.a + self.b * other.c,
+            b: self.a * other.b + self.b * other.d,
+            c: self.c * other.a + self.d * other.c,
+            d: self.c * other.b + self.d * other.d,
+            tx: self.a * other.tx + self.b * other.ty + self.tx,
+            ty: self.c * other.tx + self.d * other.ty + self.ty,
+        }
+    }
+
+    /// Return the inverse transform.
+    pub fn inverted(&self) -> Affine2D {
+        let det = self.a * self.d - self.b * self.c;
+        if det.abs() < 1e-15 {
+            return Self::new(); // Return identity if singular
+        }
+        let inv_det = 1.0 / det;
+        Affine2D {
+            a: self.d * inv_det,
+            b: -self.b * inv_det,
+            c: -self.c * inv_det,
+            d: self.a * inv_det,
+            tx: (self.b * self.ty - self.d * self.tx) * inv_det,
+            ty: (self.c * self.tx - self.a * self.ty) * inv_det,
+        }
+    }
+
+    /// Check if this is the identity transform.
+    pub fn is_identity(&self) -> bool {
+        (self.a - 1.0).abs() < 1e-15
+            && self.b.abs() < 1e-15
+            && self.c.abs() < 1e-15
+            && (self.d - 1.0).abs() < 1e-15
+            && self.tx.abs() < 1e-15
+            && self.ty.abs() < 1e-15
+    }
+
+    /// Get the matrix as a flat array [a, b, tx, c, d, ty].
+    pub fn get_matrix(&self) -> Vec<f64> {
+        vec![self.a, self.b, self.tx, self.c, self.d, self.ty]
+    }
+}
