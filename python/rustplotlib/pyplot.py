@@ -1761,20 +1761,27 @@ class Axes3DProxy:
 
 
 class CanvasProxy:
-    """Stub canvas for matplotlib event-connection compatibility."""
+    """Canvas with event callback support (matplotlib-compatible)."""
+
+    def __init__(self):
+        from rustplotlib.callback_registry import CallbackRegistry
+        self.callbacks = CallbackRegistry()
 
     def mpl_connect(self, event_name, callback):
-        """Stub: accept event connection without crashing."""
-        pass
+        """Connect a callback to an event. Returns a connection id."""
+        return self.callbacks.connect(event_name, callback)
 
     def mpl_disconnect(self, cid):
-        pass
+        """Disconnect a callback by its connection id."""
+        self.callbacks.disconnect(cid)
 
     def draw(self):
-        pass
+        """Request a canvas redraw."""
+        self.callbacks.process("draw_event")
 
     def draw_idle(self):
-        pass
+        """Request a canvas redraw at idle time."""
+        self.callbacks.process("draw_event")
 
 
 class FigureProxy:
@@ -1826,6 +1833,21 @@ class FigureProxy:
             display_figure(self._fig)
         except NameError:
             self._fig.show()
+
+    def _repr_png_(self):
+        """Jupyter rich display: render as PNG bytes."""
+        return bytes(self._fig.render_to_png_bytes())
+
+    def _repr_svg_(self):
+        """Jupyter rich display: render as SVG string."""
+        return self._fig.render_to_svg_string()
+
+    def _repr_html_(self):
+        """Jupyter rich display: render as HTML img tag with base64 PNG."""
+        import base64
+        png = self._repr_png_()
+        b64 = base64.b64encode(png).decode('ascii')
+        return f'<img src="data:image/png;base64,{b64}" />'
 
     def add_subplot(self, *args, projection=None, **kwargs):
         """Add a subplot to the figure. Supports projection='3d'."""
@@ -2718,11 +2740,13 @@ def pause(interval):
 
 
 def connect(event, func):
-    pass
+    """Connect a callback to the current figure's canvas. Returns cid."""
+    return gcf().canvas.mpl_connect(event, func)
 
 
 def disconnect(cid):
-    pass
+    """Disconnect a callback from the current figure's canvas."""
+    gcf().canvas.mpl_disconnect(cid)
 
 
 def get_fignums():
