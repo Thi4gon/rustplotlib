@@ -1975,6 +1975,29 @@ impl RustFigure {
         Ok(self.render_svg_native(None, false))
     }
 
+    /// Render the figure as raw RGBA pixel buffer (for interactive backends).
+    /// Returns (bytes, width, height).
+    fn render_to_rgba_buffer<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyBytes>, u32, u32)> {
+        let pixmap = self.render_pixmap_opts(None, false);
+        let w = pixmap.width();
+        let h = pixmap.height();
+        let rgba_data: Vec<u8> = pixmap.pixels().iter().flat_map(|px| {
+            // tiny-skia stores premultiplied RGBA — unpremultiply for standard RGBA
+            let a = px.alpha();
+            if a > 0 && a < 255 {
+                let r = (px.red() as u16 * 255 / a as u16).min(255) as u8;
+                let g = (px.green() as u16 * 255 / a as u16).min(255) as u8;
+                let b = (px.blue() as u16 * 255 / a as u16).min(255) as u8;
+                [r, g, b, a]
+            } else if a == 255 {
+                [px.red(), px.green(), px.blue(), 255]
+            } else {
+                [0, 0, 0, 0]
+            }
+        }).collect();
+        Ok((PyBytes::new_bound(py, &rgba_data), w, h))
+    }
+
     #[pyo3(signature = (path, dpi=None, transparent=None, tight=None))]
     fn savefig(&self, path: String, dpi: Option<u32>, transparent: Option<bool>, tight: Option<bool>) -> PyResult<()> {
         // Validate file extension
