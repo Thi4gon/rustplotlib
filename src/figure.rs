@@ -268,7 +268,11 @@ impl RustFigure {
             Some(v.extract::<String>()?)
         } else { None };
 
-        ax.imshow(data, cmap, annotate, fmt);
+        let interpolation = if let Some(v) = kwargs.get_item("interpolation")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        ax.imshow(data, cmap, annotate, fmt, interpolation);
 
         Ok(())
     }

@@ -15,10 +15,16 @@ from rustplotlib import axes
 from rustplotlib import figure
 from rustplotlib import collections
 from rustplotlib import cm
+from rustplotlib import patheffects
+from rustplotlib import transforms
+from rustplotlib import lines
+from rustplotlib import text
+from rustplotlib import spines
 
 __all__ = ["pyplot", "style", "animation", "widgets", "dates", "backends",
            "font_manager", "ticker", "patches", "colors", "gridspec", "cycler",
-           "axes", "figure", "collections", "cm",
+           "axes", "figure", "collections", "cm", "patheffects", "transforms",
+           "lines", "text", "spines",
            "__version__", "use"]
 
 

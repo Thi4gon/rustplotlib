@@ -300,7 +300,7 @@ class AxesProxy:
         return self
 
     def imshow(self, data, cmap="viridis", aspect=None, vmin=None, vmax=None,
-               annotate=False, fmt=None, **kwargs):
+               annotate=False, fmt=None, interpolation=None, **kwargs):
         data_list = _to_2d_list(data)
         kw = {"cmap": cmap}
         if vmin is not None:
@@ -311,6 +311,8 @@ class AxesProxy:
             kw["annotate"] = True
         if fmt is not None:
             kw["fmt"] = str(fmt)
+        if interpolation is not None:
+            kw["interpolation"] = str(interpolation)
         self._fig.axes_imshow(self._id, data_list, kw)
         return self
 

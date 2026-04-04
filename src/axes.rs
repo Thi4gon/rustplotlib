@@ -5,7 +5,7 @@ use crate::artists::line2d::Line2D;
 use crate::artists::scatter::Scatter;
 use crate::artists::bar::Bar;
 use crate::artists::hist::Histogram;
-use crate::artists::image::Image;
+use crate::artists::image::{Image, ImageInterpolation};
 use crate::artists::fill_between::FillBetween;
 use crate::artists::fill_betweenx::FillBetweenX;
 use crate::artists::violin::ViolinPlot;
@@ -365,12 +365,18 @@ impl Axes {
     }
 
     /// Add an image display.
-    pub fn imshow(&mut self, data: Vec<Vec<f64>>, cmap: Option<String>, annotate: bool, fmt: Option<String>) {
+    pub fn imshow(&mut self, data: Vec<Vec<f64>>, cmap: Option<String>, annotate: bool, fmt: Option<String>, interpolation: Option<String>) {
         let cm = cmap.unwrap_or_else(|| "viridis".to_string());
         let mut img = Image::new(data, cm);
         img.annotate = annotate;
         if let Some(f) = fmt {
             img.fmt = f;
+        }
+        if let Some(interp) = interpolation {
+            img.interpolation = match interp.to_lowercase().as_str() {
+                "bilinear" => ImageInterpolation::Bilinear,
+                _ => ImageInterpolation::Nearest,
+            };
         }
         self.artists.push(Box::new(img));
     }
