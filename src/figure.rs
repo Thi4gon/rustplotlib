@@ -328,6 +328,9 @@ impl RustFigure {
         if let Some(v) = kwargs.get_item("loc")? {
             ax.legend_loc = v.extract::<String>()?;
         }
+        if let Some(v) = kwargs.get_item("ncol")? {
+            ax.legend_ncol = v.extract::<usize>()?;
+        }
         // Accept and ignore 'prop' (font properties)
         let _ = kwargs.get_item("prop")?;
 

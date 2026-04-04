@@ -108,6 +108,126 @@ class AxisProxy:
         pass
 
 
+class Line2DProxy:
+    """Proxy for matplotlib Line2D objects returned by plot()."""
+
+    def __init__(self):
+        self._color = 'blue'
+        self._label = ''
+        self._linewidth = 1.5
+        self._linestyle = '-'
+
+    def set_data(self, x, y):
+        pass  # stub for animation compat
+
+    def set_color(self, c):
+        self._color = c
+
+    def set_linewidth(self, lw):
+        self._linewidth = lw
+
+    def set_linestyle(self, ls):
+        self._linestyle = ls
+
+    def set_label(self, label):
+        self._label = label
+
+    def get_color(self):
+        return self._color
+
+    def get_label(self):
+        return self._label
+
+    def get_linewidth(self):
+        return self._linewidth
+
+    def get_linestyle(self):
+        return self._linestyle
+
+    def remove(self):
+        pass
+
+    def set_visible(self, b):
+        pass
+
+    def set_xdata(self, x):
+        pass
+
+    def set_ydata(self, y):
+        pass
+
+    def get_xdata(self):
+        return []
+
+    def get_ydata(self):
+        return []
+
+    def set_marker(self, m):
+        pass
+
+    def set_markersize(self, s):
+        pass
+
+    def set_alpha(self, a):
+        pass
+
+
+class PathCollectionProxy:
+    """Proxy for matplotlib PathCollection returned by scatter()."""
+
+    def __init__(self):
+        pass
+
+    def set_offsets(self, offsets):
+        pass
+
+    def set_array(self, a):
+        pass
+
+    def set_clim(self, vmin, vmax):
+        pass
+
+    def set_cmap(self, cmap):
+        pass
+
+    def set_sizes(self, s):
+        pass
+
+    def set_color(self, c):
+        pass
+
+    def set_alpha(self, a):
+        pass
+
+    def set_visible(self, b):
+        pass
+
+    def remove(self):
+        pass
+
+    def get_offsets(self):
+        return []
+
+
+class BarContainerProxy:
+    """Proxy for matplotlib BarContainer returned by bar()."""
+
+    def __init__(self, patches=None):
+        self.patches = patches or []
+
+    def __iter__(self):
+        return iter(self.patches)
+
+    def __len__(self):
+        return len(self.patches)
+
+    def remove(self):
+        pass
+
+    def set_visible(self, b):
+        pass
+
+
 class AxesProxy:
     """Python wrapper around a Rust axes, accessed by ID."""
 
@@ -124,7 +244,16 @@ class AxesProxy:
             self._fig.axes_set_xticks(self._id, x)
             self._fig.axes_set_xticklabels(self._id, labels)
         self._fig.axes_plot(self._id, x, y, kwargs)
-        return self
+        proxy = Line2DProxy()
+        if 'color' in kwargs:
+            proxy._color = kwargs['color']
+        if 'label' in kwargs:
+            proxy._label = kwargs['label']
+        if 'linewidth' in kwargs:
+            proxy._linewidth = kwargs['linewidth']
+        if 'linestyle' in kwargs:
+            proxy._linestyle = kwargs['linestyle']
+        return [proxy]
 
     def scatter(self, x, y, s=None, c=None, marker="o", alpha=1.0, label=None, **kwargs):
         x, y = _to_list(x), _to_list(y)
@@ -136,7 +265,7 @@ class AxesProxy:
         if label is not None:
             kw["label"] = label
         self._fig.axes_scatter(self._id, x, y, kw)
-        return self
+        return PathCollectionProxy()
 
     def bar(self, x, height, width=0.8, bottom=None, color=None, label=None, alpha=1.0, **kwargs):
         # Handle categorical (string) x values
@@ -158,7 +287,7 @@ class AxesProxy:
             self._fig.axes_set_xticks(self._id, x)
             self._fig.axes_set_xticklabels(self._id, cat_labels)
         self._fig.axes_bar(self._id, x, height, kw)
-        return self
+        return BarContainerProxy()
 
     def hist(self, x, bins=10, color=None, alpha=1.0, label=None, **kwargs):
         x = _to_list(x)
@@ -210,6 +339,8 @@ class AxesProxy:
         kw = {}
         if 'loc' in kwargs:
             kw['loc'] = kwargs['loc']
+        if 'ncol' in kwargs:
+            kw['ncol'] = int(kwargs['ncol'])
         if 'prop' in kwargs:
             kw['prop'] = str(kwargs['prop'])  # pass as string, ignored on Rust side
         self._fig.axes_legend(self._id, kw)
@@ -552,6 +683,19 @@ class AxesProxy:
             kw["color"] = color
         self._fig.axes_streamplot(self._id, x_2d, y_2d, u_2d, v_2d, kw)
         return self
+
+    def set(self, **kwargs):
+        """Set multiple axes properties at once.
+
+        Example: ax.set(xlabel='X', ylabel='Y', title='My Plot', xlim=(0, 10))
+        """
+        for key, val in kwargs.items():
+            method = getattr(self, f'set_{key}', None)
+            if method:
+                if isinstance(val, (list, tuple)) and key in ('xlim', 'ylim'):
+                    method(*val)
+                else:
+                    method(val)
 
     def twinx(self):
         twin_id = self._fig.axes_twinx(self._id)
@@ -1235,6 +1379,11 @@ class FigureProxy:
     def align_labels(self, axs=None):
         pass
 
+    def add_gridspec(self, nrows, ncols, **kwargs):
+        """Create a GridSpec for this figure."""
+        from rustplotlib.gridspec import GridSpec
+        return GridSpec(nrows, ncols, figure=self, **kwargs)
+
     def align_xlabels(self, axs=None):
         pass
 
@@ -1599,19 +1748,19 @@ def subplot_mosaic(mosaic, figsize=None, dpi=100, **kwargs):
 
 
 def plot(*args, **kwargs):
-    _gca().plot(*args, **kwargs)
+    return _gca().plot(*args, **kwargs)
 
 
 def scatter(x, y, **kwargs):
-    _gca().scatter(x, y, **kwargs)
+    return _gca().scatter(x, y, **kwargs)
 
 
 def bar(x, height, **kwargs):
-    _gca().bar(x, height, **kwargs)
+    return _gca().bar(x, height, **kwargs)
 
 
 def hist(x, **kwargs):
-    _gca().hist(x, **kwargs)
+    return _gca().hist(x, **kwargs)
 
 
 def imshow(data, **kwargs):
@@ -2006,3 +2155,34 @@ def loglog(*args, **kwargs):
     xscale('log')
     yscale('log')
     plot(*args, **kwargs)
+
+
+def rc(group, **kwargs):
+    """Set rcParams for a group.
+
+    Example: plt.rc('font', size=14, family='serif')
+    """
+    for key, val in kwargs.items():
+        rcParams[f"{group}.{key}"] = val
+
+
+def rc_context(rc=None):
+    """Context manager to temporarily change rcParams.
+
+    Example:
+        with plt.rc_context({'font.size': 14}):
+            plt.plot(x, y)
+    """
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _ctx():
+        old = rcParams.copy()
+        if rc:
+            rcParams.update(rc)
+        try:
+            yield
+        finally:
+            rcParams.clear()
+            rcParams.update(old)
+    return _ctx()

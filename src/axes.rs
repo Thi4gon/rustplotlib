@@ -21,7 +21,7 @@ use crate::artists::stem::Stem;
 use crate::artists::contour::Contour;
 use crate::artists::hexbin::HexBin;
 use crate::artists::patches::Patch;
-use crate::artists::legend::draw_legend;
+use crate::artists::legend::{draw_legend, draw_legend_ncol};
 use crate::artists::{LineStyle, MarkerStyle};
 use crate::colors::Color;
 use crate::svg_renderer::{SvgRenderer, color_to_svg, color_alpha, linestyle_to_dash};
@@ -147,6 +147,7 @@ pub struct Axes {
     pub grid_alpha: f32,
     pub show_legend: bool,
     pub legend_loc: String,
+    pub legend_ncol: usize,
     color_cycle_idx: usize,
     pub title_size: f32,
     pub label_size: f32,
@@ -227,6 +228,7 @@ impl Axes {
             grid_alpha: 1.0,
             show_legend: false,
             legend_loc: "upper right".to_string(),
+            legend_ncol: 1,
             color_cycle_idx: 0,
             title_size: 14.0,
             label_size: 12.0,
@@ -1127,18 +1129,18 @@ impl Axes {
                 }
             }
             if !entries.is_empty() {
-                let legend_w = 120.0_f32;
+                let ncol = self.legend_ncol.max(1);
+                let nrows = (entries.len() + ncol - 1) / ncol;
+                let legend_w = 120.0_f32 * ncol as f32;
                 let legend_margin = 10.0_f32;
                 let (legend_x, legend_y) = match self.legend_loc.as_str() {
                     "upper left" => (left + legend_margin, top + legend_margin),
                     "lower right" => {
-                        let entry_count = entries.len() as f32;
-                        let legend_h = 12.0 + entry_count * 15.0;
+                        let legend_h = 12.0 + nrows as f32 * 15.0;
                         (right - legend_margin - legend_w, bottom - legend_margin - legend_h)
                     }
                     "lower left" => {
-                        let entry_count = entries.len() as f32;
-                        let legend_h = 12.0 + entry_count * 15.0;
+                        let legend_h = 12.0 + nrows as f32 * 15.0;
                         (left + legend_margin, bottom - legend_margin - legend_h)
                     }
                     _ => {
@@ -1146,13 +1148,14 @@ impl Axes {
                         (right - legend_margin - legend_w, top + legend_margin)
                     }
                 };
-                draw_legend(pixmap, &entries, legend_x, legend_y);
+                draw_legend_ncol(pixmap, &entries, legend_x, legend_y, ncol);
             }
         }
 
-        // 11. Draw twin axes (twinx) if present
+        // 11. Draw twin axes (twinx) if present — share parent x-axis limits
         if let Some(ref twin) = self.twin_axes {
-            twin.draw_as_twin(pixmap, left, top, right, bottom);
+            let parent_xlim = self.xlim.unwrap_or((xmin, xmax));
+            twin.draw_as_twin(pixmap, left, top, right, bottom, Some(parent_xlim));
         }
 
         // 11b. Draw twin x-axes (twiny) if present
@@ -1757,8 +1760,10 @@ impl Axes {
     }
 
     /// Draw this axes as a twin (right y-axis, shared x-axis).
-    fn draw_as_twin(&self, pixmap: &mut Pixmap, left: f32, top: f32, right: f32, bottom: f32) {
-        let (xmin, xmax, ymin, ymax) = self.compute_bounds();
+    fn draw_as_twin(&self, pixmap: &mut Pixmap, left: f32, top: f32, right: f32, bottom: f32, parent_xlim: Option<(f64, f64)>) {
+        let (own_xmin, own_xmax, ymin, ymax) = self.compute_bounds();
+        // If parent x-axis limits are provided, use them (twinx shares x-axis)
+        let (xmin, xmax) = parent_xlim.unwrap_or((own_xmin, own_xmax));
 
         let log_x = self.x_scale == AxisScale::Log;
         let log_y = self.y_scale == AxisScale::Log;

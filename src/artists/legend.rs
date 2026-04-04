@@ -12,16 +12,24 @@ pub struct LegendEntry {
 }
 
 /// Draw a legend on the pixmap at position (x, y) (top-left corner of legend box).
+/// `ncol` controls how many columns to arrange entries in (default 1).
 pub fn draw_legend(pixmap: &mut Pixmap, entries: &[LegendEntry], x: f32, y: f32) {
+    draw_legend_ncol(pixmap, entries, x, y, 1);
+}
+
+/// Draw a legend with multiple columns.
+pub fn draw_legend_ncol(pixmap: &mut Pixmap, entries: &[LegendEntry], x: f32, y: f32, ncol: usize) {
     if entries.is_empty() {
         return;
     }
 
+    let ncol = ncol.max(1);
     let font_size = 11.0_f32;
     let swatch_size = 20.0_f32;
     let padding = 6.0_f32;
     let line_height = font_size + 4.0;
     let swatch_text_gap = 5.0_f32;
+    let col_gap = 10.0_f32; // gap between columns
 
     // Measure all entries to find the widest
     let mut max_label_width = 0.0_f32;
@@ -32,8 +40,10 @@ pub fn draw_legend(pixmap: &mut Pixmap, entries: &[LegendEntry], x: f32, y: f32)
         }
     }
 
-    let box_width = padding * 2.0 + swatch_size + swatch_text_gap + max_label_width;
-    let box_height = padding * 2.0 + entries.len() as f32 * line_height;
+    let col_width = swatch_size + swatch_text_gap + max_label_width;
+    let nrows = (entries.len() + ncol - 1) / ncol;
+    let box_width = padding * 2.0 + col_width * ncol as f32 + col_gap * (ncol as f32 - 1.0).max(0.0);
+    let box_height = padding * 2.0 + nrows as f32 * line_height;
 
     let ts = tiny_skia::Transform::identity();
 
@@ -54,11 +64,14 @@ pub fn draw_legend(pixmap: &mut Pixmap, entries: &[LegendEntry], x: f32, y: f32)
         pixmap.stroke_path(&border_path, &border_paint, &stroke, ts, None);
     }
 
-    // Draw each entry
+    // Draw each entry in a grid (column-major order)
     for (i, entry) in entries.iter().enumerate() {
-        let entry_y = y + padding + i as f32 * line_height;
+        let col = i / nrows;
+        let row = i % nrows;
+        let entry_y = y + padding + row as f32 * line_height;
 
-        let swatch_x = x + padding;
+        let col_offset = col as f32 * (col_width + col_gap);
+        let swatch_x = x + padding + col_offset;
         let swatch_cy = entry_y + line_height / 2.0;
 
         let has_line = entry.line_style.is_some()

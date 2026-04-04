@@ -11,9 +11,14 @@ from rustplotlib import patches
 from rustplotlib import colors
 from rustplotlib import gridspec
 from rustplotlib import cycler
+from rustplotlib import axes
+from rustplotlib import figure
+from rustplotlib import collections
+from rustplotlib import cm
 
 __all__ = ["pyplot", "style", "animation", "widgets", "dates", "backends",
            "font_manager", "ticker", "patches", "colors", "gridspec", "cycler",
+           "axes", "figure", "collections", "cm",
            "__version__", "use"]
 
 
