@@ -1487,6 +1487,17 @@ class AxesProxy:
     def set_frame_on(self, b):
         pass
 
+    def get_frame_on(self):
+        return True
+
+    def set_axis_off(self):
+        """Turn off the axis (no ticks, labels, spines)."""
+        self._fig.axes_set_axis_off(self._id, True)
+
+    def set_axis_on(self):
+        """Turn the axis back on."""
+        self._fig.axes_set_axis_off(self._id, False)
+
     def get_xlim(self):
         return self._fig.axes_get_xlim(self._id)
 
@@ -3534,9 +3545,10 @@ def figure(figsize=None, dpi=100, constrained_layout=False, tight_layout=False, 
     dpi : float, optional
         Dots per inch.
     constrained_layout : bool, optional
-        If True, use tight layout to automatically adjust subplot parameters.
+        If True, use constraint-based layout that measures all text elements
+        and calculates margins to prevent overlap with uniform subplot padding.
     tight_layout : bool, optional
-        If True, use tight layout adjustment (alias for constrained_layout).
+        If True, use tight layout adjustment to reduce whitespace around subplots.
     """
     global _current_figure, _current_axes_id
     if figsize:
@@ -3547,7 +3559,10 @@ def figure(figsize=None, dpi=100, constrained_layout=False, tight_layout=False, 
     _current_axes_id = _current_figure.add_axes()
     _apply_current_style(_current_figure)
     fig_proxy = FigureProxy(_current_figure, [_gca()])
-    if constrained_layout or tight_layout:
+    if constrained_layout:
+        _current_figure.set_constrained_layout_flag(True)
+        fig_proxy._constrained = True
+    elif tight_layout:
         fig_proxy._tight = True
     return fig_proxy
 
@@ -3567,9 +3582,10 @@ def subplots(nrows=1, ncols=1, figsize=None, dpi=100, subplot_kw=None,
     subplot_kw : dict, optional
         Dict with keywords passed to add_subplot.
     constrained_layout : bool, optional
-        If True, use tight layout automatically.
+        If True, use constraint-based layout that measures all text elements
+        and calculates margins to prevent overlap with uniform subplot padding.
     tight_layout : bool, optional
-        If True, use tight layout (alias for constrained_layout).
+        If True, use tight layout adjustment to reduce whitespace around subplots.
     """
     global _current_figure, _current_axes_id
     if figsize:
@@ -3608,7 +3624,10 @@ def subplots(nrows=1, ncols=1, figsize=None, dpi=100, subplot_kw=None,
             axes.append(row)
 
     fig_proxy = FigureProxy(fig, axes)
-    if constrained_layout or tight_layout:
+    if constrained_layout:
+        fig.set_constrained_layout_flag(True)
+        fig_proxy._constrained = True
+    elif tight_layout:
         fig_proxy._tight = True
         fig_proxy.tight_layout()
     return fig_proxy, axes

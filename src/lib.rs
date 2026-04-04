@@ -75,6 +75,10 @@ fn _rustplotlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(projections::hammer_project_batch, m)?)?;
     m.add_function(wrap_pyfunction!(projections::aitoff_project_batch, m)?)?;
     m.add_function(wrap_pyfunction!(projections::mollweide_project_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(projections::lambert_project, m)?)?;
+    m.add_function(wrap_pyfunction!(projections::lambert_project_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(projections::stereographic_project, m)?)?;
+    m.add_function(wrap_pyfunction!(projections::stereographic_project_batch, m)?)?;
     m.add_function(wrap_pyfunction!(projections::generate_graticule, m)?)?;
     m.add_function(wrap_pyfunction!(parse_math_symbols_py, m)?)?;
     Ok(())

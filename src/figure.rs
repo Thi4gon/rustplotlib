@@ -23,6 +23,7 @@ pub struct RustFigure {
     /// 3D axes, stored separately. Keyed by subplot index.
     axes3d: Vec<(usize, Axes3D)>,
     tight: bool,
+    constrained: bool,
 }
 
 #[pymethods]
@@ -47,11 +48,16 @@ impl RustFigure {
             bg_color: crate::colors::Color::new(240, 240, 240, 255),
             axes3d: Vec::new(),
             tight: false,
+            constrained: false,
         }
     }
 
     fn set_tight_layout_flag(&mut self, tight: bool) {
         self.tight = tight;
+    }
+
+    fn set_constrained_layout_flag(&mut self, constrained: bool) {
+        self.constrained = constrained;
     }
 
     fn set_size_inches(&mut self, w: f64, h: f64) -> PyResult<()> {
@@ -3353,6 +3359,72 @@ impl RustFigure {
                 (max_title_h + padding).max(25.0 * scale),                // top
                 (max_xlabel_h + tick_space + padding).max(35.0 * scale), // bottom
             )
+        } else if self.constrained {
+            // Constrained layout: measure all text elements and compute margins
+            // to prevent any overlap, with uniform padding between subplots.
+            let mut max_ylabel_w = 0.0_f32;
+            let mut max_title_h = 0.0_f32;
+            let mut max_xlabel_h = 0.0_f32;
+            let mut max_ytick_w = 0.0_f32;
+            let mut max_xtick_h = 0.0_f32;
+
+            let nrows_c = self.nrows.max(1);
+            let ncols_c = self.ncols.max(1);
+
+            for (idx, ax) in self.axes.iter().enumerate() {
+                // Measure ylabel
+                if let Some(ref ylabel) = ax.ylabel {
+                    let (tw, _) = crate::text::measure_text(ylabel, ax.label_size * scale);
+                    max_ylabel_w = max_ylabel_w.max(tw);
+                }
+                // Measure title
+                if let Some(ref title) = ax.title {
+                    let (_, th) = crate::text::measure_text(title, ax.title_size * scale);
+                    max_title_h = max_title_h.max(th);
+                }
+                // Measure xlabel
+                if let Some(ref xlabel) = ax.xlabel {
+                    let (_, eh) = crate::text::measure_text(xlabel, ax.label_size * scale);
+                    max_xlabel_h = max_xlabel_h.max(eh);
+                }
+
+                // Measure actual tick label widths (y-axis) for leftmost column
+                let col = idx % ncols_c;
+                if col == 0 {
+                    // Estimate y-tick label width from data range
+                    let (_, _, ymin, ymax) = ax.compute_bounds();
+                    let y_ticks = crate::ticker::compute_auto_ticks(ymin, ymax, 7);
+                    for &ty in &y_ticks {
+                        let label = crate::ticker::format_tick_value(ty);
+                        let (lw, _) = crate::text::measure_text(&label, ax.tick_label_size * scale);
+                        max_ytick_w = max_ytick_w.max(lw);
+                    }
+                }
+
+                // Measure actual tick label heights (x-axis) for bottom row
+                let row = idx / ncols_c;
+                if row == nrows_c - 1 {
+                    let (xmin, xmax, _, _) = ax.compute_bounds();
+                    let x_ticks = crate::ticker::compute_auto_ticks(xmin, xmax, 7);
+                    for &tx in &x_ticks {
+                        let label = crate::ticker::format_tick_value(tx);
+                        let (_, lh) = crate::text::measure_text(&label, ax.tick_label_size * scale);
+                        max_xtick_h = max_xtick_h.max(lh);
+                    }
+                }
+            }
+
+            // Uniform padding factor for constrained layout
+            let pad = 14.0 * scale;
+            // Tick mark outward extent
+            let tick_out = 6.0 * scale;
+
+            let left_margin = (max_ytick_w + tick_out + max_ylabel_w + pad * 2.0).max(50.0 * scale);
+            let right_margin = (pad * 2.0).max(20.0 * scale);
+            let top_margin = (max_title_h + pad * 2.0).max(30.0 * scale);
+            let bottom_margin = (max_xtick_h + tick_out + max_xlabel_h + pad * 2.0).max(45.0 * scale);
+
+            (left_margin, right_margin, top_margin, bottom_margin)
         } else {
             (70.0_f32 * scale, 20.0_f32 * scale, 40.0_f32 * scale, 50.0_f32 * scale)
         };
@@ -3365,6 +3437,103 @@ impl RustFigure {
         let nrows = self.nrows.max(1);
         let ncols = self.ncols.max(1);
 
+        // For constrained layout, compute uniform inter-subplot padding
+        // based on the space needed for inner labels/ticks.
+        let (eff_hspace, eff_vspace) = if self.constrained && (nrows > 1 || ncols > 1) {
+            // Measure inner labels to determine required gaps
+            let mut inner_ylabel_w = 0.0_f32;
+            let mut inner_xlabel_h = 0.0_f32;
+            let mut inner_title_h = 0.0_f32;
+            let mut inner_ytick_w = 0.0_f32;
+            let mut inner_xtick_h = 0.0_f32;
+
+            for (idx, ax) in self.axes.iter().enumerate() {
+                let col = idx % ncols;
+                let row = idx / ncols;
+
+                // Inner y-axis labels (non-leftmost columns)
+                if col > 0 {
+                    if let Some(ref ylabel) = ax.ylabel {
+                        let (tw, _) = crate::text::measure_text(ylabel, ax.label_size * scale);
+                        inner_ylabel_w = inner_ylabel_w.max(tw);
+                    }
+                    let (_, _, ymin, ymax) = ax.compute_bounds();
+                    let y_ticks = crate::ticker::compute_auto_ticks(ymin, ymax, 7);
+                    for &ty in &y_ticks {
+                        let label = crate::ticker::format_tick_value(ty);
+                        let (lw, _) = crate::text::measure_text(&label, ax.tick_label_size * scale);
+                        inner_ytick_w = inner_ytick_w.max(lw);
+                    }
+                }
+
+                // Inner x-axis labels (non-bottom rows)
+                if row < nrows - 1 {
+                    if let Some(ref xlabel) = ax.xlabel {
+                        let (_, eh) = crate::text::measure_text(xlabel, ax.label_size * scale);
+                        inner_xlabel_h = inner_xlabel_h.max(eh);
+                    }
+                    let (xmin, xmax, _, _) = ax.compute_bounds();
+                    let x_ticks = crate::ticker::compute_auto_ticks(xmin, xmax, 7);
+                    for &tx in &x_ticks {
+                        let label = crate::ticker::format_tick_value(tx);
+                        let (_, lh) = crate::text::measure_text(&label, ax.tick_label_size * scale);
+                        inner_xtick_h = inner_xtick_h.max(lh);
+                    }
+                }
+
+                // Inner titles (non-top rows)
+                if row > 0 {
+                    if let Some(ref title) = ax.title {
+                        let (_, th) = crate::text::measure_text(title, ax.title_size * scale);
+                        inner_title_h = inner_title_h.max(th);
+                    }
+                }
+            }
+
+            let pad = 14.0 * scale;
+            let tick_out = 6.0 * scale;
+
+            // Horizontal gap needs space for y-tick labels + ylabel of right subplot
+            let h_gap = (inner_ytick_w + tick_out + inner_ylabel_w + pad * 2.0).max(pad * 2.0);
+            // Vertical gap needs space for x-tick labels + xlabel of upper subplot + title of lower subplot
+            let v_gap = (inner_xtick_h + tick_out + inner_xlabel_h + inner_title_h + pad * 2.0).max(pad * 2.0);
+
+            // Convert absolute pixel gaps to fractional hspace/wspace values.
+            // The formulas below invert: gap = fraction * cell_size, where
+            // total = n*cell + (n-1)*gap and gap = fraction*cell =>
+            // cell = total / (n + (n-1)*fraction). We solve for fraction given gap.
+            // From total = n*cell + (n-1)*gap:  cell = (total - (n-1)*gap) / n
+            // fraction = gap / cell = n*gap / (total - (n-1)*gap)
+            let total_w = pw as f32 - margin_left - margin_right;
+            let total_h = ph as f32 - margin_top - margin_bottom;
+
+            let eff_ws = if ncols > 1 {
+                let denom = total_w - (ncols as f32 - 1.0) * h_gap;
+                if denom > 0.0 {
+                    ncols as f32 * h_gap / denom
+                } else {
+                    self.wspace
+                }
+            } else {
+                self.wspace
+            };
+
+            let eff_hs = if nrows > 1 {
+                let denom = total_h - (nrows as f32 - 1.0) * v_gap;
+                if denom > 0.0 {
+                    nrows as f32 * v_gap / denom
+                } else {
+                    self.hspace
+                }
+            } else {
+                self.hspace
+            };
+
+            (eff_ws, eff_hs)
+        } else {
+            (self.wspace, self.hspace)
+        };
+
         // Use hspace/wspace to compute subplot gaps.
         // hspace/wspace are fractions of the average subplot height/width.
         let total_w = pw as f32 - margin_left - margin_right;
@@ -3373,18 +3542,18 @@ impl RustFigure {
         // Compute cell size accounting for gaps: total = n*cell + (n-1)*gap
         // gap = fraction * cell => total = n*cell + (n-1)*fraction*cell = cell*(n + (n-1)*fraction)
         let cell_w = if ncols > 1 {
-            total_w / (ncols as f32 + (ncols as f32 - 1.0) * self.wspace)
+            total_w / (ncols as f32 + (ncols as f32 - 1.0) * eff_hspace)
         } else {
             total_w
         };
         let cell_h = if nrows > 1 {
-            total_h / (nrows as f32 + (nrows as f32 - 1.0) * self.hspace)
+            total_h / (nrows as f32 + (nrows as f32 - 1.0) * eff_vspace)
         } else {
             total_h
         };
 
-        let subplot_hgap = cell_w * self.wspace;
-        let subplot_vgap = cell_h * self.hspace;
+        let subplot_hgap = cell_w * eff_hspace;
+        let subplot_vgap = cell_h * eff_vspace;
 
         // Collect which subplot indices are claimed by 3D axes
         let axes3d_indices: std::collections::HashSet<usize> = self.axes3d.iter().map(|(idx, _)| *idx).collect();
@@ -3558,10 +3727,94 @@ impl RustFigure {
         }
 
         // Layout margins (same as render_pixmap_opts)
-        let margin_left = 70.0_f32 * scale;
-        let margin_right = 20.0_f32 * scale;
-        let mut margin_top = 40.0_f32 * scale;
-        let margin_bottom = 50.0_f32 * scale;
+        let (margin_left, margin_right, mut margin_top, margin_bottom) = if self.tight {
+            let mut max_ylabel_w = 0.0_f32;
+            let mut max_title_h = 0.0_f32;
+            let mut max_xlabel_h = 0.0_f32;
+
+            for ax in &self.axes {
+                if let Some(ref ylabel) = ax.ylabel {
+                    let (tw, _) = crate::text::measure_text(ylabel, ax.label_size * scale);
+                    max_ylabel_w = max_ylabel_w.max(tw);
+                }
+                if let Some(ref title) = ax.title {
+                    let (_, th) = crate::text::measure_text(title, ax.title_size * scale);
+                    max_title_h = max_title_h.max(th);
+                }
+                if let Some(ref xlabel) = ax.xlabel {
+                    let (_, eh) = crate::text::measure_text(xlabel, ax.label_size * scale);
+                    max_xlabel_h = max_xlabel_h.max(eh);
+                }
+            }
+
+            let tick_space = 40.0 * scale;
+            let padding = 10.0 * scale;
+
+            (
+                (max_ylabel_w + tick_space + padding).max(40.0 * scale),
+                20.0 * scale,
+                (max_title_h + padding).max(25.0 * scale),
+                (max_xlabel_h + tick_space + padding).max(35.0 * scale),
+            )
+        } else if self.constrained {
+            let mut max_ylabel_w = 0.0_f32;
+            let mut max_title_h = 0.0_f32;
+            let mut max_xlabel_h = 0.0_f32;
+            let mut max_ytick_w = 0.0_f32;
+            let mut max_xtick_h = 0.0_f32;
+
+            let nrows_c = self.nrows.max(1);
+            let ncols_c = self.ncols.max(1);
+
+            for (idx, ax) in self.axes.iter().enumerate() {
+                if let Some(ref ylabel) = ax.ylabel {
+                    let (tw, _) = crate::text::measure_text(ylabel, ax.label_size * scale);
+                    max_ylabel_w = max_ylabel_w.max(tw);
+                }
+                if let Some(ref title) = ax.title {
+                    let (_, th) = crate::text::measure_text(title, ax.title_size * scale);
+                    max_title_h = max_title_h.max(th);
+                }
+                if let Some(ref xlabel) = ax.xlabel {
+                    let (_, eh) = crate::text::measure_text(xlabel, ax.label_size * scale);
+                    max_xlabel_h = max_xlabel_h.max(eh);
+                }
+
+                let col = idx % ncols_c;
+                if col == 0 {
+                    let (_, _, ymin, ymax) = ax.compute_bounds();
+                    let y_ticks = crate::ticker::compute_auto_ticks(ymin, ymax, 7);
+                    for &ty in &y_ticks {
+                        let label = crate::ticker::format_tick_value(ty);
+                        let (lw, _) = crate::text::measure_text(&label, ax.tick_label_size * scale);
+                        max_ytick_w = max_ytick_w.max(lw);
+                    }
+                }
+
+                let row = idx / ncols_c;
+                if row == nrows_c - 1 {
+                    let (xmin, xmax, _, _) = ax.compute_bounds();
+                    let x_ticks = crate::ticker::compute_auto_ticks(xmin, xmax, 7);
+                    for &tx in &x_ticks {
+                        let label = crate::ticker::format_tick_value(tx);
+                        let (_, lh) = crate::text::measure_text(&label, ax.tick_label_size * scale);
+                        max_xtick_h = max_xtick_h.max(lh);
+                    }
+                }
+            }
+
+            let pad = 14.0 * scale;
+            let tick_out = 6.0 * scale;
+
+            let left_margin = (max_ytick_w + tick_out + max_ylabel_w + pad * 2.0).max(50.0 * scale);
+            let right_margin = (pad * 2.0).max(20.0 * scale);
+            let top_margin = (max_title_h + pad * 2.0).max(30.0 * scale);
+            let bottom_margin = (max_xtick_h + tick_out + max_xlabel_h + pad * 2.0).max(45.0 * scale);
+
+            (left_margin, right_margin, top_margin, bottom_margin)
+        } else {
+            (70.0_f32 * scale, 20.0_f32 * scale, 40.0_f32 * scale, 50.0_f32 * scale)
+        };
 
         if self.suptitle.is_some() {
             margin_top += self.suptitle_fontsize * scale + 10.0 * scale;
@@ -3570,22 +3823,98 @@ impl RustFigure {
         let nrows = self.nrows.max(1);
         let ncols = self.ncols.max(1);
 
+        // Constrained layout: compute uniform inter-subplot padding (same as pixmap path)
+        let (eff_hspace, eff_vspace) = if self.constrained && (nrows > 1 || ncols > 1) {
+            let mut inner_ylabel_w = 0.0_f32;
+            let mut inner_xlabel_h = 0.0_f32;
+            let mut inner_title_h = 0.0_f32;
+            let mut inner_ytick_w = 0.0_f32;
+            let mut inner_xtick_h = 0.0_f32;
+
+            for (idx, ax) in self.axes.iter().enumerate() {
+                let col = idx % ncols;
+                let row = idx / ncols;
+
+                if col > 0 {
+                    if let Some(ref ylabel) = ax.ylabel {
+                        let (tw, _) = crate::text::measure_text(ylabel, ax.label_size * scale);
+                        inner_ylabel_w = inner_ylabel_w.max(tw);
+                    }
+                    let (_, _, ymin, ymax) = ax.compute_bounds();
+                    let y_ticks = crate::ticker::compute_auto_ticks(ymin, ymax, 7);
+                    for &ty in &y_ticks {
+                        let label = crate::ticker::format_tick_value(ty);
+                        let (lw, _) = crate::text::measure_text(&label, ax.tick_label_size * scale);
+                        inner_ytick_w = inner_ytick_w.max(lw);
+                    }
+                }
+
+                if row < nrows - 1 {
+                    if let Some(ref xlabel) = ax.xlabel {
+                        let (_, eh) = crate::text::measure_text(xlabel, ax.label_size * scale);
+                        inner_xlabel_h = inner_xlabel_h.max(eh);
+                    }
+                    let (xmin, xmax, _, _) = ax.compute_bounds();
+                    let x_ticks = crate::ticker::compute_auto_ticks(xmin, xmax, 7);
+                    for &tx in &x_ticks {
+                        let label = crate::ticker::format_tick_value(tx);
+                        let (_, lh) = crate::text::measure_text(&label, ax.tick_label_size * scale);
+                        inner_xtick_h = inner_xtick_h.max(lh);
+                    }
+                }
+
+                if row > 0 {
+                    if let Some(ref title) = ax.title {
+                        let (_, th) = crate::text::measure_text(title, ax.title_size * scale);
+                        inner_title_h = inner_title_h.max(th);
+                    }
+                }
+            }
+
+            let pad = 14.0 * scale;
+            let tick_out = 6.0 * scale;
+
+            let h_gap = (inner_ytick_w + tick_out + inner_ylabel_w + pad * 2.0).max(pad * 2.0);
+            let v_gap = (inner_xtick_h + tick_out + inner_xlabel_h + inner_title_h + pad * 2.0).max(pad * 2.0);
+
+            let total_w = pw as f32 - margin_left - margin_right;
+            let total_h = ph as f32 - margin_top - margin_bottom;
+
+            let eff_ws = if ncols > 1 {
+                let denom = total_w - (ncols as f32 - 1.0) * h_gap;
+                if denom > 0.0 { ncols as f32 * h_gap / denom } else { self.wspace }
+            } else {
+                self.wspace
+            };
+
+            let eff_hs = if nrows > 1 {
+                let denom = total_h - (nrows as f32 - 1.0) * v_gap;
+                if denom > 0.0 { nrows as f32 * v_gap / denom } else { self.hspace }
+            } else {
+                self.hspace
+            };
+
+            (eff_ws, eff_hs)
+        } else {
+            (self.wspace, self.hspace)
+        };
+
         let total_w = pw as f32 - margin_left - margin_right;
         let total_h = ph as f32 - margin_top - margin_bottom;
 
         let cell_w = if ncols > 1 {
-            total_w / (ncols as f32 + (ncols as f32 - 1.0) * self.wspace)
+            total_w / (ncols as f32 + (ncols as f32 - 1.0) * eff_hspace)
         } else {
             total_w
         };
         let cell_h = if nrows > 1 {
-            total_h / (nrows as f32 + (nrows as f32 - 1.0) * self.hspace)
+            total_h / (nrows as f32 + (nrows as f32 - 1.0) * eff_vspace)
         } else {
             total_h
         };
 
-        let subplot_hgap = cell_w * self.wspace;
-        let subplot_vgap = cell_h * self.hspace;
+        let subplot_hgap = cell_w * eff_hspace;
+        let subplot_vgap = cell_h * eff_vspace;
 
         let axes3d_indices: std::collections::HashSet<usize> =
             self.axes3d.iter().map(|(idx, _)| *idx).collect();
