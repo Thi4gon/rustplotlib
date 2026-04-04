@@ -221,12 +221,14 @@ class TestPdfPages:
                 fig, ax = plt.subplots()
                 ax.plot([1, 2, 3], [4, 5, 6])
                 pdf.savefig(fig)
-            # Single page saves as PNG
-            base, _ = os.path.splitext(fname)
-            png_file = base + '.png'
-            assert os.path.exists(png_file)
-            assert os.path.getsize(png_file) > 0
-            os.unlink(png_file)
+                assert pdf.page_count == 1
+            # Should create a real PDF file
+            assert os.path.exists(fname)
+            assert os.path.getsize(fname) > 0
+            # Verify it starts with PDF header
+            with open(fname, 'rb') as f:
+                header = f.read(5)
+                assert header == b'%PDF-'
         finally:
             if os.path.exists(fname):
                 os.unlink(fname)
@@ -244,15 +246,15 @@ class TestPdfPages:
                 ax2.bar([1, 2], [5, 6])
                 pdf.savefig(fig2)
 
-            base, _ = os.path.splitext(fname)
-            page1 = f"{base}_page1.png"
-            page2 = f"{base}_page2.png"
-            assert os.path.exists(page1)
-            assert os.path.exists(page2)
-            assert os.path.getsize(page1) > 0
-            assert os.path.getsize(page2) > 0
-            os.unlink(page1)
-            os.unlink(page2)
+                assert pdf.page_count == 2
+
+            # Should create a single multi-page PDF
+            assert os.path.exists(fname)
+            assert os.path.getsize(fname) > 0
+            with open(fname, 'rb') as f:
+                content = f.read()
+                assert b'%PDF-' in content
+                assert b'/Count 2' in content  # 2 pages
         finally:
             if os.path.exists(fname):
                 os.unlink(fname)
