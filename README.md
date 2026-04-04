@@ -67,7 +67,7 @@ plt.show()
 
 ## What's Implemented
 
-### 2D Plot Types (26 types)
+### 2D Plot Types (30+ types)
 | Function | Description |
 |---|---|
 | `plot()` | Line plots with color, linestyle, linewidth, markers, markevery, labels, alpha, zorder |
@@ -94,6 +94,11 @@ plt.show()
 | `matshow()` | Matrix display with integer ticks |
 | `radar()` | Radar/spider charts |
 | `sankey()` | Sankey flow diagrams |
+| `spy()` | Sparsity pattern visualization |
+| `stairs()` | Step-wise constant function with edges |
+| `ecdf()` | Empirical cumulative distribution |
+| `triplot()` | Triangulation edge drawing |
+| `pcolormesh()` / `pcolor()` already listed above |
 
 ### 3D Plot Types (7 types)
 | Function | Description |
@@ -396,11 +401,13 @@ Contributions are welcome! This is an open-source project under the MIT license.
 4. PRs require at least 1 review before merging
 
 **Project stats:**
-- **42 Rust source files** — 13,500+ lines of native code
-- **23 Python modules** — 3,300+ lines of API
-- **33 artist types** (26 2D + 7 3D)
+- **45+ Rust source files** — 15,000+ lines of native code
+- **23 Python modules** — 4,000+ lines of API
+- **37+ artist types** (30 2D + 7 3D)
 - **70+ colormaps** (35 base + 35 reversed)
-- **173 tests** passing
+- **228 tests** passing
+- **12 formatters + 10 locators**
+- **RGB/RGBA imshow** support
 - **Zero `unsafe` blocks**
 
 **Priority areas for contribution:**
