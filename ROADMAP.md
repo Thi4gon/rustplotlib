@@ -126,10 +126,10 @@ Goal: Full matplotlib reimplementation in Rust.
 - [x] Spline16 (B-spline) interpolation
 
 ### Additional Backends
-- [ ] Qt backend (QApplication, mouse events, toolbar, save dialog)
-- [ ] GTK3/GTK4 backend
+- [ ] Qt backend — **Needs PyQt5/PySide2.** Implement `FigureCanvasQt`, `FigureManagerQt` in `backends/backend_qt.py`. Follow `backend_tk.py` pattern. Use `QApplication`, `QLabel` for image display, `QMouseEvent` mapping. Register in `backends/__init__.py`.
+- [ ] GTK3/GTK4 backend — **Needs PyGObject (gi).** Implement `FigureCanvasGTK`, `FigureManagerGTK` in `backends/backend_gtk.py`. Use `Gtk.DrawingArea` with Cairo or direct image. Follow Tk pattern.
 - [x] WebAgg (HTML5 Canvas, browser-based interactive via HTTP)
-- [ ] macOS native backend (NSView/Metal)
+- [ ] macOS native backend — **Needs PyObjC.** Use `NSView` + `NSImage` for display. Most complex backend. Consider wrapping Rust `winit` instead.
 
 ### Interactive Features (remaining)
 - [x] Widget visual rendering (Slider/Button artists in Rust)
@@ -146,7 +146,7 @@ Goal: Full matplotlib reimplementation in Rust.
 - [x] Basic math text: Greek letters (24+12), sub/superscript (Unicode), operators (±×÷·≤≥≠≈∞∫Σ√)
 - [x] `\frac{}{}` → fraction, `\mathbf{}`, `\text{}` pass-through
 - [x] Full TeX layout engine (stacked fractions, sqrt with bar, integral/sum limits)
-- [ ] Math font rendering (Computer Modern, STIX)
+- [ ] Math font rendering — **Needs .ttf font files.** Embed Computer Modern or STIX fonts in Rust binary (like DejaVu Sans is already embedded in `text.rs`). Modify `mathtext.rs` to use math-specific font for rendered glyphs. Font files: ~2MB. Get from [STIX fonts](https://github.com/stipub/stixfonts) or [Computer Modern Unicode](https://sourceforge.net/projects/cm-unicode/).
 - [x] Matrices rendering (parse_matrix, render_matrix with brackets)
 
 ### Advanced Layout
@@ -174,7 +174,7 @@ Goal: Full matplotlib reimplementation in Rust.
 - [x] Hammer, Aitoff, Mollweide projections (Rust with batch + graticule)
 - [x] Lambert conformal conic (Rust)
 - [x] Stereographic projection (Rust)
-- [ ] Basemap-like coastlines and borders (optional data)
+- [ ] Basemap-like coastlines and borders — **Needs geographic data.** Download [Natural Earth](https://www.naturalearthdata.com/) shapefiles (~10MB). Parse with a Rust shapefile reader crate or pre-process to JSON coordinate arrays. Store as optional data package. Render coastlines as LineCollection on projected axes.
 
 ### Serialization
 - [x] Pickle save/load figures
