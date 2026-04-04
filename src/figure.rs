@@ -72,6 +72,13 @@ impl RustFigure {
         idx
     }
 
+    fn axes_set_position(&mut self, ax_id: usize, left: f64, bottom: f64, width: f64, height: f64) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.custom_position = Some((left, bottom, width, height));
+        Ok(())
+    }
+
     fn setup_subplots(&mut self, nrows: usize, ncols: usize) {
         self.nrows = nrows;
         self.ncols = ncols;
@@ -3298,21 +3305,29 @@ impl RustFigure {
             if axes3d_indices.contains(&idx) {
                 continue;
             }
-            let row = idx / ncols;
-            let col = idx % ncols;
-            if row >= nrows { break; }
 
-            let left = margin_left + col as f32 * (cell_w + subplot_hgap);
-            let top = margin_top + row as f32 * (cell_h + subplot_vgap);
-            let right = left + cell_w;
-            let bottom = top + cell_h;
+            // Use custom position if set, otherwise compute from grid
+            let (left, top, right, bottom) = if let Some((cl, cb, cw, ch)) = ax.custom_position {
+                // Custom position: [left, bottom, width, height] in figure coordinates (0..1)
+                let l = cl as f32 * pw as f32;
+                let b = (1.0 - cb as f32 - ch as f32) * ph as f32; // flip y: bottom→top
+                let r = l + cw as f32 * pw as f32;
+                let bt = b + ch as f32 * ph as f32;
+                (l, b, r, bt)
+            } else {
+                let row = idx / ncols;
+                let col = idx % ncols;
+                if row >= nrows { break; }
+                let l = margin_left + col as f32 * (cell_w + subplot_hgap);
+                let t = margin_top + row as f32 * (cell_h + subplot_vgap);
+                (l, t, l + cell_w, t + cell_h)
+            };
 
             // Compute area bounds for overpaint clipping
-            // The area for this subplot extends to the midpoint of gaps (or to figure edge)
-            let area_left = if col == 0 { 0.0 } else { left - subplot_hgap / 2.0 };
-            let area_top = if row == 0 { 0.0 } else { top - subplot_vgap / 2.0 };
-            let area_right = if col == ncols - 1 { pw as f32 } else { right + subplot_hgap / 2.0 };
-            let area_bottom = if row == nrows - 1 { ph as f32 } else { bottom + subplot_vgap / 2.0 };
+            let area_left = (left - 10.0).max(0.0);
+            let area_top = (top - 10.0).max(0.0);
+            let area_right = (right + 10.0).min(pw as f32);
+            let area_bottom = (bottom + 10.0).min(ph as f32);
 
             ax.draw(&mut pixmap, left, top, right, bottom,
                 Some(area_left), Some(area_top), Some(area_right), Some(area_bottom),

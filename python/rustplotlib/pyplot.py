@@ -2661,14 +2661,19 @@ class FigureProxy:
         -------
         AxesProxy
         """
-        # Add a new axes slot and return a proxy to it
-        try:
-            idx = self._fig.add_axes()
+        projection = kwargs.get('projection', None)
+        idx = self._fig.add_axes()
+
+        if projection == '3d':
+            ax3d_id = self._fig.add_subplot_3d(idx)
+            ax = Axes3DProxy(self._fig, ax3d_id)
+        else:
             ax = AxesProxy(self._fig, idx)
-        except Exception:
-            # Fallback: return a proxy to any existing axes
-            n = self._fig.num_axes()
-            ax = AxesProxy(self._fig, max(0, n - 1))
+
+        # Set custom position via Rust
+        if rect is not None and len(rect) == 4:
+            self._fig.axes_set_position(idx, float(rect[0]), float(rect[1]),
+                                        float(rect[2]), float(rect[3]))
         return ax
 
     def get_tight_layout(self):

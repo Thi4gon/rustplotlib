@@ -235,6 +235,8 @@ pub struct Axes {
     // Label colors
     pub xlabel_color: Option<Color>,
     pub ylabel_color: Option<Color>,
+    // Custom position [left, bottom, width, height] in figure coords (0..1)
+    pub custom_position: Option<(f64, f64, f64, f64)>,
 }
 
 /// Which grid lines to show.
@@ -319,6 +321,7 @@ impl Axes {
             custom_yticks_minor: None,
             xlabel_color: None,
             ylabel_color: None,
+            custom_position: None,
         }
     }
 
