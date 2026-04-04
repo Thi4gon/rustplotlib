@@ -5,6 +5,7 @@ mod axes;
 mod axes3d;
 mod colors;
 mod figure;
+mod mathtext;
 mod parse;
 mod projection3d;
 pub mod svg_renderer;
@@ -12,6 +13,12 @@ mod text;
 mod ticker;
 mod transforms;
 mod window;
+
+/// Parse LaTeX math symbols to Unicode.
+#[pyfunction]
+fn parse_math_symbols_py(text: &str) -> String {
+    mathtext::parse_math_symbols(text)
+}
 
 /// Load a custom .ttf/.otf font file for text rendering.
 #[pyfunction]
@@ -58,5 +65,6 @@ fn _rustplotlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse::hit_test_points, m)?)?;
     m.add_function(wrap_pyfunction!(parse::hit_test_line, m)?)?;
     m.add_function(wrap_pyfunction!(parse::parse_plot_groups, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_math_symbols_py, m)?)?;
     Ok(())
 }
