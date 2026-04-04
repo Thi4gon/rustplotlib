@@ -260,6 +260,85 @@ fn extract_next_group(chars: &mut std::iter::Peekable<std::str::Chars>) -> Strin
     }
 }
 
+/// Parse a LaTeX matrix (\\begin{matrix}...\\end{matrix}) to a grid of strings.
+/// Returns rows of cell strings.
+pub fn parse_matrix(input: &str) -> Vec<Vec<String>> {
+    let mut rows = Vec::new();
+    // Split by \\\\ (row separator)
+    for row_str in input.split("\\\\") {
+        let row_str = row_str.trim();
+        if row_str.is_empty() { continue; }
+        // Split by & (column separator)
+        let cells: Vec<String> = row_str.split('&')
+            .map(|s| parse_math_symbols(s.trim()))
+            .collect();
+        rows.push(cells);
+    }
+    rows
+}
+
+/// Render a matrix to the pixmap with proper grid layout.
+pub fn render_matrix(
+    pixmap: &mut tiny_skia::Pixmap,
+    rows: &[Vec<String>],
+    x: f32,
+    y: f32,
+    size: f32,
+    color: Color,
+) {
+    if rows.is_empty() { return; }
+    let ts = tiny_skia::Transform::identity();
+
+    let ncols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+    let nrows = rows.len();
+
+    let cell_w = size * 3.0;
+    let cell_h = size * 1.5;
+
+    // Draw brackets
+    let total_w = ncols as f32 * cell_w;
+    let total_h = nrows as f32 * cell_h;
+
+    // Left bracket
+    let mut pb = tiny_skia::PathBuilder::new();
+    pb.move_to(x + 4.0, y);
+    pb.line_to(x, y);
+    pb.line_to(x, y + total_h);
+    pb.line_to(x + 4.0, y + total_h);
+    if let Some(path) = pb.finish() {
+        let mut paint = tiny_skia::Paint::default();
+        paint.set_color(color.to_tiny_skia());
+        let mut stroke = tiny_skia::Stroke::default();
+        stroke.width = 1.0;
+        pixmap.stroke_path(&path, &paint, &stroke, ts, None);
+    }
+
+    // Right bracket
+    let rx = x + total_w + 12.0;
+    let mut pb = tiny_skia::PathBuilder::new();
+    pb.move_to(rx - 4.0, y);
+    pb.line_to(rx, y);
+    pb.line_to(rx, y + total_h);
+    pb.line_to(rx - 4.0, y + total_h);
+    if let Some(path) = pb.finish() {
+        let mut paint = tiny_skia::Paint::default();
+        paint.set_color(color.to_tiny_skia());
+        let mut stroke = tiny_skia::Stroke::default();
+        stroke.width = 1.0;
+        pixmap.stroke_path(&path, &paint, &stroke, ts, None);
+    }
+
+    // Render cells
+    for (r, row) in rows.iter().enumerate() {
+        for (c, cell) in row.iter().enumerate() {
+            let cx = x + 8.0 + c as f32 * cell_w;
+            let cy = y + r as f32 * cell_h + cell_h * 0.3;
+            text::draw_text(pixmap, cell, cx, cy, size, color,
+                text::TextAnchorX::Left, text::TextAnchorY::Top, 0.0);
+        }
+    }
+}
+
 /// Convert LaTeX math commands to Unicode equivalents.
 pub fn parse_math_symbols(input: &str) -> String {
     let mut result = String::new();
