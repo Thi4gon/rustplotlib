@@ -56,5 +56,6 @@ fn _rustplotlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse::tick_values_linear, m)?)?;
     m.add_function(wrap_pyfunction!(parse::hit_test_points, m)?)?;
     m.add_function(wrap_pyfunction!(parse::hit_test_line, m)?)?;
+    m.add_function(wrap_pyfunction!(parse::parse_plot_groups, m)?)?;
     Ok(())
 }

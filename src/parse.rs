@@ -209,6 +209,58 @@ pub fn tick_values_linear(vmin: f64, vmax: f64, numticks: Option<usize>) -> Vec<
     (0..n).map(|i| vmin + i as f64 * step).collect()
 }
 
+/// Parse plot arguments from pre-converted data arrays.
+///
+/// Takes a list of (data, is_string, is_fmt) items and groups them into
+/// (x_data, y_data, fmt_string) triples.
+///
+/// Returns Vec<(xs, ys, color, linestyle, marker)>
+#[pyfunction]
+pub fn parse_plot_groups(
+    data_arrays: Vec<Vec<f64>>,
+    fmt_strings: Vec<Option<String>>,
+) -> Vec<(Vec<f64>, Vec<f64>, Option<String>, Option<String>, Option<String>)> {
+    let mut result = Vec::new();
+    let n = data_arrays.len();
+
+    if n == 0 {
+        return result;
+    }
+
+    // Simple cases: 1 array = y, 2 arrays = x+y, etc.
+    let mut i = 0;
+    while i < n {
+        if i + 1 < n {
+            // x, y pair
+            let x = data_arrays[i].clone();
+            let y = data_arrays[i + 1].clone();
+
+            // Check if there's a fmt string for this pair
+            let fmt_idx = i / 2;
+            let (color, linestyle, marker) = if fmt_idx < fmt_strings.len() {
+                if let Some(ref fmt) = fmt_strings[fmt_idx] {
+                    parse_fmt(fmt)
+                } else {
+                    (None, None, None)
+                }
+            } else {
+                (None, None, None)
+            };
+
+            result.push((x, y, color, linestyle, marker));
+            i += 2;
+        } else {
+            // Single array = y data, generate x
+            let y = data_arrays[i].clone();
+            let x: Vec<f64> = (0..y.len()).map(|j| j as f64).collect();
+            result.push((x, y, None, None, None));
+            i += 1;
+        }
+    }
+
+    result
+}
+
 /// Hit test: check if a point (mx, my) is within tolerance of any point in (xs, ys).
 /// Returns indices of points within tolerance.
 #[pyfunction]
