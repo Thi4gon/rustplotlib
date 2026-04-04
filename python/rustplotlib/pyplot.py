@@ -2697,6 +2697,84 @@ class CanvasProxy:
         self._process_pick(mouseevent)
 
 
+class SubFigure:
+    """A sub-figure within a parent figure for nested subplot layouts.
+
+    SubFigure acts like a mini-Figure: you can call add_subplot() and suptitle()
+    on it, and it will create axes positioned within its region of the parent.
+
+    Compatible with matplotlib.figure.SubFigure.
+    """
+
+    def __init__(self, parent, left, bottom, width, height):
+        self._parent = parent
+        self._left = left
+        self._bottom = bottom
+        self._width = width
+        self._height = height
+        self._fig = parent._fig  # share the Rust figure
+        self._axes_list = []
+        self._suptitle = None
+
+    def subplots(self, nrows=1, ncols=1, **kwargs):
+        """Create subplots within this subfigure."""
+        axes = []
+        for r in range(nrows):
+            row = []
+            for c in range(ncols):
+                # Calculate position within the subfigure region
+                cell_w = self._width / ncols
+                cell_h = self._height / nrows
+                ax_left = self._left + c * cell_w + cell_w * 0.15
+                ax_bottom = self._bottom + (nrows - 1 - r) * cell_h + cell_h * 0.15
+                ax_w = cell_w * 0.7
+                ax_h = cell_h * 0.7
+
+                idx = self._fig.add_axes()
+                ax = AxesProxy(self._fig, idx)
+                self._fig.axes_set_position(idx, ax_left, ax_bottom, ax_w, ax_h)
+                row.append(ax)
+                self._axes_list.append(ax)
+            if ncols == 1:
+                axes.append(row[0])
+            else:
+                axes.append(row)
+
+        if nrows == 1 and ncols == 1:
+            return axes[0]
+        if nrows == 1:
+            return axes[0]
+        return axes
+
+    def suptitle(self, text, fontsize=None, **kwargs):
+        """Set a title for this subfigure."""
+        self._suptitle = text
+        # Draw as text on the parent figure at top of subfigure region
+        cx = self._left + self._width / 2.0
+        ty = 1.0 - self._bottom - self._height + 0.02
+        self._parent.text(cx, ty, text, fontsize=fontsize or 14, ha='center')
+
+    def add_subplot(self, *args, **kwargs):
+        """Add a subplot to this subfigure."""
+        # Simple: create one axes in the subfigure region
+        idx = self._fig.add_axes()
+        ax = AxesProxy(self._fig, idx)
+        margin = 0.1
+        self._fig.axes_set_position(
+            idx,
+            self._left + self._width * margin,
+            self._bottom + self._height * margin,
+            self._width * (1 - 2 * margin),
+            self._height * (1 - 2 * margin),
+        )
+        self._axes_list.append(ax)
+        return ax
+
+    @property
+    def axes(self):
+        return self._axes_list
+
+
 class FigureProxy:
     """Python wrapper around RustFigure."""
 
@@ -2972,6 +3050,36 @@ class FigureProxy:
         """Create a GridSpec for this figure."""
         from rustplotlib.gridspec import GridSpec
         return GridSpec(nrows, ncols, figure=self, **kwargs)
+
+    def subfigures(self, nrows=1, ncols=1, **kwargs):
+        """Create nested SubFigures within this figure.
+
+        Each SubFigure acts like a mini-Figure with its own subplots.
+
+        Returns
+        -------
+        SubFigure or list of SubFigure
+        """
+        subs = []
+        for r in range(nrows):
+            row = []
+            for c in range(ncols):
+                # Calculate position for each subfigure
+                w = 1.0 / ncols
+                h = 1.0 / nrows
+                left = c * w
+                bottom = 1.0 - (r + 1) * h
+                sf = SubFigure(self, left, bottom, w, h)
+                row.append(sf)
+            if ncols == 1:
+                subs.append(row[0])
+            else:
+                subs.append(row)
+        if nrows == 1 and ncols == 1:
+            return subs[0]
+        if nrows == 1:
+            return subs[0]  # flat list
+        return subs
 
     def align_xlabels(self, axs=None):
         pass
