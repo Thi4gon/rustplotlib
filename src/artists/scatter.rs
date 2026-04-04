@@ -14,6 +14,7 @@ pub struct Scatter {
     pub marker: MarkerStyle,
     pub label: Option<String>,
     pub alpha: f32,
+    pub zorder: i32,
 }
 
 impl Scatter {
@@ -26,6 +27,7 @@ impl Scatter {
             marker: MarkerStyle::Circle,
             label: None,
             alpha: 1.0,
+            zorder: 2,
         }
     }
 }
@@ -107,5 +109,9 @@ impl Artist for Scatter {
             marker: Some(self.marker),
             linewidth: 1.5,
         })
+    }
+
+    fn zorder(&self) -> i32 {
+        self.zorder
     }
 }

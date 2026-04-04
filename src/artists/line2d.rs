@@ -16,6 +16,7 @@ pub struct Line2D {
     pub marker_every: usize,
     pub label: Option<String>,
     pub alpha: f32,
+    pub zorder: i32,
 }
 
 impl Line2D {
@@ -31,6 +32,7 @@ impl Line2D {
             marker_every: 1,
             label: None,
             alpha: 1.0,
+            zorder: 2,
         }
     }
 }
@@ -193,6 +195,10 @@ impl Artist for Line2D {
             marker: if self.marker != MarkerStyle::None { Some(self.marker) } else { None },
             linewidth: self.linewidth,
         })
+    }
+
+    fn zorder(&self) -> i32 {
+        self.zorder
     }
 }
 

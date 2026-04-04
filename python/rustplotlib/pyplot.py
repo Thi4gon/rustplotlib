@@ -235,8 +235,10 @@ class AxesProxy:
         self._fig = figure
         self._id = ax_id
 
-    def plot(self, *args, **kwargs):
+    def plot(self, *args, zorder=None, **kwargs):
         x, y, kwargs = _parse_plot_args(*args, **kwargs)
+        if zorder is not None:
+            kwargs["zorder"] = int(zorder)
         # Handle categorical (string) x values
         if x and isinstance(x[0], str):
             positions, labels = _handle_categorical(x)
@@ -255,7 +257,7 @@ class AxesProxy:
             proxy._linestyle = kwargs['linestyle']
         return [proxy]
 
-    def scatter(self, x, y, s=None, c=None, marker="o", alpha=1.0, label=None, **kwargs):
+    def scatter(self, x, y, s=None, c=None, marker="o", alpha=1.0, label=None, zorder=None, **kwargs):
         x, y = _to_list(x), _to_list(y)
         kw = {"marker": marker, "alpha": alpha}
         if s is not None:
@@ -264,10 +266,12 @@ class AxesProxy:
             kw["color"] = c
         if label is not None:
             kw["label"] = label
+        if zorder is not None:
+            kw["zorder"] = int(zorder)
         self._fig.axes_scatter(self._id, x, y, kw)
         return PathCollectionProxy()
 
-    def bar(self, x, height, width=0.8, bottom=None, color=None, label=None, alpha=1.0, **kwargs):
+    def bar(self, x, height, width=0.8, bottom=None, color=None, label=None, alpha=1.0, hatch=None, zorder=None, **kwargs):
         # Handle categorical (string) x values
         cat_labels = None
         if x and isinstance(x[0], str):
@@ -283,6 +287,10 @@ class AxesProxy:
             kw["label"] = label
         if bottom is not None:
             kw["bottom"] = float(bottom)
+        if hatch is not None:
+            kw["hatch"] = str(hatch)
+        if zorder is not None:
+            kw["zorder"] = int(zorder)
         if cat_labels is not None:
             self._fig.axes_set_xticks(self._id, x)
             self._fig.axes_set_xticklabels(self._id, cat_labels)
@@ -972,6 +980,88 @@ class AxesProxy:
         if labels is not None:
             kw["labels"] = list(labels)
         self._fig.axes_stackplot(self._id, x, ys, kw)
+        return self
+
+    def fill(self, *args, color=None, alpha=None, label=None, **kwargs):
+        """Draw a filled polygon. Usage: fill(x, y) or fill(x, y, color)."""
+        if len(args) >= 2:
+            x = _to_list(args[0])
+            y = _to_list(args[1])
+            if len(args) >= 3 and isinstance(args[2], str) and color is None:
+                color = args[2]
+        else:
+            return self
+        kw = {}
+        if color is not None:
+            kw["color"] = color
+        if alpha is not None:
+            kw["alpha"] = float(alpha)
+        if label is not None:
+            kw["label"] = label
+        self._fig.axes_fill(self._id, x, y, kw)
+        return self
+
+    def pcolormesh(self, *args, cmap=None, alpha=None, edgecolors=None, **kwargs):
+        """Draw a pseudocolor mesh plot."""
+        # pcolormesh(C) or pcolormesh(X, Y, C)
+        if len(args) == 1:
+            c = [_to_list(row) for row in args[0]]
+            kw = {}
+        elif len(args) == 3:
+            x = [_to_list(row) for row in args[0]]
+            y = [_to_list(row) for row in args[1]]
+            c = [_to_list(row) for row in args[2]]
+            kw = {"x": x, "y": y}
+        else:
+            return self
+        if cmap is not None:
+            kw["cmap"] = str(cmap)
+        if alpha is not None:
+            kw["alpha"] = float(alpha)
+        if edgecolors is not None:
+            kw["edgecolors"] = edgecolors
+        self._fig.axes_pcolormesh(self._id, c, kw)
+        return self
+
+    def pcolor(self, *args, cmap=None, alpha=None, **kwargs):
+        """Draw a pseudocolor plot with cell outlines."""
+        if len(args) == 1:
+            c = [_to_list(row) for row in args[0]]
+            kw = {}
+        elif len(args) == 3:
+            x = [_to_list(row) for row in args[0]]
+            y = [_to_list(row) for row in args[1]]
+            c = [_to_list(row) for row in args[2]]
+            kw = {"x": x, "y": y}
+        else:
+            return self
+        if cmap is not None:
+            kw["cmap"] = str(cmap)
+        if alpha is not None:
+            kw["alpha"] = float(alpha)
+        self._fig.axes_pcolor(self._id, c, kw)
+        return self
+
+    def matshow(self, data, cmap=None, **kwargs):
+        """Display a matrix as an image with integer ticks."""
+        data_list = [_to_list(row) for row in data]
+        kw = {}
+        if cmap is not None:
+            kw["cmap"] = str(cmap)
+        self._fig.axes_matshow(self._id, data_list, kw)
+        return self
+
+    def sankey(self, flows, labels=None, orientations=None, alpha=None, **kwargs):
+        """Draw a basic Sankey diagram."""
+        flows = _to_list(flows)
+        kw = {}
+        if labels is not None:
+            kw["labels"] = list(labels)
+        if orientations is not None:
+            kw["orientations"] = list(orientations)
+        if alpha is not None:
+            kw["alpha"] = float(alpha)
+        self._fig.axes_sankey(self._id, flows, kw)
         return self
 
     def get_figure(self):
@@ -1875,6 +1965,22 @@ def eventplot(positions, **kwargs):
 
 def stackplot(x, *args, **kwargs):
     _gca().stackplot(x, *args, **kwargs)
+
+
+def fill(*args, **kwargs):
+    _gca().fill(*args, **kwargs)
+
+
+def pcolormesh(*args, **kwargs):
+    _gca().pcolormesh(*args, **kwargs)
+
+
+def pcolor(*args, **kwargs):
+    _gca().pcolor(*args, **kwargs)
+
+
+def matshow(data, **kwargs):
+    _gca().matshow(data, **kwargs)
 
 
 def subplot_polar(**kwargs):

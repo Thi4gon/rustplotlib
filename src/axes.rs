@@ -12,6 +12,9 @@ use crate::artists::violin::ViolinPlot;
 use crate::artists::radar::Radar;
 use crate::artists::broken_barh::BrokenBarH;
 use crate::artists::eventplot::EventPlot;
+use crate::artists::fill_polygon::FillPolygon;
+use crate::artists::pcolormesh::PColorMesh;
+use crate::artists::sankey::Sankey;
 use crate::artists::step::{Step, StepWhere};
 use crate::artists::pie::PieChart;
 use crate::artists::errorbar::ErrorBar;
@@ -290,6 +293,7 @@ impl Axes {
         marker_every: Option<usize>,
         label: Option<String>,
         alpha: Option<f32>,
+        zorder: Option<i32>,
     ) {
         let c = color.unwrap_or_else(|| self.next_color());
         let mut line = Line2D::new(x, y, c);
@@ -306,6 +310,7 @@ impl Axes {
         if let Some(me) = marker_every { line.marker_every = me; }
         line.label = label;
         if let Some(a) = alpha { line.alpha = a; }
+        if let Some(z) = zorder { line.zorder = z; }
         self.artists.push(Box::new(line));
     }
 
@@ -319,6 +324,7 @@ impl Axes {
         marker: Option<&str>,
         label: Option<String>,
         alpha: Option<f32>,
+        zorder: Option<i32>,
     ) {
         let c = color.unwrap_or_else(|| self.next_color());
         let mut sc = Scatter::new(x, y, c);
@@ -326,6 +332,7 @@ impl Axes {
         if let Some(m) = marker { sc.marker = MarkerStyle::from_str(m); }
         sc.label = label;
         if let Some(a) = alpha { sc.alpha = a; }
+        if let Some(z) = zorder { sc.zorder = z; }
         self.artists.push(Box::new(sc));
     }
 
@@ -339,6 +346,8 @@ impl Axes {
         label: Option<String>,
         alpha: Option<f32>,
         bottom: Option<f64>,
+        hatch: Option<String>,
+        zorder: Option<i32>,
     ) {
         let c = color.unwrap_or_else(|| self.next_color());
         let mut b = Bar::new(x, heights, c);
@@ -346,6 +355,8 @@ impl Axes {
         b.label = label;
         if let Some(a) = alpha { b.alpha = a; }
         if let Some(bot) = bottom { b.bottom = bot; }
+        b.hatch = hatch;
+        if let Some(z) = zorder { b.zorder = z; }
         self.artists.push(Box::new(b));
     }
 
@@ -856,9 +867,13 @@ impl Axes {
             }
         }
 
-        // 3. Draw each artist
-        for artist in &self.artists {
-            artist.draw(pixmap, &transform);
+        // 3. Draw each artist sorted by zorder (lower first = behind)
+        {
+            let mut indices: Vec<usize> = (0..self.artists.len()).collect();
+            indices.sort_by_key(|&i| self.artists[i].zorder());
+            for idx in indices {
+                self.artists[idx].draw(pixmap, &transform);
+            }
         }
 
         // 3b. Draw annotations (arrow + text)
@@ -1390,9 +1405,13 @@ impl Axes {
         svg.add_clip_rect("plot-area", left, top, right - left, bottom - top);
         svg.begin_group(Some("plot-area"));
 
-        // 3. Draw each artist
-        for artist in &self.artists {
-            artist.draw_svg(svg, &transform);
+        // 3. Draw each artist sorted by zorder
+        {
+            let mut indices: Vec<usize> = (0..self.artists.len()).collect();
+            indices.sort_by_key(|&i| self.artists[i].zorder());
+            for idx in indices {
+                self.artists[idx].draw_svg(svg, &transform);
+            }
         }
 
         svg.end_group();
@@ -2544,5 +2563,93 @@ impl Axes {
             self.fill_between(x.clone(), baseline.clone(), top.clone(), Some(color), Some(alpha), label);
             baseline = top;
         }
+    }
+
+    /// Add a filled polygon (ax.fill).
+    pub fn fill(
+        &mut self,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        color: Option<Color>,
+        alpha: Option<f32>,
+        label: Option<String>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let a = alpha.unwrap_or(0.5);
+        let mut fp = FillPolygon::new(x, y, c, a);
+        fp.label = label;
+        self.artists.push(Box::new(fp));
+    }
+
+    /// Add a pseudocolor mesh plot (pcolormesh).
+    pub fn pcolormesh(
+        &mut self,
+        x: Option<Vec<Vec<f64>>>,
+        y: Option<Vec<Vec<f64>>>,
+        c: Vec<Vec<f64>>,
+        cmap: Option<String>,
+        alpha: Option<f32>,
+        edgecolors: Option<Color>,
+    ) {
+        let cm = cmap.unwrap_or_else(|| "viridis".to_string());
+        let mut mesh = if let (Some(xv), Some(yv)) = (x, y) {
+            PColorMesh::new(xv, yv, c, cm)
+        } else {
+            PColorMesh::from_data(c, cm)
+        };
+        if let Some(a) = alpha { mesh.alpha = a; }
+        mesh.edgecolors = edgecolors;
+        self.artists.push(Box::new(mesh));
+    }
+
+    /// Add a pseudocolor plot with cell outlines (pcolor).
+    pub fn pcolor(
+        &mut self,
+        x: Option<Vec<Vec<f64>>>,
+        y: Option<Vec<Vec<f64>>>,
+        c: Vec<Vec<f64>>,
+        cmap: Option<String>,
+        alpha: Option<f32>,
+    ) {
+        let cm = cmap.unwrap_or_else(|| "viridis".to_string());
+        let mut mesh = if let (Some(xv), Some(yv)) = (x, y) {
+            PColorMesh::new(xv, yv, c, cm)
+        } else {
+            PColorMesh::from_data(c, cm)
+        };
+        if let Some(a) = alpha { mesh.alpha = a; }
+        // pcolor has visible edges by default
+        mesh.edgecolors = Some(Color::new(0, 0, 0, 255));
+        self.artists.push(Box::new(mesh));
+    }
+
+    /// Display a matrix as an image with integer ticks (matshow).
+    pub fn matshow(
+        &mut self,
+        data: Vec<Vec<f64>>,
+        cmap: Option<String>,
+    ) {
+        let rows = data.len();
+        let cols = if rows > 0 { data[0].len() } else { 0 };
+        let cm = cmap.unwrap_or_else(|| "viridis".to_string());
+        let img = Image::new(data, cm);
+        self.artists.push(Box::new(img));
+        // Set integer ticks
+        self.custom_xticks = Some((0..cols).map(|i| i as f64).collect());
+        self.custom_yticks = Some((0..rows).map(|i| i as f64).collect());
+    }
+
+    /// Add a basic Sankey diagram.
+    pub fn sankey(
+        &mut self,
+        flows: Vec<f64>,
+        labels: Vec<String>,
+        orientations: Option<Vec<i32>>,
+        alpha: Option<f32>,
+    ) {
+        let mut s = Sankey::new(flows, labels);
+        if let Some(o) = orientations { s.orientations = o; }
+        if let Some(a) = alpha { s.alpha = a; }
+        self.artists.push(Box::new(s));
     }
 }

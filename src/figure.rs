@@ -125,6 +125,10 @@ impl RustFigure {
         // Accept and ignore markerfacecolor (for hollow markers — not yet implemented)
         let _ = kwargs.get_item("markerfacecolor")?;
 
+        let zorder = if let Some(v) = kwargs.get_item("zorder")? {
+            Some(v.extract::<i32>()?)
+        } else { None };
+
         ax.plot(
             x, y,
             color,
@@ -135,6 +139,7 @@ impl RustFigure {
             markevery,
             label,
             alpha,
+            zorder,
         );
 
         Ok(())
@@ -170,6 +175,10 @@ impl RustFigure {
             Some(v.extract::<f32>()?)
         } else { None };
 
+        let zorder = if let Some(v) = kwargs.get_item("zorder")? {
+            Some(v.extract::<i32>()?)
+        } else { None };
+
         ax.scatter(
             x, y,
             color,
@@ -177,6 +186,7 @@ impl RustFigure {
             marker.as_deref(),
             label,
             alpha,
+            zorder,
         );
 
         Ok(())
@@ -212,7 +222,15 @@ impl RustFigure {
             Some(v.extract::<f64>()?)
         } else { None };
 
-        ax.bar(x, heights, color, width, label, alpha, bottom);
+        let hatch = if let Some(v) = kwargs.get_item("hatch")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let zorder = if let Some(v) = kwargs.get_item("zorder")? {
+            Some(v.extract::<i32>()?)
+        } else { None };
+
+        ax.bar(x, heights, color, width, label, alpha, bottom, hatch, zorder);
 
         Ok(())
     }
@@ -1330,7 +1348,7 @@ impl RustFigure {
             .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twin axes"))?;
         twin.plot(
             x, y, color, linewidth, linestyle.as_deref(),
-            marker.as_deref(), marker_size, markevery, label, alpha,
+            marker.as_deref(), marker_size, markevery, label, alpha, None,
         );
         Ok(())
     }
@@ -1404,7 +1422,7 @@ impl RustFigure {
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
             .twin_axes.as_mut()
             .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twin axes"))?;
-        twin.scatter(x, y, color, sizes, marker.as_deref(), label, alpha);
+        twin.scatter(x, y, color, sizes, marker.as_deref(), label, alpha, None);
         Ok(())
     }
 
@@ -1436,7 +1454,7 @@ impl RustFigure {
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
             .twin_axes.as_mut()
             .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twin axes"))?;
-        twin.bar(x, heights, color, width, label, alpha, None);
+        twin.bar(x, heights, color, width, label, alpha, None, None, None);
         Ok(())
     }
 
@@ -1495,7 +1513,7 @@ impl RustFigure {
             .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twiny axes"))?;
         twin.plot(
             x, y, color, linewidth, linestyle.as_deref(),
-            marker.as_deref(), marker_size, markevery, label, alpha,
+            marker.as_deref(), marker_size, markevery, label, alpha, None,
         );
         Ok(())
     }
@@ -1569,7 +1587,7 @@ impl RustFigure {
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
             .twin_x_axes.as_mut()
             .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twiny axes"))?;
-        twin.scatter(x, y, color, sizes, marker.as_deref(), label, alpha);
+        twin.scatter(x, y, color, sizes, marker.as_deref(), label, alpha, None);
         Ok(())
     }
 
@@ -1967,6 +1985,143 @@ impl RustFigure {
         };
 
         ax.stackplot(x, ys, colors, labels, alpha);
+        Ok(())
+    }
+
+    /// Add a filled polygon (ax.fill).
+    fn axes_fill(
+        &mut self,
+        ax_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        ax.fill(x, y, color, alpha, label);
+        Ok(())
+    }
+
+    /// Add a pseudocolor mesh plot.
+    fn axes_pcolormesh(
+        &mut self,
+        ax_id: usize,
+        c: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let cmap = if let Some(v) = kwargs.get_item("cmap")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let x = if let Some(v) = kwargs.get_item("x")? {
+            Some(v.extract::<Vec<Vec<f64>>>()?)
+        } else { None };
+
+        let y = if let Some(v) = kwargs.get_item("y")? {
+            Some(v.extract::<Vec<Vec<f64>>>()?)
+        } else { None };
+
+        let edgecolors = if let Some(c) = kwargs.get_item("edgecolors")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        ax.pcolormesh(x, y, c, cmap, alpha, edgecolors);
+        Ok(())
+    }
+
+    /// Add a pseudocolor plot with edges (pcolor).
+    fn axes_pcolor(
+        &mut self,
+        ax_id: usize,
+        c: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let cmap = if let Some(v) = kwargs.get_item("cmap")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let x = if let Some(v) = kwargs.get_item("x")? {
+            Some(v.extract::<Vec<Vec<f64>>>()?)
+        } else { None };
+
+        let y = if let Some(v) = kwargs.get_item("y")? {
+            Some(v.extract::<Vec<Vec<f64>>>()?)
+        } else { None };
+
+        ax.pcolor(x, y, c, cmap, alpha);
+        Ok(())
+    }
+
+    /// Display a matrix as image with integer ticks (matshow).
+    fn axes_matshow(
+        &mut self,
+        ax_id: usize,
+        data: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let cmap = if let Some(v) = kwargs.get_item("cmap")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        ax.matshow(data, cmap);
+        Ok(())
+    }
+
+    /// Add a basic Sankey diagram.
+    fn axes_sankey(
+        &mut self,
+        ax_id: usize,
+        flows: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let labels = if let Some(v) = kwargs.get_item("labels")? {
+            v.extract::<Vec<String>>()?
+        } else {
+            vec!["".to_string(); flows.len()]
+        };
+
+        let orientations = if let Some(v) = kwargs.get_item("orientations")? {
+            Some(v.extract::<Vec<i32>>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        ax.sankey(flows, labels, orientations, alpha);
         Ok(())
     }
 

@@ -28,6 +28,9 @@ pub mod trisurf3d;
 pub mod radar;
 pub mod broken_barh;
 pub mod eventplot;
+pub mod fill_polygon;
+pub mod pcolormesh;
+pub mod sankey;
 
 use tiny_skia::{PathBuilder, StrokeDash};
 
@@ -65,6 +68,11 @@ pub trait Artist: Send {
             marker: None,
             linewidth: 1.5,
         })
+    }
+
+    /// Return the z-order for drawing priority (lower = drawn first = behind).
+    fn zorder(&self) -> i32 {
+        0
     }
 }
 
