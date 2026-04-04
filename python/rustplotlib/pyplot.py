@@ -219,34 +219,212 @@ class AxisProxy:
         pass
 
 
-class _PickableMixin:
-    """Mixin that adds picker/pick-event support to artist proxies."""
+class ArtistBase:
+    """Base class for all artist proxies — matplotlib Artist API compatible.
+
+    Provides: alpha, visible, zorder, label, picker, clip, transform,
+    animated, url, gid, snap, path_effects, children.
+    """
+
+    def __init__(self):
+        self._alpha = 1.0
+        self._visible = True
+        self._zorder = 2
+        self._label = ''
+        self._picker = None
+        self._clip_on = True
+        self._clip_box = None
+        self._clip_path = None
+        self._transform = None
+        self._animated = False
+        self._url = None
+        self._gid = None
+        self._snap = None
+        self._path_effects = []
+        self._sketch_params = None
+        self._rasterized = False
+        self._agg_filter = None
+        self._axes = None
+        self._figure = None
+        self._children = []
+        self._stale = True
+
+    # --- Core properties ---
+
+    def set_alpha(self, alpha):
+        self._alpha = alpha
+        self._stale = True
+
+    def get_alpha(self):
+        return self._alpha
+
+    def set_visible(self, b):
+        self._visible = bool(b)
+        self._stale = True
+
+    def get_visible(self):
+        return self._visible
+
+    def set_zorder(self, z):
+        self._zorder = z
+        self._stale = True
+
+    def get_zorder(self):
+        return self._zorder
+
+    def set_label(self, label):
+        self._label = str(label)
+
+    def get_label(self):
+        return self._label
+
+    # --- Picker ---
 
     def set_picker(self, picker):
-        """Set picker. Can be None, bool, float (tolerance), or callable."""
         self._picker = picker
 
     def get_picker(self):
-        return getattr(self, '_picker', None)
+        return self._picker
 
     def pickable(self):
-        return getattr(self, '_picker', None) is not None
+        return self._picker is not None
 
     def contains(self, mouseevent):
-        """Test if the artist contains the mouse event point.
-
-        Returns (bool, details_dict).
-        """
         picker = self.get_picker()
         if picker is None:
             return False, {}
         if callable(picker):
             return picker(self, mouseevent)
-        # Default: subclass implements _default_contains
         return self._default_contains(mouseevent, picker)
 
     def _default_contains(self, mouseevent, picker):
         return False, {}
+
+    # --- Clip ---
+
+    def set_clip_on(self, b):
+        self._clip_on = bool(b)
+
+    def get_clip_on(self):
+        return self._clip_on
+
+    def set_clip_box(self, clipbox):
+        self._clip_box = clipbox
+
+    def get_clip_box(self):
+        return self._clip_box
+
+    def set_clip_path(self, path, transform=None):
+        self._clip_path = path
+
+    def get_clip_path(self):
+        return self._clip_path
+
+    # --- Transform ---
+
+    def set_transform(self, t):
+        self._transform = t
+
+    def get_transform(self):
+        return self._transform
+
+    # --- Animation ---
+
+    def set_animated(self, b):
+        self._animated = bool(b)
+
+    def get_animated(self):
+        return self._animated
+
+    # --- Misc ---
+
+    def set_url(self, url):
+        self._url = url
+
+    def get_url(self):
+        return self._url
+
+    def set_gid(self, gid):
+        self._gid = gid
+
+    def get_gid(self):
+        return self._gid
+
+    def set_snap(self, snap):
+        self._snap = snap
+
+    def get_snap(self):
+        return self._snap
+
+    def set_path_effects(self, effects):
+        self._path_effects = effects
+
+    def get_path_effects(self):
+        return self._path_effects
+
+    def set_sketch_params(self, scale=None, length=None, randomness=None):
+        self._sketch_params = (scale, length, randomness)
+
+    def get_sketch_params(self):
+        return self._sketch_params
+
+    def set_rasterized(self, b):
+        self._rasterized = bool(b)
+
+    def get_rasterized(self):
+        return self._rasterized
+
+    def set_agg_filter(self, f):
+        self._agg_filter = f
+
+    # --- Hierarchy ---
+
+    def set_figure(self, fig):
+        self._figure = fig
+
+    def get_figure(self):
+        return self._figure
+
+    def get_children(self):
+        return list(self._children)
+
+    def findobj(self, match=None):
+        """Find all children matching a type or callable."""
+        results = []
+        for child in self._children:
+            if match is None:
+                results.append(child)
+            elif isinstance(match, type) and isinstance(child, match):
+                results.append(child)
+            elif callable(match) and match(child):
+                results.append(child)
+        return results
+
+    def remove(self):
+        pass
+
+    # --- Staleness ---
+
+    @property
+    def stale(self):
+        return self._stale
+
+    @stale.setter
+    def stale(self, val):
+        self._stale = bool(val)
+
+    def pchanged(self):
+        self._stale = True
+
+    def draw(self, renderer):
+        pass
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__}>"
+
+
+# Keep backward compat alias
+_PickableMixin = ArtistBase
 
 
 class Line2DProxy(_PickableMixin):
