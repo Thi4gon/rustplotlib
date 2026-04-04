@@ -12,6 +12,7 @@ _BACKEND_REGISTRY = {
     'agg': 'rustplotlib.backends.backend_base',
     'inline': 'rustplotlib.backends.backend_inline',
     'tk': 'rustplotlib.backends.backend_tk',
+    'webagg': 'rustplotlib.backends.backend_webagg',
 }
 
 from rustplotlib.backends.backend_pdf import PdfPages
@@ -66,6 +67,11 @@ def show_figure(figure_proxy):
         from rustplotlib.backends.backend_tk import FigureCanvasTk, FigureManagerTk
         canvas = FigureCanvasTk(figure_proxy)
         manager = FigureManagerTk(canvas, 1)
+        manager.show()
+    elif backend == 'webagg':
+        from rustplotlib.backends.backend_webagg import FigureCanvasWebAgg, FigureManagerWebAgg
+        canvas = FigureCanvasWebAgg(figure_proxy)
+        manager = FigureManagerWebAgg(canvas, 1)
         manager.show()
     else:
         # agg — non-interactive, use system viewer via Rust
