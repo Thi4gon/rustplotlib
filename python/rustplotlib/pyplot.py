@@ -339,16 +339,58 @@ class BarContainerProxy:
         pass
 
 
+class _LegendStub:
+    """Minimal stub for matplotlib Legend objects."""
+
+    def set_visible(self, b):
+        pass
+
+    def get_visible(self):
+        return True
+
+    def remove(self):
+        pass
+
+    def get_texts(self):
+        return []
+
+
+class _TransformStub:
+    """Stub for matplotlib transform objects (transData, transAxes, etc.)."""
+
+    def transform(self, points):
+        """Return points unchanged (identity transform stub)."""
+        return points
+
+    def inverted(self):
+        return self
+
+    def __add__(self, other):
+        return self
+
+    def __radd__(self, other):
+        return self
+
+
 class AxesProxy:
     """Python wrapper around a Rust axes, accessed by ID."""
 
     def __init__(self, figure, ax_id):
         self._fig = figure
         self._id = ax_id
+        self._title_cache = ''
+        self._xlabel_cache = ''
+        self._ylabel_cache = ''
+        self._xscale_cache = 'linear'
+        self._yscale_cache = 'linear'
+        self._facecolor_cache = 'white'
+        self._has_data_flag = False
+        self._legend_obj = None
 
     def plot(self, *args, zorder=None, **kwargs):
         groups = _parse_plot_args_multi(*args, **kwargs)
         proxies = []
+        self._has_data_flag = True
         for x, y, group_kw in groups:
             if zorder is not None:
                 group_kw["zorder"] = int(zorder)
@@ -372,6 +414,7 @@ class AxesProxy:
         return proxies
 
     def scatter(self, x, y, s=None, c=None, marker="o", alpha=1.0, label=None, zorder=None, **kwargs):
+        self._has_data_flag = True
         x, y = _to_list(x), _to_list(y)
         kw = {"marker": marker, "alpha": alpha}
         if s is not None:
@@ -386,6 +429,7 @@ class AxesProxy:
         return PathCollectionProxy()
 
     def bar(self, x, height, width=0.8, bottom=None, color=None, label=None, alpha=1.0, hatch=None, zorder=None, **kwargs):
+        self._has_data_flag = True
         # Handle categorical (string) x values
         cat_labels = None
         if x and isinstance(x[0], str):
@@ -412,6 +456,7 @@ class AxesProxy:
         return BarContainerProxy()
 
     def hist(self, x, bins=10, color=None, alpha=1.0, label=None, **kwargs):
+        self._has_data_flag = True
         x = _to_list(x)
         kw = {"bins": bins, "alpha": alpha}
         if color is not None:
@@ -505,6 +550,7 @@ class AxesProxy:
         if 'prop' in kwargs:
             kw['prop'] = str(kwargs['prop'])  # pass as string, ignored on Rust side
         self._fig.axes_legend(self._id, kw)
+        self._legend_obj = _LegendStub()
 
     def grid(self, visible=True, which='major', **kwargs):
         kw = {"which": which}
@@ -570,10 +616,20 @@ class AxesProxy:
         return self
 
     def set_xscale(self, scale, **kwargs):
+        self._xscale_cache = str(scale)
         self._fig.axes_set_xscale(self._id, str(scale))
 
     def set_yscale(self, scale, **kwargs):
+        self._yscale_cache = str(scale)
         self._fig.axes_set_yscale(self._id, str(scale))
+
+    def get_xscale(self):
+        """Return the current x-axis scale ('linear' or 'log')."""
+        return getattr(self, '_xscale_cache', 'linear')
+
+    def get_yscale(self):
+        """Return the current y-axis scale ('linear' or 'log')."""
+        return getattr(self, '_yscale_cache', 'linear')
 
     def errorbar(self, x, y, yerr=None, xerr=None, color=None, linewidth=None,
                  capsize=3.0, marker=None, markersize=None, label=None,
@@ -855,20 +911,33 @@ class AxesProxy:
         """Set multiple axes properties at once.
 
         Example: ax.set(xlabel='X', ylabel='Y', title='My Plot', xlim=(0, 10))
+
+        Supported kwargs: title, xlabel, ylabel, xlim, ylim, xscale, yscale,
+        aspect, facecolor (and any other key that maps to a set_<key> method).
         """
+        # Normalise keys that map directly to named methods
+        _aliases = {
+            'title': 'set_title',
+            'xlabel': 'set_xlabel',
+            'ylabel': 'set_ylabel',
+            'xscale': 'set_xscale',
+            'yscale': 'set_yscale',
+            'aspect': 'set_aspect',
+            'facecolor': 'set_facecolor',
+        }
+        # Keys that accept tuple/list unpacked as positional args
+        _unpack = {'xlim', 'ylim'}
+
         for key, val in kwargs.items():
-            method = getattr(self, f'set_{key}', None)
-            if method:
-                if isinstance(val, (list, tuple)) and key in ('xlim', 'ylim'):
-                    method(*val)
-                else:
-                    method(val)
-            elif key == 'title':
-                self.set_title(val)
-            elif key == 'xlabel':
-                self.set_xlabel(val)
-            elif key == 'ylabel':
-                self.set_ylabel(val)
+            if key in _aliases:
+                getattr(self, _aliases[key])(val)
+            else:
+                method = getattr(self, f'set_{key}', None)
+                if method:
+                    if isinstance(val, (list, tuple)) and key in _unpack:
+                        method(*val)
+                    else:
+                        method(val)
         return self
 
     def twinx(self):
@@ -899,7 +968,12 @@ class AxesProxy:
         self._fig.axes_tick_params(self._id, kw)
 
     def set_facecolor(self, color):
+        self._facecolor_cache = color
         self._fig.axes_set_facecolor(self._id, color)
+
+    def get_facecolor(self):
+        """Return the current axes facecolor."""
+        return getattr(self, '_facecolor_cache', 'white')
 
     def hlines(self, y, xmin, xmax, colors=None, linestyles='-', linewidth=1.0, alpha=1.0, **kwargs):
         """Draw horizontal lines at each y from xmin to xmax."""
@@ -1011,6 +1085,21 @@ class AxesProxy:
     def yaxis(self):
         return AxisProxy()
 
+    @property
+    def name(self):
+        """Return the axes projection name (matplotlib compat)."""
+        return 'rectilinear'
+
+    @property
+    def transData(self):
+        """Return a compatibility stub for the data coordinate transform."""
+        return _TransformStub()
+
+    @property
+    def transAxes(self):
+        """Return a compatibility stub for the axes coordinate transform."""
+        return _TransformStub()
+
     def set_position(self, pos):
         pass
 
@@ -1036,10 +1125,12 @@ class AxesProxy:
         return []
 
     def has_data(self):
-        return True
+        """Return True if any artists have been plotted to this axes."""
+        return getattr(self, '_has_data_flag', False)
 
     def clear(self):
         """Clear all artists from this axes."""
+        self._has_data_flag = False
         self._fig.axes_clear(self._id)
 
     def cla(self):
@@ -1051,20 +1142,20 @@ class AxesProxy:
         return []
 
     def get_legend(self):
-        """Return the legend for this axes, or None."""
-        return None
+        """Return the legend for this axes, or None if no legend was added."""
+        return getattr(self, '_legend_obj', None)
 
     def get_title(self):
         """Return the axes title."""
-        return getattr(self, '_title_cache', '')
+        return self._title_cache
 
     def get_xlabel(self):
         """Return the x-axis label."""
-        return getattr(self, '_xlabel_cache', '')
+        return self._xlabel_cache
 
     def get_ylabel(self):
         """Return the y-axis label."""
-        return getattr(self, '_ylabel_cache', '')
+        return self._ylabel_cache
 
     @property
     def patches(self):
@@ -1704,6 +1795,127 @@ class AxesProxy:
         """Return the FigureProxy that owns this axes."""
         return FigureProxy(self._fig, [self])
 
+    # ------------------------------------------------------------------
+    # Polar axes methods
+    # ------------------------------------------------------------------
+
+    def set_theta_zero_location(self, loc, offset=0.0):
+        """Set where theta=0 appears on the polar plot.
+
+        Parameters
+        ----------
+        loc : str or float
+            Cardinal direction ('N', 'S', 'E', 'W') or angle in degrees.
+        offset : float, optional
+            Additional offset in degrees (default 0).
+        """
+        _loc_map = {'N': 90.0, 'NW': 135.0, 'W': 180.0, 'SW': 225.0,
+                    'S': 270.0, 'SE': 315.0, 'E': 0.0, 'NE': 45.0}
+        if isinstance(loc, str):
+            angle = _loc_map.get(loc.upper(), 0.0)
+        else:
+            angle = float(loc)
+        self._polar_theta_zero = angle + float(offset)
+
+    def set_theta_direction(self, direction):
+        """Set direction of increasing theta.
+
+        Parameters
+        ----------
+        direction : int or str
+            1 or 'counterclockwise' for CCW (default),
+            -1 or 'clockwise' for CW.
+        """
+        if direction in (-1, 'clockwise'):
+            self._polar_theta_direction = -1
+        else:
+            self._polar_theta_direction = 1
+
+    def set_rlabel_position(self, angle):
+        """Set the angular position of radial axis labels.
+
+        Parameters
+        ----------
+        angle : float
+            Angle in degrees where radial tick labels appear.
+        """
+        self._polar_rlabel_position = float(angle)
+
+    def set_rmax(self, rmax):
+        """Set the maximum radius.
+
+        Equivalent to set_ylim(0, rmax) on a polar axes.
+
+        Parameters
+        ----------
+        rmax : float
+            Maximum radial value.
+        """
+        self._fig.axes_set_ylim(self._id, 0.0, float(rmax))
+
+    def set_rmin(self, rmin):
+        """Set the minimum radius.
+
+        Parameters
+        ----------
+        rmin : float
+            Minimum radial value.
+        """
+        try:
+            current_ylim = self._fig.axes_get_ylim(self._id)
+            rmax = current_ylim[1]
+        except Exception:
+            rmax = 1.0
+        self._fig.axes_set_ylim(self._id, float(rmin), rmax)
+
+    def set_rticks(self, ticks, labels=None):
+        """Set radial tick positions.
+
+        Alias for set_yticks on polar axes.
+
+        Parameters
+        ----------
+        ticks : list of float
+            Radial tick positions.
+        labels : list of str, optional
+            Custom tick labels.
+        """
+        self._fig.axes_set_yticks(self._id, [float(t) for t in ticks])
+        if labels is not None:
+            self._fig.axes_set_yticklabels(self._id, [str(l) for l in labels])
+
+    def set_thetagrids(self, angles, labels=None, fmt=None, **kwargs):
+        """Set angular grid lines at given angles (in degrees).
+
+        Parameters
+        ----------
+        angles : list of float
+            Angular positions in degrees for grid lines.
+        labels : list of str, optional
+            Custom labels for each angle; defaults to '<angle>°'.
+        """
+        self._polar_thetagrids = [float(a) for a in angles]
+        if labels is None:
+            labels = [f'{a:g}°' for a in angles]
+        self._polar_thetagrids_labels = list(labels)
+        # Store as x-ticks so the renderer can use them if needed
+        ticks_rad = [float(a) * 3.141592653589793 / 180.0 for a in angles]
+        self._fig.axes_set_xticks(self._id, ticks_rad)
+        self._fig.axes_set_xticklabels(self._id, [str(l) for l in labels])
+
+    def set_rgrids(self, radii, labels=None, **kwargs):
+        """Set radial grid lines at given radii.
+
+        Parameters
+        ----------
+        radii : list of float
+            Radial positions for grid circles.
+        labels : list of str, optional
+            Custom tick labels.
+        """
+        self._polar_rgrids = [float(r) for r in radii]
+        self.set_rticks(radii, labels=labels)
+
 
 class TwinAxesProxy:
     """Python wrapper for a twin (right-side y-axis) axes."""
@@ -2005,6 +2217,8 @@ class FigureProxy:
         self._fig = rust_fig
         self._axes = axes_proxies
         self._canvas = CanvasProxy()
+        self._figwidth = 6.4
+        self._figheight = 4.8
 
     @property
     def canvas(self):
@@ -2017,6 +2231,8 @@ class FigureProxy:
     def set_size_inches(self, w, h=None):
         if h is None and hasattr(w, "__iter__"):
             w, h = w
+        self._figwidth = float(w)
+        self._figheight = float(h)
         self._fig.set_size_inches(float(w), float(h))
 
     def suptitle(self, text, fontsize=None, **kwargs):
@@ -2087,7 +2303,49 @@ class FigureProxy:
         return [AxesProxy(self._fig, i) for i in range(n)]
 
     def get_size_inches(self):
-        return (6.4, 4.8)  # default
+        """Return figure size in inches as (width, height)."""
+        return (self._figwidth, self._figheight)
+
+    def get_figwidth(self):
+        """Return figure width in inches."""
+        return self._figwidth
+
+    def get_figheight(self):
+        """Return figure height in inches."""
+        return self._figheight
+
+    def set_figwidth(self, w):
+        """Set figure width in inches."""
+        self._figwidth = float(w)
+        self._fig.set_size_inches(float(w), self._figheight)
+
+    def set_figheight(self, h):
+        """Set figure height in inches."""
+        self._figheight = float(h)
+        self._fig.set_size_inches(self._figwidth, float(h))
+
+    def text(self, x, y, s, **kwargs):
+        """Add text to the figure at position (x, y) in figure coordinates (0-1)."""
+        kw = {}
+        if 'fontsize' in kwargs:
+            kw['fontsize'] = float(kwargs['fontsize'])
+        if 'color' in kwargs:
+            kw['color'] = kwargs['color']
+        if 'ha' in kwargs:
+            kw['ha'] = kwargs['ha']
+        if 'va' in kwargs:
+            kw['va'] = kwargs['va']
+        if 'transform' in kwargs:
+            pass  # ignored — figure coords assumed
+        # Add text to first axes as a rough approximation
+        n = self._fig.num_axes()
+        if n > 0:
+            # Convert figure coords (0-1) to a text on axes 0 via axes_text
+            # This is a best-effort; figure-level text is not natively separate
+            try:
+                self._fig.axes_text(0, float(x), float(y), str(s), kw)
+            except Exception:
+                pass
 
     def get_dpi(self):
         return 100
@@ -2545,13 +2803,17 @@ def subplots(nrows=1, ncols=1, figsize=None, dpi=100, subplot_kw=None, **kwargs)
 
     subplot_kw = subplot_kw or {}
     is_3d = subplot_kw.get('projection') == '3d'
+    is_polar = subplot_kw.get('projection') == 'polar'
 
     def _make_ax(idx):
         if is_3d:
             ax3d_id = fig.add_subplot_3d(idx)
             return Axes3DProxy(fig, ax3d_id)
         else:
-            return AxesProxy(fig, idx)
+            ax = AxesProxy(fig, idx)
+            if is_polar:
+                fig.axes_set_polar(idx, True)
+            return ax
 
     if nrows == 1 and ncols == 1:
         axes = _make_ax(0)
