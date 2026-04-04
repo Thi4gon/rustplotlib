@@ -2,6 +2,7 @@
 
 from rustplotlib._rustplotlib import RustFigure
 import numpy as np
+from rustplotlib import style
 
 _current_figure = None
 _current_axes_id = None
