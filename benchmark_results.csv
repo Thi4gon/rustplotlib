@@ -1,0 +1,13 @@
+benchmark,matplotlib_s,rustplotlib_s,speedup
+Line Plot (10k pts),0.028050,0.005270,5.32
+Scatter (5k pts),0.028230,0.020534,1.37
+Bar Chart (50 bars),0.025549,0.005095,5.01
+Histogram (100k pts),0.090139,0.005606,16.08
+Subplots 2x2,0.046219,0.010970,4.21
+Heatmap (100x100),0.020790,0.006080,3.42
+Large Line (100k pts),0.109854,0.109353,1.00
+Multi-line (20 lines),0.090231,0.037224,2.42
+Error Bars,0.022393,0.003487,6.42
+Pie Chart,0.012209,0.004486,2.72
+SVG Output,0.020507,0.002972,6.90
+Full Styled Plot,0.018751,0.005461,3.43

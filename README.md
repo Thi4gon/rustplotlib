@@ -17,7 +17,7 @@ No Python runtime dependency for rendering. No wrappers. No subprocess calls. Pu
 |---|---|---|---|
 | Rendering engine | C/C++ (AGG) | None (wrap matplotlib or call Python) | **Rust native (tiny-skia)** |
 | External dependencies | NumPy, Pillow, FreeType, etc. | Python + matplotlib required | **Zero** — self-contained |
-| Performance | Baseline | Same or slower (subprocess overhead) | **Up to 30x faster** |
+| Performance | Baseline | Same or slower (subprocess overhead) | **Up to 16x faster** |
 | Python API | Original | Rust-only or generates .py scripts | **Drop-in replacement** — same API |
 | Approach | Interpreted + C extensions | Wrappers / code generators | **Full reimplementation in Rust** |
 
@@ -225,7 +225,7 @@ All also available as `viridis_r`, `plasma_r`, `hot_r`, etc.
 - **Dates:** `date2num()`, `num2date()`, date formatters and locators
 - **Categorical axes:** string-based x values automatically converted
 
-### Compatibility Modules (23 modules)
+### Compatibility Modules (21 modules)
 | Module | Status |
 |---|---|
 | `rustplotlib.pyplot` | Full implementation (50+ functions) |
@@ -233,10 +233,10 @@ All also available as `viridis_r`, `plasma_r`, `hot_r`, etc.
 | `rustplotlib.animation` | FuncAnimation + GIF export |
 | `rustplotlib.widgets` | Stubs (Slider, Button, CheckButtons, RadioButtons, TextBox, Cursor) |
 | `rustplotlib.font_manager` | FontProperties |
-| `rustplotlib.ticker` | FormatStrFormatter |
-| `rustplotlib.patches` | Rectangle, Circle, Polygon, FancyBboxPatch, Wedge |
-| `rustplotlib.colors` | LinearSegmentedColormap, Normalize, LogNorm |
-| `rustplotlib.dates` | Date conversion, formatters, locators |
+| `rustplotlib.ticker` | 12 Formatters + 10 Locators (functional) |
+| `rustplotlib.patches` | Rectangle, Circle, Polygon, FancyBboxPatch, Wedge, FancyArrowPatch |
+| `rustplotlib.colors` | LinearSegmentedColormap, Normalize, LogNorm, BoundaryNorm |
+| `rustplotlib.dates` | Date conversion, DateFormatter, DateLocator, Auto/Day/Month/Year/Hour/MinuteLocator |
 | `rustplotlib.gridspec` | GridSpec, SubplotSpec |
 | `rustplotlib.backends` | Backend system, PdfPages |
 | `rustplotlib.mpl_toolkits.mplot3d` | Axes3D for 3D plotting |
@@ -247,7 +247,6 @@ All also available as `viridis_r`, `plasma_r`, `hot_r`, etc.
 | `rustplotlib.transforms` | Bbox, Affine2D, BboxTransform |
 | `rustplotlib.patheffects` | Stroke, withStroke, SimplePatchShadow |
 | `rustplotlib.spines` | Spine |
-| `rustplotlib.axes` | Axes class reference |
 | `rustplotlib.figure` | Figure class reference |
 | `rustplotlib.cycler` | cycler compatibility |
 
@@ -341,11 +340,18 @@ Benchmarked against matplotlib on Apple Silicon (M-series). Each test runs 10 it
 
 | Benchmark | matplotlib | rustplotlib | Speedup |
 |---|---|---|---|
-| Line Plot (10k points) | 0.064s | 0.002s | **30.8x** |
-| Scatter (5k points) | 0.029s | 0.017s | **1.7x** |
-| Bar Chart (50 bars) | 0.023s | 0.002s | **9.6x** |
-| Histogram (100k points) | 0.081s | 0.003s | **27.9x** |
-| Subplots 2x2 | 0.041s | 0.002s | **26.7x** |
+| Line Plot (10k pts) | 0.028s | 0.005s | **5.3x** |
+| Scatter (5k pts) | 0.028s | 0.021s | **1.4x** |
+| Bar Chart (50 bars) | 0.026s | 0.005s | **5.0x** |
+| Histogram (100k pts) | 0.090s | 0.006s | **16.1x** |
+| Subplots 2x2 | 0.046s | 0.011s | **4.2x** |
+| Heatmap (100x100) | 0.021s | 0.006s | **3.4x** |
+| Large Line (100k pts) | 0.110s | 0.109s | **1.0x** |
+| Multi-line (20 lines) | 0.090s | 0.037s | **2.4x** |
+| Error Bars | 0.022s | 0.004s | **6.4x** |
+| Pie Chart | 0.012s | 0.005s | **2.7x** |
+| SVG Output | 0.021s | 0.003s | **6.9x** |
+| Full Styled Plot | 0.019s | 0.006s | **3.4x** |
 
 Run the benchmark yourself:
 ```bash
@@ -420,22 +426,22 @@ Contributions are welcome! This is an open-source project under the MIT license.
 4. PRs require at least 1 review before merging
 
 **Project stats:**
-- **45+ Rust source files** — 16,000+ lines of native code
-- **23 Python modules** — 5,000+ lines of API
+- **45+ Rust source files** — 23,000+ lines of native code
+- **21 Python modules** — 8,000+ lines of API
 - **47+ plot functions** (40 2D + 7 3D)
 - **70+ colormaps** (35 base + 35 reversed)
-- **262 tests** passing
-- **12 formatters + 10 locators** (functional)
+- **267 tests** passing
+- **22 formatters + locators** (functional)
 - **RGB/RGBA imshow**, bilinear interpolation, heatmap annotations
 - **Signal processing**: specgram, psd, acorr, xcorr, coherence
 - **Zero `unsafe` blocks**
 
 **Priority areas for contribution:**
-- Turning stub modules into full implementations (widgets, formatters/locators)
-- Improving SVG output fidelity
-- Interactive 3D (mouse rotation)
+- Jupyter inline backend (rich display protocol)
+- Functional widgets (Slider, Button, CheckButtons with real rendering)
+- Interactive features (mouse events, zoom/pan, 3D rotation)
 - Qt/GTK backends
-- More comprehensive test coverage
+- Triangulation plots (tricontour, tripcolor)
 
 ---
 

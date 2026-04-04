@@ -4,7 +4,7 @@ Goal: Full matplotlib reimplementation in Rust.
 
 ---
 
-## DONE — v3.0.0
+## DONE — v4.0.0
 
 ### 2D Plot Types (40+ implemented)
 - [x] plot, scatter, bar, barh, hist, imshow (RGB/RGBA + bilinear), fill_between, fill_betweenx, fill
@@ -30,8 +30,16 @@ Goal: Full matplotlib reimplementation in Rust.
 - [x] 6 style themes, 70+ colormaps (+ reversed), custom fonts, rcParams (30+ keys)
 - [x] Bilinear interpolation, title loc, multi-group plot, image extent, RGB/RGBA imshow
 - [x] Aspect ratio, invert axes, axis off, subplot_mosaic, suptitle, subplots_adjust
-- [x] Minor ticks, label colors, get_xlim/get_ylim (functional), axes clear
-- [x] 12 formatters + 10 locators (functional)
+- [x] Minor ticks rendering + `set_xticks(minor=True)` functional
+- [x] Label colors, get_xlim/get_ylim (functional), axes clear
+- [x] Image origin ('upper' / 'lower')
+
+### Formatters & Locators (22 implemented)
+- [x] ScalarFormatter, LogFormatter, LogFormatterSciNotation, LogFormatterMathtext
+- [x] EngFormatter, PercentFormatter, StrMethodFormatter, FuncFormatter, FormatStrFormatter
+- [x] MaxNLocator, AutoLocator, MultipleLocator, LogLocator, FixedLocator, AutoMinorLocator
+- [x] DateFormatter, AutoDateFormatter, DateLocator, AutoDateLocator
+- [x] DayLocator, MonthLocator, YearLocator, HourLocator, MinuteLocator
 
 ### Compatibility Modules (23)
 - [x] pyplot (50+ functions), style, animation, widgets, font_manager, ticker, patches, colors
@@ -46,49 +54,22 @@ Goal: Full matplotlib reimplementation in Rust.
 
 ---
 
-## IN PROGRESS — v4.0.0
+## PLANNED — v5.0.0
 
 ### Remaining Plot Types
-- [ ] `csd()` / `psd()` — cross/power spectral density
-- [ ] `ecdf()` — empirical cumulative distribution
-- [ ] `stairs()` — step plot with edges
-- [ ] `tricontour()` / `tricontourf()` — contour on triangulation
-- [ ] `tripcolor()` — pseudocolor on triangulation
-- [ ] `triplot()` — plot triangulation edges
-
-### Formatters & Locators (functional, not stubs)
-- [ ] `ScalarFormatter` — default number formatting
-- [ ] `LogFormatter` / `LogFormatterSciNotation`
-- [ ] `EngFormatter` — engineering notation (1k, 1M, 1G)
-- [ ] `PercentFormatter`
-- [ ] `StrMethodFormatter` / `FuncFormatter`
-- [ ] `MaxNLocator` — smart tick placement (partial, have auto_ticks)
-- [ ] `MultipleLocator` — ticks at multiples
-- [ ] `LogLocator` — logarithmic ticks
-- [ ] `FixedLocator` — user-specified positions
-- [ ] `AutoMinorLocator` — automatic minor ticks
-- [ ] `DateFormatter` functional (format ticks as dates)
-- [ ] `DateLocator` functional (place ticks at date intervals)
+- [ ] `tricontour()` / `tricontourf()` — contour on triangulation (currently stubs)
+- [ ] `tripcolor()` — pseudocolor on triangulation (currently stub)
 
 ### Advanced Customization
-- [ ] `FancyArrowPatch` — complex arrow styles (arc, angle, etc.)
-- [ ] `ConnectionPatch` — arrows connecting different axes
+- [ ] `FancyArrowPatch` — complex arrow styles (arc, angle, etc.) — currently basic stub
+- [ ] `ConnectionPatch` — arrows connecting different axes — currently basic stub
 - [ ] Spine positioning (`set_position('center')`, `set_position(('data', 0))`)
-- [ ] Minor ticks rendering (major/minor tick distinction)
 - [ ] Grid major/minor separate styling
-- [ ] `ax.set_xticks(minor=True)` functional
 - [ ] Colorbar as separate Axes (not inline drawing)
-- [ ] `TwoSlopeNorm`, `CenteredNorm`, `BoundaryNorm` functional
+- [ ] `TwoSlopeNorm`, `CenteredNorm` functional
 
 ### Image Improvements
 - [ ] Bicubic, Lanczos, Spline interpolation
-- [ ] Image origin ('upper' vs 'lower')
-- [ ] Image extent parameter
-- [ ] RGB/RGBA image support in imshow
-
----
-
-## PLANNED — v4.0.0
 
 ### Functional Backends
 - [ ] Qt backend (QApplication, mouse events, toolbar, save dialog)
@@ -117,7 +98,7 @@ Goal: Full matplotlib reimplementation in Rust.
 
 ---
 
-## PLANNED — v5.0.0
+## PLANNED — v6.0.0
 
 ### Full LaTeX Math Rendering
 - [ ] TeX layout engine (fractions, roots, integrals, summation)
@@ -146,7 +127,7 @@ Goal: Full matplotlib reimplementation in Rust.
 
 ---
 
-## PLANNED — v6.0.0
+## PLANNED — v7.0.0
 
 ### Geographic/Specialized Projections
 - [ ] Polar projection improvements (theta direction, offset)
@@ -184,7 +165,7 @@ Goal: Full matplotlib reimplementation in Rust.
 Pick any unchecked item, open an issue to discuss, submit a PR with tests.
 
 **Highest impact areas:**
-1. Formatters/Locators (v3.0.0) — makes axes look professional
-2. Jupyter backend (v4.0.0) — huge for data scientists
-3. LaTeX rendering (v5.0.0) — needed for scientific papers
-4. Interactive features (v4.0.0) — needed for exploratory analysis
+1. Jupyter backend (v5.0.0) — huge for data scientists
+2. Interactive features (v5.0.0) — needed for exploratory analysis
+3. LaTeX rendering (v6.0.0) — needed for scientific papers
+4. Triangulation plots (v5.0.0) — tricontour, tripcolor
