@@ -119,3 +119,55 @@ def test_callback_registry_disconnect_invalid():
     """Disconnecting an invalid cid does nothing (no crash)."""
     registry = CallbackRegistry()
     registry.disconnect(9999)  # should not raise
+
+
+import rustplotlib.pyplot as plt
+
+
+def test_canvas_mpl_connect():
+    """CanvasProxy.mpl_connect registers callbacks that can be retrieved."""
+    fig, ax = plt.subplots()
+    canvas = fig.canvas
+
+    received = []
+    cid = canvas.mpl_connect("button_press_event", lambda e: received.append(e))
+    assert isinstance(cid, int)
+    plt.close()
+
+
+def test_canvas_mpl_disconnect():
+    """CanvasProxy.mpl_disconnect removes callbacks."""
+    fig, ax = plt.subplots()
+    canvas = fig.canvas
+
+    received = []
+    cid = canvas.mpl_connect("button_press_event", lambda e: received.append(e))
+    canvas.mpl_disconnect(cid)
+
+    # Process the event directly through the registry
+    canvas.callbacks.process("button_press_event", "test")
+    assert len(received) == 0
+    plt.close()
+
+
+def test_canvas_callbacks_process():
+    """CanvasProxy callbacks fire when processed."""
+    fig, ax = plt.subplots()
+    canvas = fig.canvas
+
+    received = []
+    canvas.mpl_connect("button_press_event", lambda e: received.append(e))
+    canvas.callbacks.process("button_press_event", "click!")
+    assert received == ["click!"]
+    plt.close()
+
+
+def test_pyplot_connect_disconnect():
+    """Module-level connect/disconnect delegate to current figure canvas."""
+    fig, ax = plt.subplots()
+
+    received = []
+    cid = plt.connect("button_press_event", lambda e: received.append(e))
+    assert isinstance(cid, int)
+    plt.disconnect(cid)
+    plt.close()
