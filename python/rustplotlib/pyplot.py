@@ -3952,6 +3952,68 @@ def use(backend):
     switch_backend(backend)
 
 
+def get_backend():
+    """Return the current backend name."""
+    from rustplotlib.backends import get_backend as _get_backend
+    return _get_backend()
+
+
+def polar(*args, **kwargs):
+    """Make a polar plot."""
+    ax = gca()
+    ax._fig.axes_set_polar(ax._id, True)
+    return ax.plot(*args, **kwargs)
+
+
+def twinx(ax=None):
+    """Create a twin axes sharing the x-axis."""
+    if ax is None:
+        ax = gca()
+    return ax.twinx()
+
+
+def twiny(ax=None):
+    """Create a twin axes sharing the y-axis."""
+    if ax is None:
+        ax = gca()
+    return ax.twiny()
+
+
+def clim(vmin=None, vmax=None):
+    """Set the color limits of the current image."""
+    pass  # no-op for compat
+
+
+def sci(im):
+    """Set the current image (for colorbar)."""
+    pass  # no-op for compat
+
+
+def rcdefaults():
+    """Restore default rcParams."""
+    global rcParams
+    rcParams.update({
+        'figure.figsize': [6.4, 4.8],
+        'figure.dpi': 100,
+        'font.size': 10,
+        'font.family': ['sans-serif'],
+        'axes.titlesize': 'large',
+        'axes.labelsize': 'medium',
+        'lines.linewidth': 1.5,
+        'lines.markersize': 6,
+    })
+
+
+def mpl_connect(event, func):
+    """Connect a callback to an event on the current figure's canvas."""
+    return gcf().canvas.mpl_connect(event, func)
+
+
+def mpl_disconnect(cid):
+    """Disconnect a callback."""
+    gcf().canvas.mpl_disconnect(cid)
+
+
 def _handle_categorical(data):
     """Convert string data to numeric positions + tick labels."""
     if data and isinstance(data[0], str):
