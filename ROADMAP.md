@@ -128,7 +128,7 @@ Goal: Full matplotlib reimplementation in Rust.
 ### Additional Backends
 - [ ] Qt backend (QApplication, mouse events, toolbar, save dialog)
 - [ ] GTK3/GTK4 backend
-- [ ] WebAgg (HTML5 Canvas, browser-based interactive)
+- [x] WebAgg (HTML5 Canvas, browser-based interactive via HTTP)
 - [ ] macOS native backend (NSView/Metal)
 
 ### Interactive Features (remaining)
@@ -145,18 +145,18 @@ Goal: Full matplotlib reimplementation in Rust.
 ### Full LaTeX Math Rendering
 - [x] Basic math text: Greek letters (24+12), sub/superscript (Unicode), operators (±×÷·≤≥≠≈∞∫Σ√)
 - [x] `\frac{}{}` → fraction, `\mathbf{}`, `\text{}` pass-through
-- [ ] Full TeX layout engine (proper glyph positioning, stacking)
+- [x] Full TeX layout engine (stacked fractions, sqrt with bar, integral/sum limits)
 - [ ] Math font rendering (Computer Modern, STIX)
 - [ ] Matrices, arrays, aligned equations
 
 ### Advanced Layout
-- [ ] Tight layout engine (constraint solver)
+- [x] Tight layout engine (Rust dynamic margins from text measurement)
 - [ ] Constrained layout
 - [x] GridSpec with rowspan/colspan (Rust grid_span)
 - [x] Figure.add_axes() with custom position [left, bottom, width, height]
 - [x] Axes divider (mpl_toolkits.axes_grid1)
 - [x] `make_axes_locatable` for colorbar positioning
-- [ ] Nested subplots
+- [x] Nested subplots (SubFigure with subfigures())
 
 ### Transform System
 - [x] Composable Affine2D transforms in Rust (rotate, scale, translate, compose, invert)
@@ -171,7 +171,7 @@ Goal: Full matplotlib reimplementation in Rust.
 
 ### Geographic/Specialized Projections
 - [ ] Polar projection improvements (theta direction, offset)
-- [ ] Hammer, Aitoff, Mollweide projections
+- [x] Hammer, Aitoff, Mollweide projections (Rust with batch + graticule)
 - [ ] Lambert conformal conic
 - [ ] Stereographic projection
 - [ ] Basemap-like coastlines and borders (optional data)
