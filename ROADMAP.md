@@ -107,8 +107,8 @@ Goal: Full matplotlib reimplementation in Rust.
 ## PLANNED — v5.1.0
 
 ### Remaining Plot Types
-- [ ] `tricontour()` / `tricontourf()` — contour on triangulation (currently stubs)
-- [ ] `tripcolor()` — pseudocolor on triangulation (currently stub)
+- [x] `tricontour()` / `tricontourf()` — contour on triangulation (barycentric interpolation)
+- [x] `tripcolor()` — pseudocolor on triangulation
 
 ### Advanced Customization
 - [ ] `FancyArrowPatch` — complex arrow styles (arc, angle, etc.) — currently basic stub
@@ -205,4 +205,4 @@ Pick any unchecked item, open an issue to discuss, submit a PR with tests.
 **Highest impact areas:**
 1. Qt/GTK backends (v5.1.0) — needed for desktop applications
 2. LaTeX rendering (v6.0.0) — needed for scientific papers
-3. Triangulation plots (v5.1.0) — tricontour, tripcolor
+3. Pick events / 3D rotation (v5.1.0) — interactive artist selection
