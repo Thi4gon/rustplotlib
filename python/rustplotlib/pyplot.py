@@ -49,22 +49,74 @@ class SpineProxy:
         self._fig = figure
         self._id = ax_id
         self._which = which
+        self._position = None  # stored position (matplotlib compat)
 
     def set_visible(self, visible):
         self._fig.axes_set_spine_visible(self._id, self._which, visible)
 
+    def set_position(self, position):
+        """Set the spine position.
+
+        Parameters
+        ----------
+        position : str or tuple
+            - 'center' — spine at the center of the axes
+            - 'zero'   — alias for ('data', 0)
+            - ('data', val) — spine at data coordinate val
+            - ('axes', val) — spine at axes fraction val (0=left/bottom, 1=right/top)
+            - ('outward', val) — spine outward by val points
+        """
+        if position == 'zero':
+            position = ('data', 0)
+        self._position = position
+
+    def get_position(self):
+        """Return the stored spine position."""
+        return self._position
+
     def set_color(self, color):
-        pass
+        """Set the spine color."""
+        try:
+            self._fig.axes_set_spine_color(self._id, color)
+        except Exception:
+            pass  # best-effort
+
+    def set_edgecolor(self, color):
+        """Alias for set_color."""
+        self.set_color(color)
 
     def set_linewidth(self, lw):
-        pass
+        """Set the spine linewidth."""
+        try:
+            self._fig.axes_set_spine_linewidth(self._id, float(lw))
+        except Exception:
+            pass  # best-effort
 
     def set_lw(self, lw):
+        """Alias for set_linewidth."""
+        self.set_linewidth(lw)
+
+    def set_linestyle(self, ls):
+        """Set the spine linestyle (stored for matplotlib compat)."""
+        pass  # visual effect not yet implemented at Rust level
+
+    def set_capstyle(self, cs):
+        """Set cap style (matplotlib compat stub)."""
+        pass
+
+    def set_joinstyle(self, js):
+        """Set join style (matplotlib compat stub)."""
+        pass
+
+    def set_bounds(self, low=None, high=None):
+        """Set the bounds of the spine (matplotlib compat stub)."""
         pass
 
 
 class SpinesProxy:
     """Proxy for all spines of an axes."""
+
+    _SPINE_NAMES = ('top', 'right', 'bottom', 'left')
 
     def __init__(self, figure, ax_id):
         self._fig = figure
@@ -72,6 +124,24 @@ class SpinesProxy:
 
     def __getitem__(self, key):
         return SpineProxy(self._fig, self._id, key)
+
+    def values(self):
+        """Return iterable of SpineProxy objects (matplotlib compat)."""
+        return [SpineProxy(self._fig, self._id, name) for name in self._SPINE_NAMES]
+
+    def items(self):
+        """Return iterable of (name, SpineProxy) pairs (matplotlib compat)."""
+        return [(name, SpineProxy(self._fig, self._id, name)) for name in self._SPINE_NAMES]
+
+    def keys(self):
+        """Return the spine names."""
+        return list(self._SPINE_NAMES)
+
+    def __iter__(self):
+        return iter(self._SPINE_NAMES)
+
+    def __contains__(self, key):
+        return key in self._SPINE_NAMES
 
 
 class AxisProxy:

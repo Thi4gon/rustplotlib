@@ -83,3 +83,68 @@ class BoundaryNorm:
 
     def __call__(self, value):
         return value
+
+
+class TwoSlopeNorm:
+    """Normalize data with different rates on each side of a center point.
+
+    Useful for diverging colormaps where the center isn't at the midpoint of the data range.
+
+    Parameters
+    ----------
+    vcenter : float
+        The data value that maps to 0.5 in the colormap.
+    vmin : float, optional
+        The data value that maps to 0.0.
+    vmax : float, optional
+        The data value that maps to 1.0.
+    """
+
+    def __init__(self, vcenter, vmin=None, vmax=None):
+        self.vcenter = vcenter
+        self.vmin = vmin
+        self.vmax = vmax
+
+    def __call__(self, value):
+        """Normalize value to [0, 1]."""
+        import numpy as np
+        value = np.asarray(value, dtype=float)
+        vmin = self.vmin if self.vmin is not None else np.nanmin(value)
+        vmax = self.vmax if self.vmax is not None else np.nanmax(value)
+
+        result = np.where(
+            value < self.vcenter,
+            0.5 * (value - vmin) / (self.vcenter - vmin) if self.vcenter != vmin else 0.0,
+            0.5 + 0.5 * (value - self.vcenter) / (vmax - self.vcenter) if vmax != self.vcenter else 1.0,
+        )
+        return np.clip(result, 0, 1)
+
+
+class CenteredNorm:
+    """Normalize data symmetrically around a center (default 0).
+
+    Parameters
+    ----------
+    vcenter : float
+        The center value (maps to 0.5). Default is 0.
+    halfrange : float, optional
+        Half the range. vmin = vcenter - halfrange, vmax = vcenter + halfrange.
+    """
+
+    def __init__(self, vcenter=0, halfrange=None):
+        self.vcenter = vcenter
+        self.halfrange = halfrange
+
+    def __call__(self, value):
+        """Normalize value to [0, 1]."""
+        import numpy as np
+        value = np.asarray(value, dtype=float)
+        if self.halfrange is not None:
+            hr = self.halfrange
+        else:
+            hr = max(abs(np.nanmax(value) - self.vcenter),
+                     abs(np.nanmin(value) - self.vcenter))
+        if hr == 0:
+            hr = 1.0
+        result = 0.5 + (value - self.vcenter) / (2 * hr)
+        return np.clip(result, 0, 1)
