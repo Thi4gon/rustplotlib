@@ -1498,6 +1498,15 @@ class AxesProxy:
         """Turn the axis back on."""
         self._fig.axes_set_axis_off(self._id, False)
 
+    def minorticks_on(self):
+        """Turn on minor ticks."""
+        pass  # minor ticks are handled via set_xticks(minor=True)
+
+    def minorticks_off(self):
+        """Turn off minor ticks."""
+        self._fig.axes_set_xticks_minor(self._id, [])
+        self._fig.axes_set_yticks_minor(self._id, [])
+
     def get_xlim(self):
         return self._fig.axes_get_xlim(self._id)
 
