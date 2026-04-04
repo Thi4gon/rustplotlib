@@ -2247,6 +2247,8 @@ class Axes3DProxy:
     def __init__(self, figure, ax3d_id):
         self._fig = figure
         self._id = ax3d_id
+        self._elev = 30.0
+        self._azim = -60.0
 
     def plot(self, xs, ys, zs, **kwargs):
         xs, ys, zs = _to_list(xs), _to_list(ys), _to_list(zs)
@@ -2312,7 +2314,15 @@ class Axes3DProxy:
         self._fig.axes3d_set_zlabel(self._id, str(label), fontsize)
 
     def view_init(self, elev=30, azim=-60, **kwargs):
-        self._fig.axes3d_view_init(self._id, float(elev), float(azim))
+        self._elev = float(elev)
+        self._azim = float(azim)
+        self._fig.axes3d_view_init(self._id, self._elev, self._azim)
+
+    def rotate(self, d_azim, d_elev):
+        """Rotate the 3D view by incremental angles."""
+        self._azim += d_azim
+        self._elev = max(-90, min(90, self._elev + d_elev))
+        self._fig.axes3d_view_init(self._id, self._elev, self._azim)
 
     def set_xlim(self, left=None, right=None, **kwargs):
         if left is not None and right is not None:

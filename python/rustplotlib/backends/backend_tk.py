@@ -35,6 +35,7 @@ class FigureCanvasTk(FigureCanvasBase):
         self._tk_canvas = None
         self._photo_image = None
         self._last_rgba = None  # (bytes, width, height)
+        self._3d_drag_start = None  # (x, y) for 3D rotation
 
     def draw(self):
         """Render the figure to RGBA buffer and update the Tk canvas."""
@@ -100,6 +101,28 @@ class FigureCanvasTk(FigureCanvasBase):
             key = '+'.join(mods + [key])
         return key
 
+    def _has_3d_axes(self):
+        """Check if the figure has any 3D axes."""
+        from rustplotlib.pyplot import Axes3DProxy
+        if not hasattr(self.figure, '_axes'):
+            return False
+        axes = self.figure._axes
+        if isinstance(axes, (list, tuple)):
+            return any(isinstance(a, Axes3DProxy) for a in axes)
+        return isinstance(axes, Axes3DProxy)
+
+    def _get_3d_axes(self):
+        """Return list of 3D axes proxies."""
+        from rustplotlib.pyplot import Axes3DProxy
+        if not hasattr(self.figure, '_axes'):
+            return []
+        axes = self.figure._axes
+        if isinstance(axes, Axes3DProxy):
+            return [axes]
+        if isinstance(axes, (list, tuple)):
+            return [a for a in axes if isinstance(a, Axes3DProxy)]
+        return []
+
     def _on_button_press(self, event):
         button = _TK_BUTTON_MAP.get(event.num, event.num)
         me = MouseEvent("button_press_event", self, x=event.x, y=event.y,
@@ -110,21 +133,44 @@ class FigureCanvasTk(FigureCanvasBase):
             me.xdata = xd
             me.ydata = yd
         self.callbacks.process("button_press_event", me)
+        # 3D rotation: start drag
+        if button == 1 and self._has_3d_axes():
+            self._3d_drag_start = (event.x, event.y)
         # Trigger pick event testing
         if hasattr(self, '_figure_proxy') and self._figure_proxy is not None:
-            for ax in self._figure_proxy._axes:
-                ax.pick(me)
+            from rustplotlib.pyplot import AxesProxy
+            axes = self.figure._axes
+            if isinstance(axes, AxesProxy):
+                axes.pick(me)
+            elif isinstance(axes, (list, tuple)):
+                for ax in axes:
+                    if isinstance(ax, AxesProxy) and hasattr(ax, 'pick'):
+                        ax.pick(me)
 
     def _on_button_release(self, event):
         button = _TK_BUTTON_MAP.get(event.num, event.num)
         me = MouseEvent("button_release_event", self, x=event.x, y=event.y,
                         button=button, guiEvent=event)
         self.callbacks.process("button_release_event", me)
+        # End 3D rotation drag
+        if button == 1:
+            self._3d_drag_start = None
 
     def _on_motion(self, event):
         me = MouseEvent("motion_notify_event", self, x=event.x, y=event.y,
                         guiEvent=event)
         self.callbacks.process("motion_notify_event", me)
+        # 3D rotation: drag to rotate
+        if self._3d_drag_start is not None:
+            dx = event.x - self._3d_drag_start[0]
+            dy = event.y - self._3d_drag_start[1]
+            self._3d_drag_start = (event.x, event.y)
+            # Convert pixel delta to angle delta (sensitivity: 0.5 deg/pixel)
+            d_azim = dx * 0.5
+            d_elev = -dy * 0.5
+            for ax3d in self._get_3d_axes():
+                ax3d.rotate(d_azim, d_elev)
+            self.draw()
 
     def _on_scroll(self, event):
         step = event.delta / 120

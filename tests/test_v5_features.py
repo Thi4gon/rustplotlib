@@ -155,6 +155,59 @@ class TestCSSNamedColors:
             os.unlink(f.name)
 
 
+class Test3DRotation:
+    """Test 3D mouse rotation API."""
+
+    def test_view_init_stores_angles(self):
+        import rustplotlib.pyplot as plt
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.view_init(elev=45, azim=30)
+        assert ax._elev == 45.0
+        assert ax._azim == 30.0
+
+    def test_rotate_incremental(self):
+        import rustplotlib.pyplot as plt
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.view_init(0, 0)
+        ax.rotate(10, 5)
+        assert ax._azim == 10.0
+        assert ax._elev == 5.0
+
+    def test_rotate_elev_clamped(self):
+        import rustplotlib.pyplot as plt
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.view_init(80, 0)
+        ax.rotate(0, 50)  # would be 130, clamped to 90
+        assert ax._elev == 90.0
+        ax.rotate(0, -200)  # would be -110, clamped to -90
+        assert ax._elev == -90.0
+
+    def test_3d_rotation_render(self):
+        import rustplotlib.pyplot as plt
+        import numpy as np
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.plot([0, 1], [0, 1], [0, 1])
+        ax.view_init(45, 45)
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            plt.savefig(f.name)
+            assert os.path.getsize(f.name) > 0
+            os.unlink(f.name)
+
+    def test_multiple_rotations(self):
+        import rustplotlib.pyplot as plt
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.view_init(0, 0)
+        for _ in range(10):
+            ax.rotate(5, 2)
+        assert abs(ax._azim - 50.0) < 1e-10
+        assert abs(ax._elev - 20.0) < 1e-10
+
+
 class TestPickEvents:
     """Test pick event system."""
 
