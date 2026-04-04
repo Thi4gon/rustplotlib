@@ -2009,9 +2009,9 @@ impl RustFigure {
     fn savefig(&self, path: String, dpi: Option<u32>, transparent: Option<bool>, tight: Option<bool>) -> PyResult<()> {
         // Validate file extension
         let path_lower = path.to_lowercase();
-        if !path_lower.ends_with(".png") && !path_lower.ends_with(".svg") && !path_lower.ends_with(".pdf") {
+        if !path_lower.ends_with(".png") && !path_lower.ends_with(".svg") && !path_lower.ends_with(".pdf") && !path_lower.ends_with(".eps") {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "savefig only supports .png, .svg, and .pdf extensions"
+                "savefig only supports .png, .svg, .pdf, and .eps extensions"
             ));
         }
 
@@ -2044,14 +2044,18 @@ impl RustFigure {
             pixmap
         };
 
-        if path.ends_with(".pdf") {
+        if path_lower.ends_with(".pdf") {
             let pdf_data = Self::render_pdf(&pixmap);
             std::fs::write(&path, pdf_data)
                 .map_err(|e| pyo3::exceptions::PyIOError::new_err(format!("Failed to write PDF: {}", e)))?;
-        } else if path.ends_with(".svg") {
+        } else if path_lower.ends_with(".svg") {
             let svg_content = self.render_svg_native(dpi, is_transparent);
             std::fs::write(&path, svg_content)
                 .map_err(|e| pyo3::exceptions::PyIOError::new_err(format!("Failed to write SVG: {}", e)))?;
+        } else if path_lower.ends_with(".eps") {
+            let eps_data = Self::render_eps(&pixmap);
+            std::fs::write(&path, eps_data)
+                .map_err(|e| pyo3::exceptions::PyIOError::new_err(format!("Failed to write EPS: {}", e)))?;
         } else {
             let png_bytes = pixmap.encode_png()
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("PNG encode error: {}", e)))?;
@@ -2976,6 +2980,52 @@ impl RustFigure {
         );
 
         pdf
+    }
+
+    /// Render an EPS (Encapsulated PostScript) file embedding the pixmap as raw RGB hex data.
+    fn render_eps(pixmap: &Pixmap) -> Vec<u8> {
+        let w = pixmap.width();
+        let h = pixmap.height();
+
+        // Extract RGB data (unpremultiply alpha, white background for transparent pixels)
+        let mut rgb_data: Vec<u8> = Vec::with_capacity((w * h * 3) as usize);
+        for px in pixmap.pixels() {
+            let a = px.alpha() as u32;
+            if a > 0 {
+                rgb_data.push(((px.red() as u32 * 255 / a).min(255)) as u8);
+                rgb_data.push(((px.green() as u32 * 255 / a).min(255)) as u8);
+                rgb_data.push(((px.blue() as u32 * 255 / a).min(255)) as u8);
+            } else {
+                rgb_data.extend_from_slice(&[255u8, 255u8, 255u8]);
+            }
+        }
+
+        // Build hex-encoded image data, 72 hex chars per line (= 36 bytes = 12 pixels)
+        let mut hex_lines = String::new();
+        let bytes_per_line = 36usize;
+        for chunk in rgb_data.chunks(bytes_per_line) {
+            for b in chunk {
+                hex_lines.push_str(&format!("{:02X}", b));
+            }
+            hex_lines.push('\n');
+        }
+
+        let eps = format!(
+            "%!PS-Adobe-3.0 EPSF-3.0\n\
+             %%BoundingBox: 0 0 {w} {h}\n\
+             %%EndComments\n\
+             {w} {h} scale\n\
+             {w} {h} 8 [{w} 0 0 -{h} 0 {h}]\n\
+             {{currentfile 3 {w} mul string readhexstring pop}} false 3 colorimage\n\
+             {hex_lines}\
+             showpage\n\
+             %%EOF\n",
+            w = w,
+            h = h,
+            hex_lines = hex_lines,
+        );
+
+        eps.into_bytes()
     }
 
     fn render_pixmap_opts(&self, dpi: Option<u32>, transparent: bool) -> Pixmap {
