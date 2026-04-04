@@ -753,6 +753,15 @@ class AxesProxy:
     def set_picker(self, picker):
         pass
 
+    def get_figure(self):
+        """Return the FigureProxy that owns this axes."""
+        return FigureProxy(self._fig, [self])
+
+    @property
+    def figure(self):
+        """Return the FigureProxy that owns this axes."""
+        return FigureProxy(self._fig, [self])
+
 
 class TwinAxesProxy:
     """Python wrapper for a twin (right-side y-axis) axes."""
@@ -1043,7 +1052,8 @@ class FigureProxy:
         return self._canvas
 
     def savefig(self, fname, dpi=None, transparent=False, format=None, bbox_inches=None, **kwargs):
-        self._fig.savefig(str(fname), dpi, transparent)
+        tight = bbox_inches == 'tight' if bbox_inches else False
+        self._fig.savefig(str(fname), dpi, transparent, tight)
 
     def set_size_inches(self, w, h=None):
         if h is None and hasattr(w, "__iter__"):
@@ -1072,7 +1082,12 @@ class FigureProxy:
         self._fig.set_facecolor(color)
 
     def show(self):
-        self._fig.show()
+        try:
+            get_ipython()  # noqa: F821 — exists in Jupyter/IPython
+            from rustplotlib.backends.backend_inline import display_figure
+            display_figure(self._fig)
+        except NameError:
+            self._fig.show()
 
     def add_subplot(self, *args, projection=None, **kwargs):
         """Add a subplot to the figure. Supports projection='3d'."""
@@ -1265,8 +1280,57 @@ def _parse_fmt(fmt, kwargs):
             break
 
 
+def _apply_font_from_rcparams():
+    """Try to load a system font matching rcParams['font.family']."""
+    import os
+    family = rcParams.get('font.family', ['sans-serif'])
+    if isinstance(family, list):
+        family = family[0]
+
+    font_dirs = [
+        '/System/Library/Fonts/',  # macOS
+        '/Library/Fonts/',  # macOS
+        os.path.expanduser('~/Library/Fonts/'),  # macOS user
+        '/usr/share/fonts/',  # Linux
+        '/usr/share/fonts/truetype/',  # Linux (Ubuntu/Debian)
+        '/usr/share/fonts/truetype/dejavu/',  # Linux DejaVu
+        'C:/Windows/Fonts/',  # Windows
+    ]
+    font_names = {
+        'serif': ['Times New Roman.ttf', 'TimesNewRoman.ttf', 'DejaVuSerif.ttf',
+                   'LiberationSerif-Regular.ttf', 'Georgia.ttf'],
+        'sans-serif': ['Helvetica.ttc', 'Arial.ttf', 'DejaVuSans.ttf',
+                        'LiberationSans-Regular.ttf'],
+        'monospace': ['Courier New.ttf', 'DejaVuSansMono.ttf',
+                       'LiberationMono-Regular.ttf'],
+    }
+
+    candidates = font_names.get(family, [])
+    for font_dir in font_dirs:
+        for font_name in candidates:
+            path = os.path.join(font_dir, font_name)
+            if os.path.exists(path):
+                try:
+                    from rustplotlib._rustplotlib import set_font
+                    set_font(path)
+                    return
+                except Exception:
+                    pass
+
+    # If family is an exact file path, try to load it directly
+    if os.path.exists(family):
+        try:
+            from rustplotlib._rustplotlib import set_font
+            set_font(family)
+        except Exception:
+            pass
+
+
 def _apply_current_style(fig, ax_ids=None):
     """Apply the current rcParams style colors to a Rust figure and its axes."""
+    # Try to resolve font from rcParams
+    _apply_font_from_rcparams()
+
     # Figure background
     fig_fc = rcParams.get("figure.facecolor")
     if fig_fc:
@@ -1636,12 +1700,18 @@ def tight_layout(**kwargs):
     pass
 
 
-def savefig(fname, dpi=None, transparent=False, **kwargs):
-    _gcf().savefig(str(fname), dpi, transparent)
+def savefig(fname, dpi=None, transparent=False, bbox_inches=None, **kwargs):
+    tight = bbox_inches == 'tight' if bbox_inches else False
+    _gcf().savefig(str(fname), dpi, transparent, tight)
 
 
 def show():
-    _gcf().show()
+    try:
+        get_ipython()  # noqa: F821 — exists in Jupyter/IPython
+        from rustplotlib.backends.backend_inline import display_figure
+        display_figure(_gcf())
+    except NameError:
+        _gcf().show()
 
 
 def close(*args):

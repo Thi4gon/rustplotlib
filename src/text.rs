@@ -1,9 +1,32 @@
-use ab_glyph::{point, Font, FontRef, PxScale, ScaleFont};
+use ab_glyph::{point, Font, FontRef, FontVec, PxScale, ScaleFont};
 use tiny_skia::PremultipliedColorU8;
+use std::sync::RwLock;
 
 use crate::colors::Color;
 
 static FONT_DATA: &[u8] = include_bytes!("fonts/DejaVuSans.ttf");
+
+/// Global custom font storage.
+static CUSTOM_FONT_DATA: RwLock<Option<Vec<u8>>> = RwLock::new(None);
+
+/// Store custom font data globally.
+pub fn set_custom_font_data(data: Vec<u8>) {
+    let mut lock = CUSTOM_FONT_DATA.write().unwrap();
+    *lock = Some(data);
+}
+
+/// Clear the custom font, reverting to the embedded default.
+pub fn clear_custom_font() {
+    let mut lock = CUSTOM_FONT_DATA.write().unwrap();
+    *lock = None;
+}
+
+/// Try to create a FontVec from the custom font data.
+fn get_custom_font_vec() -> Option<FontVec> {
+    let lock = CUSTOM_FONT_DATA.read().ok()?;
+    let data = lock.as_ref()?;
+    FontVec::try_from_vec(data.clone()).ok()
+}
 
 /// Strip common LaTeX formatting to produce readable plain text.
 /// Not a full LaTeX renderer — just removes/converts common syntax.
@@ -152,14 +175,9 @@ pub fn measure_text(text: &str, size: f32) -> (f32, f32) {
     measure_text_raw(&text, size)
 }
 
-/// Measure the width and height of an already-processed text string (no LaTeX stripping).
-fn measure_text_raw(text: &str, size: f32) -> (f32, f32) {
-    let font = match FontRef::try_from_slice(FONT_DATA) {
-        Ok(f) => f,
-        Err(_) => return (0.0, 0.0), // silently skip if font fails to load
-    };
+/// Measure text width/height using a generic Font.
+fn measure_with_font<F: Font>(font: &F, text: &str, size: f32) -> (f32, f32) {
     let scaled = font.as_scaled(PxScale::from(size));
-
     let mut width = 0.0f32;
     let mut prev_glyph_id = None;
     for ch in text.chars() {
@@ -170,9 +188,20 @@ fn measure_text_raw(text: &str, size: f32) -> (f32, f32) {
         width += scaled.h_advance(glyph_id);
         prev_glyph_id = Some(glyph_id);
     }
-
     let height = scaled.height();
     (width, height)
+}
+
+/// Measure the width and height of an already-processed text string (no LaTeX stripping).
+fn measure_text_raw(text: &str, size: f32) -> (f32, f32) {
+    if let Some(custom_font) = get_custom_font_vec() {
+        return measure_with_font(&custom_font, text, size);
+    }
+    let font = match FontRef::try_from_slice(FONT_DATA) {
+        Ok(f) => f,
+        Err(_) => return (0.0, 0.0),
+    };
+    measure_with_font(&font, text, size)
 }
 
 /// Draw text onto a tiny_skia Pixmap.
@@ -205,13 +234,33 @@ pub fn draw_text(
         return;
     }
 
-    let font = match FontRef::try_from_slice(FONT_DATA) {
-        Ok(f) => f,
-        Err(_) => return, // silently skip text rendering if font fails
-    };
+    if let Some(custom_font) = get_custom_font_vec() {
+        draw_text_with_font(&custom_font, pixmap, &text, x, y, size, color, anchor_x, anchor_y, rotation);
+    } else {
+        let font = match FontRef::try_from_slice(FONT_DATA) {
+            Ok(f) => f,
+            Err(_) => return,
+        };
+        draw_text_with_font(&font, pixmap, &text, x, y, size, color, anchor_x, anchor_y, rotation);
+    }
+}
+
+/// Internal: draw text with a given font implementing `ab_glyph::Font`.
+fn draw_text_with_font<F: Font>(
+    font: &F,
+    pixmap: &mut tiny_skia::Pixmap,
+    text: &str,
+    x: f32,
+    y: f32,
+    size: f32,
+    color: Color,
+    anchor_x: TextAnchorX,
+    anchor_y: TextAnchorY,
+    rotation: f32,
+) {
     let scaled = font.as_scaled(PxScale::from(size));
 
-    let (text_width, _text_height) = measure_text_raw(&text, size);
+    let (text_width, _text_height) = measure_with_font(font, text, size);
 
     // Compute the offset from the anchor point to the top-left baseline origin.
     let offset_x = match anchor_x {
@@ -234,21 +283,20 @@ pub fn draw_text(
 
     if rotation.abs() < 1e-6 {
         // No rotation: direct rendering for performance.
-        draw_text_glyphs(pixmap, &text, x + offset_x, y + offset_y, &scaled, &font, color, pw, ph);
+        draw_text_glyphs_generic(pixmap, text, x + offset_x, y + offset_y, &scaled, font, color, pw, ph);
     } else {
         // With rotation: render to a temporary pixmap, then composite with rotation.
-        // We render the text at (0, ascent) in a scratch buffer, then blit with rotation.
         let scratch_w = (text_width.ceil() as u32).max(1);
         let scratch_h = ((ascent - descent).ceil() as u32).max(1);
 
         if let Some(mut scratch) = tiny_skia::Pixmap::new(scratch_w, scratch_h) {
-            draw_text_glyphs(
+            draw_text_glyphs_generic(
                 &mut scratch,
-                &text,
+                text,
                 0.0,
                 ascent,
                 &scaled,
-                &font,
+                font,
                 color,
                 scratch_w as i32,
                 scratch_h as i32,
@@ -318,14 +366,14 @@ pub fn draw_text(
     }
 }
 
-/// Draw text glyphs directly onto a pixmap at a given baseline position.
-fn draw_text_glyphs(
+/// Draw text glyphs directly onto a pixmap at a given baseline position (generic over Font).
+fn draw_text_glyphs_generic<F: Font>(
     pixmap: &mut tiny_skia::Pixmap,
     text: &str,
     base_x: f32,
     base_y: f32,
-    scaled: &ab_glyph::PxScaleFont<&FontRef>,
-    font: &FontRef,
+    scaled: &ab_glyph::PxScaleFont<&F>,
+    font: &F,
     color: Color,
     pw: i32,
     ph: i32,

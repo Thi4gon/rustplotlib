@@ -1744,8 +1744,8 @@ impl RustFigure {
         Ok(PyBytes::new_bound(py, &png_data))
     }
 
-    #[pyo3(signature = (path, dpi=None, transparent=None))]
-    fn savefig(&self, path: String, dpi: Option<u32>, transparent: Option<bool>) -> PyResult<()> {
+    #[pyo3(signature = (path, dpi=None, transparent=None, tight=None))]
+    fn savefig(&self, path: String, dpi: Option<u32>, transparent: Option<bool>, tight: Option<bool>) -> PyResult<()> {
         // Validate file extension
         let path_lower = path.to_lowercase();
         if !path_lower.ends_with(".png") && !path_lower.ends_with(".svg") && !path_lower.ends_with(".pdf") {
@@ -1768,14 +1768,27 @@ impl RustFigure {
             ));
         }
 
-        let pixmap = self.render_pixmap_opts(dpi, transparent.unwrap_or(false));
+        let is_transparent = transparent.unwrap_or(false);
+        let pixmap = self.render_pixmap_opts(dpi, is_transparent);
+
+        // Apply bbox_inches='tight' cropping if requested
+        let pixmap = if tight.unwrap_or(false) {
+            let (bg_r, bg_g, bg_b) = if is_transparent {
+                (0u8, 0u8, 0u8) // transparent bg: crop fully transparent regions
+            } else {
+                (self.bg_color.r, self.bg_color.g, self.bg_color.b)
+            };
+            Self::crop_to_content(&pixmap, bg_r, bg_g, bg_b, is_transparent, 10)
+        } else {
+            pixmap
+        };
 
         if path.ends_with(".pdf") {
             let pdf_data = Self::render_pdf(&pixmap);
             std::fs::write(&path, pdf_data)
                 .map_err(|e| pyo3::exceptions::PyIOError::new_err(format!("Failed to write PDF: {}", e)))?;
         } else if path.ends_with(".svg") {
-            let svg_content = self.render_svg_native(dpi, transparent.unwrap_or(false));
+            let svg_content = self.render_svg_native(dpi, is_transparent);
             std::fs::write(&path, svg_content)
                 .map_err(|e| pyo3::exceptions::PyIOError::new_err(format!("Failed to write SVG: {}", e)))?;
         } else {
@@ -2491,6 +2504,71 @@ impl RustFigure {
         }
 
         pixmap
+    }
+
+    /// Crop a pixmap to its content, removing background-colored borders.
+    /// `pad` is the number of padding pixels to add around the content.
+    fn crop_to_content(pixmap: &Pixmap, bg_r: u8, bg_g: u8, bg_b: u8, transparent_bg: bool, pad: u32) -> Pixmap {
+        let w = pixmap.width();
+        let h = pixmap.height();
+        let pixels = pixmap.pixels();
+
+        let mut min_x = w;
+        let mut max_x = 0u32;
+        let mut min_y = h;
+        let mut max_y = 0u32;
+
+        for y in 0..h {
+            for x in 0..w {
+                let idx = (y * w + x) as usize;
+                let px = pixels[idx];
+                let a = px.alpha();
+
+                if transparent_bg {
+                    // For transparent backgrounds, any non-transparent pixel is content
+                    if a > 0 {
+                        min_x = min_x.min(x);
+                        max_x = max_x.max(x);
+                        min_y = min_y.min(y);
+                        max_y = max_y.max(y);
+                    }
+                } else if a > 0 {
+                    // Unpremultiply to compare with background color
+                    let ur = (px.red() as u32 * 255 / a as u32) as u8;
+                    let ug = (px.green() as u32 * 255 / a as u32) as u8;
+                    let ub = (px.blue() as u32 * 255 / a as u32) as u8;
+                    if ur != bg_r || ug != bg_g || ub != bg_b {
+                        min_x = min_x.min(x);
+                        max_x = max_x.max(x);
+                        min_y = min_y.min(y);
+                        max_y = max_y.max(y);
+                    }
+                }
+            }
+        }
+
+        if min_x >= max_x || min_y >= max_y {
+            return pixmap.clone();
+        }
+
+        // Add padding
+        let x0 = min_x.saturating_sub(pad);
+        let y0 = min_y.saturating_sub(pad);
+        let x1 = (max_x + pad + 1).min(w);
+        let y1 = (max_y + pad + 1).min(h);
+        let cw = x1 - x0;
+        let ch = y1 - y0;
+
+        let mut cropped = Pixmap::new(cw.max(1), ch.max(1)).unwrap();
+        let dst_pixels = cropped.pixels_mut();
+        for cy in 0..ch {
+            for cx in 0..cw {
+                let src_idx = ((y0 + cy) * w + (x0 + cx)) as usize;
+                let dst_idx = (cy * cw + cx) as usize;
+                dst_pixels[dst_idx] = pixels[src_idx];
+            }
+        }
+        cropped
     }
 
     /// Render the figure as native SVG XML string.

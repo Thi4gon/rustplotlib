@@ -54,7 +54,19 @@ fn lerp_colormap(t: f32, stops: &[(f32, f32, f32, f32)]) -> Color {
 }
 
 /// Look up a color in a named colormap at parameter t in [0, 1].
+/// If the name ends with "_r", the colormap is reversed.
 pub fn colormap_lookup(name: &str, t: f64) -> Color {
+    let (base_name, reversed) = if name.ends_with("_r") {
+        (&name[..name.len() - 2], true)
+    } else {
+        (name, false)
+    };
+    let t_val = if reversed { 1.0 - t } else { t };
+    colormap_lookup_base(base_name, t_val)
+}
+
+/// Look up a color in a base (non-reversed) colormap.
+fn colormap_lookup_base(name: &str, t: f64) -> Color {
     let t = t.clamp(0.0, 1.0) as f32;
     match name {
         "gray" | "grey" => {
