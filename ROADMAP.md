@@ -111,15 +111,18 @@ Goal: Full matplotlib reimplementation in Rust.
 - [x] `tripcolor()` — pseudocolor on triangulation
 
 ### Advanced Customization
-- [ ] `FancyArrowPatch` — complex arrow styles (arc, angle, etc.) — currently basic stub
-- [ ] `ConnectionPatch` — arrows connecting different axes — currently basic stub
-- [ ] Spine positioning (`set_position('center')`, `set_position(('data', 0))`)
-- [ ] Grid major/minor separate styling
+- [x] `FancyArrowPatch` — 7 arrow styles (->, -|>, <-, <->, wedge, -[, |-) + arc3 connection style
+- [x] `ConnectionPatch` — arrows connecting different axes (functional via add_patch)
+- [x] Spine positioning (`set_position('center')`, `set_position(('data', 0))`)
+- [x] Grid major/minor separate styling
 - [ ] Colorbar as separate Axes (not inline drawing)
-- [ ] `TwoSlopeNorm`, `CenteredNorm` functional
+- [x] `TwoSlopeNorm`, `CenteredNorm` functional
+- [x] Path effects — `withStroke`, `Stroke`, `Normal`, `SimplePatchShadow`, `SimpleLineShadow`
+- [x] Pick events — artist hit testing with `set_picker()`, `PickEvent` via `mpl_connect`
 
 ### Image Improvements
-- [ ] Bicubic, Lanczos, Spline interpolation
+- [x] Bicubic interpolation (Keys cubic kernel, scalar data)
+- [ ] Lanczos, Spline interpolation
 
 ### Additional Backends
 - [ ] Qt backend (QApplication, mouse events, toolbar, save dialog)

@@ -16,6 +16,7 @@ use crate::artists::fill_polygon::FillPolygon;
 use crate::artists::pcolormesh::PColorMesh;
 use crate::artists::sankey::Sankey;
 use crate::artists::arrow::Arrow;
+use crate::artists::fancy_arrow::{FancyArrow, ArrowStyle, ConnectionStyle};
 use crate::artists::step::{Step, StepWhere};
 use crate::artists::pie::PieChart;
 use crate::artists::errorbar::ErrorBar;
@@ -341,6 +342,8 @@ impl Axes {
         label: Option<String>,
         alpha: Option<f32>,
         zorder: Option<i32>,
+        outline_color: Option<Color>,
+        outline_width: Option<f32>,
     ) {
         let c = color.unwrap_or_else(|| self.next_color());
         let mut line = Line2D::new(x, y, c);
@@ -358,6 +361,8 @@ impl Axes {
         line.label = label;
         if let Some(a) = alpha { line.alpha = a; }
         if let Some(z) = zorder { line.zorder = z; }
+        line.outline_color = outline_color;
+        line.outline_width = outline_width;
         self.artists.push(Box::new(line));
     }
 
@@ -433,6 +438,7 @@ impl Axes {
         if let Some(interp) = interpolation {
             img.interpolation = match interp.to_lowercase().as_str() {
                 "bilinear" => ImageInterpolation::Bilinear,
+                "bicubic" => ImageInterpolation::Bicubic,
                 _ => ImageInterpolation::Nearest,
             };
         }
@@ -446,6 +452,7 @@ impl Axes {
         if let Some(interp) = interpolation {
             img.interpolation = match interp.to_lowercase().as_str() {
                 "bilinear" => ImageInterpolation::Bilinear,
+                "bicubic" => ImageInterpolation::Bicubic,
                 _ => ImageInterpolation::Nearest,
             };
         }
@@ -459,6 +466,7 @@ impl Axes {
         if let Some(interp) = interpolation {
             img.interpolation = match interp.to_lowercase().as_str() {
                 "bilinear" => ImageInterpolation::Bilinear,
+                "bicubic" => ImageInterpolation::Bicubic,
                 _ => ImageInterpolation::Nearest,
             };
         }
@@ -3081,6 +3089,40 @@ impl Axes {
         a.label = label;
         if let Some(z) = zorder { a.zorder = z; }
         self.artists.push(Box::new(a));
+    }
+
+    /// Add a FancyArrowPatch between two points with styled arrow/connection.
+    pub fn fancy_arrow(
+        &mut self,
+        pos_a: (f64, f64),
+        pos_b: (f64, f64),
+        color: Option<Color>,
+        linewidth: Option<f32>,
+        arrow_style: Option<&str>,
+        connection_style: Option<&str>,
+        head_width: Option<f32>,
+        head_length: Option<f32>,
+        shrink_a: Option<f32>,
+        shrink_b: Option<f32>,
+        mutation_scale: Option<f32>,
+        alpha: Option<f32>,
+        label: Option<String>,
+        zorder: Option<i32>,
+    ) {
+        let c = color.unwrap_or_else(|| self.next_color());
+        let mut fa = FancyArrow::new(pos_a, pos_b, c);
+        if let Some(lw) = linewidth { fa.linewidth = lw; }
+        if let Some(s) = arrow_style { fa.arrow_style = ArrowStyle::from_str(s); }
+        if let Some(s) = connection_style { fa.connection_style = ConnectionStyle::from_str(s); }
+        if let Some(hw) = head_width { fa.head_width = hw; }
+        if let Some(hl) = head_length { fa.head_length = hl; }
+        if let Some(sa) = shrink_a { fa.shrink_a = sa; }
+        if let Some(sb) = shrink_b { fa.shrink_b = sb; }
+        if let Some(ms) = mutation_scale { fa.mutation_scale = ms; }
+        if let Some(a) = alpha { fa.alpha = a; }
+        fa.label = label;
+        if let Some(z) = zorder { fa.zorder = z; }
+        self.artists.push(Box::new(fa));
     }
 
     /// Add an infinite line through a point (axline).

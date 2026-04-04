@@ -219,7 +219,37 @@ class AxisProxy:
         pass
 
 
-class Line2DProxy:
+class _PickableMixin:
+    """Mixin that adds picker/pick-event support to artist proxies."""
+
+    def set_picker(self, picker):
+        """Set picker. Can be None, bool, float (tolerance), or callable."""
+        self._picker = picker
+
+    def get_picker(self):
+        return getattr(self, '_picker', None)
+
+    def pickable(self):
+        return getattr(self, '_picker', None) is not None
+
+    def contains(self, mouseevent):
+        """Test if the artist contains the mouse event point.
+
+        Returns (bool, details_dict).
+        """
+        picker = self.get_picker()
+        if picker is None:
+            return False, {}
+        if callable(picker):
+            return picker(self, mouseevent)
+        # Default: subclass implements _default_contains
+        return self._default_contains(mouseevent, picker)
+
+    def _default_contains(self, mouseevent, picker):
+        return False, {}
+
+
+class Line2DProxy(_PickableMixin):
     """Proxy for matplotlib Line2D objects returned by plot()."""
 
     def __init__(self):
@@ -227,9 +257,31 @@ class Line2DProxy:
         self._label = ''
         self._linewidth = 1.5
         self._linestyle = '-'
+        self._xdata = []
+        self._ydata = []
+        self._picker = None
+        self._axes = None
 
     def set_data(self, x, y):
-        pass  # stub for animation compat
+        self._xdata = list(x) if x is not None else []
+        self._ydata = list(y) if y is not None else []
+
+    def _default_contains(self, mouseevent, picker):
+        """Check if mouse is within picker tolerance of any line point."""
+        if not self._xdata or not self._ydata:
+            return False, {}
+        tolerance = float(picker) if isinstance(picker, (int, float)) else 5.0
+        mx, my = mouseevent.xdata, mouseevent.ydata
+        if mx is None or my is None:
+            return False, {}
+        indices = []
+        for i, (px, py) in enumerate(zip(self._xdata, self._ydata)):
+            dist = ((px - mx) ** 2 + (py - my) ** 2) ** 0.5
+            if dist <= tolerance:
+                indices.append(i)
+        if indices:
+            return True, {"ind": indices}
+        return False, {}
 
     def set_color(self, c):
         self._color = c
@@ -282,15 +334,24 @@ class Line2DProxy:
     def set_alpha(self, a):
         pass
 
+    def set_path_effects(self, effects):
+        """Store path effects (used for matplotlib API compatibility)."""
+        self._path_effects = effects
 
-class PathCollectionProxy:
+    def get_path_effects(self):
+        return getattr(self, '_path_effects', [])
+
+
+class PathCollectionProxy(_PickableMixin):
     """Proxy for matplotlib PathCollection returned by scatter()."""
 
     def __init__(self):
-        pass
+        self._offsets = []
+        self._picker = None
+        self._axes = None
 
     def set_offsets(self, offsets):
-        pass
+        self._offsets = list(offsets)
 
     def set_array(self, a):
         pass
@@ -317,7 +378,25 @@ class PathCollectionProxy:
         pass
 
     def get_offsets(self):
-        return []
+        return self._offsets
+
+    def _default_contains(self, mouseevent, picker):
+        """Check if mouse is within picker tolerance of any scatter point."""
+        if not self._offsets:
+            return False, {}
+        tolerance = float(picker) if isinstance(picker, (int, float)) else 5.0
+        mx, my = mouseevent.xdata, mouseevent.ydata
+        if mx is None or my is None:
+            return False, {}
+        indices = []
+        for i, pt in enumerate(self._offsets):
+            if len(pt) >= 2:
+                dist = ((pt[0] - mx) ** 2 + (pt[1] - my) ** 2) ** 0.5
+                if dist <= tolerance:
+                    indices.append(i)
+        if indices:
+            return True, {"ind": indices}
+        return False, {}
 
 
 class BarContainerProxy:
@@ -386,14 +465,23 @@ class AxesProxy:
         self._facecolor_cache = 'white'
         self._has_data_flag = False
         self._legend_obj = None
+        self._artists = []  # list of artist proxies for pick events
 
-    def plot(self, *args, zorder=None, **kwargs):
+    def plot(self, *args, zorder=None, path_effects=None, **kwargs):
         groups = _parse_plot_args_multi(*args, **kwargs)
         proxies = []
         self._has_data_flag = True
         for x, y, group_kw in groups:
             if zorder is not None:
                 group_kw["zorder"] = int(zorder)
+            # Process path_effects → outline params for Rust
+            if path_effects:
+                from rustplotlib.patheffects import Stroke
+                for pe in path_effects:
+                    if isinstance(pe, Stroke):
+                        group_kw["outline_color"] = pe.foreground
+                        group_kw["outline_width"] = float(pe.linewidth)
+                        break
             # Handle categorical (string) x values
             if x and isinstance(x[0], str):
                 positions, labels = _handle_categorical(x)
@@ -402,6 +490,9 @@ class AxesProxy:
                 self._fig.axes_set_xticklabels(self._id, labels)
             self._fig.axes_plot(self._id, x, y, group_kw)
             proxy = Line2DProxy()
+            proxy._xdata = list(x)
+            proxy._ydata = list(y)
+            proxy._axes = self
             if 'color' in group_kw:
                 proxy._color = group_kw['color']
             if 'label' in group_kw:
@@ -410,10 +501,13 @@ class AxesProxy:
                 proxy._linewidth = group_kw['linewidth']
             if 'linestyle' in group_kw:
                 proxy._linestyle = group_kw['linestyle']
+            if 'picker' in group_kw:
+                proxy.set_picker(group_kw['picker'])
+            self._artists.append(proxy)
             proxies.append(proxy)
         return proxies
 
-    def scatter(self, x, y, s=None, c=None, marker="o", alpha=1.0, label=None, zorder=None, **kwargs):
+    def scatter(self, x, y, s=None, c=None, marker="o", alpha=1.0, label=None, zorder=None, picker=None, **kwargs):
         self._has_data_flag = True
         x, y = _to_list(x), _to_list(y)
         kw = {"marker": marker, "alpha": alpha}
@@ -426,7 +520,13 @@ class AxesProxy:
         if zorder is not None:
             kw["zorder"] = int(zorder)
         self._fig.axes_scatter(self._id, x, y, kw)
-        return PathCollectionProxy()
+        proxy = PathCollectionProxy()
+        proxy._offsets = list(zip(x, y))
+        proxy._axes = self
+        if picker is not None:
+            proxy.set_picker(picker)
+        self._artists.append(proxy)
+        return proxy
 
     def bar(self, x, height, width=0.8, bottom=None, color=None, label=None, alpha=1.0, hatch=None, zorder=None, **kwargs):
         self._has_data_flag = True
@@ -812,8 +912,8 @@ class AxesProxy:
         self._fig.axes_invert_yaxis(self._id)
 
     def add_patch(self, patch):
-        """Add a patch object (Rectangle, Circle, Polygon) to the axes."""
-        from rustplotlib.patches import Rectangle, Circle, Polygon
+        """Add a patch object (Rectangle, Circle, Polygon, FancyArrowPatch) to the axes."""
+        from rustplotlib.patches import Rectangle, Circle, Polygon, FancyArrowPatch
         kw = {}
         if hasattr(patch, 'facecolor') and patch.facecolor is not None:
             kw['facecolor'] = patch.facecolor
@@ -826,7 +926,31 @@ class AxesProxy:
         if hasattr(patch, 'label') and patch.label is not None:
             kw['label'] = str(patch.label)
 
-        if isinstance(patch, Rectangle):
+        if isinstance(patch, FancyArrowPatch):
+            if patch.posA is not None and patch.posB is not None:
+                fa_kw = {}
+                if hasattr(patch, 'facecolor') and patch.facecolor is not None:
+                    fa_kw['color'] = patch.facecolor
+                elif hasattr(patch, 'edgecolor') and patch.edgecolor is not None:
+                    fa_kw['color'] = patch.edgecolor
+                if hasattr(patch, 'linewidth'):
+                    fa_kw['linewidth'] = float(patch.linewidth)
+                if hasattr(patch, 'arrowstyle') and patch.arrowstyle:
+                    fa_kw['arrowstyle'] = str(patch.arrowstyle)
+                if hasattr(patch, 'connectionstyle') and patch.connectionstyle:
+                    fa_kw['connectionstyle'] = str(patch.connectionstyle)
+                if hasattr(patch, 'mutation_scale'):
+                    fa_kw['mutation_scale'] = float(patch.mutation_scale)
+                if hasattr(patch, 'shrinkA'):
+                    fa_kw['shrinkA'] = float(patch.shrinkA)
+                if hasattr(patch, 'shrinkB'):
+                    fa_kw['shrinkB'] = float(patch.shrinkB)
+                if hasattr(patch, 'alpha') and patch.alpha is not None:
+                    fa_kw['alpha'] = float(patch.alpha)
+                pos_a = (float(patch.posA[0]), float(patch.posA[1]))
+                pos_b = (float(patch.posB[0]), float(patch.posB[1]))
+                self._fig.axes_fancy_arrow(self._id, pos_a, pos_b, fa_kw)
+        elif isinstance(patch, Rectangle):
             kw['x'] = float(patch.xy[0])
             kw['y'] = float(patch.xy[1])
             kw['width'] = float(patch.width)
@@ -1279,7 +1403,27 @@ class AxesProxy:
         pass
 
     def set_picker(self, picker):
-        pass
+        """Set picker on the axes itself."""
+        self._picker = picker
+
+    def get_picker(self):
+        return getattr(self, '_picker', None)
+
+    def pick(self, mouseevent):
+        """Test all child artists for pick, fire pick_event via canvas callbacks."""
+        from .events import PickEvent
+        for artist in self._artists:
+            if artist.pickable():
+                inside, props = artist.contains(mouseevent)
+                if inside:
+                    pick_event = PickEvent('pick_event', mouseevent.canvas,
+                                           mouseevent=mouseevent, artist=artist)
+                    pick_event.ind = props.get('ind', [])
+                    # Fire via canvas callback registry
+                    if hasattr(mouseevent, 'canvas') and mouseevent.canvas is not None:
+                        canvas = mouseevent.canvas
+                        if hasattr(canvas, '_callbacks'):
+                            canvas._callbacks.process('pick_event', pick_event)
 
     def radar(self, categories, values, colors=None, labels=None, alpha=0.8,
               fill=True, **kwargs):
@@ -2248,23 +2392,56 @@ class CanvasProxy:
 
     def __init__(self):
         from rustplotlib.callback_registry import CallbackRegistry
-        self.callbacks = CallbackRegistry()
+        self._callbacks = CallbackRegistry()
+        self.callbacks = self._callbacks
+        self.figure = None  # set by FigureProxy
+        # Auto-connect pick event processing on button press
+        self._callbacks.connect("button_press_event", self._process_pick)
 
     def mpl_connect(self, event_name, callback):
         """Connect a callback to an event. Returns a connection id."""
-        return self.callbacks.connect(event_name, callback)
+        return self._callbacks.connect(event_name, callback)
 
     def mpl_disconnect(self, cid):
         """Disconnect a callback by its connection id."""
-        self.callbacks.disconnect(cid)
+        self._callbacks.disconnect(cid)
 
     def draw(self):
         """Request a canvas redraw."""
-        self.callbacks.process("draw_event")
+        self._callbacks.process("draw_event")
 
     def draw_idle(self):
         """Request a canvas redraw at idle time."""
-        self.callbacks.process("draw_event")
+        self._callbacks.process("draw_event")
+
+    def _iter_axes(self):
+        """Iterate over all AxesProxy objects regardless of storage format."""
+        if self.figure is None:
+            return
+        axes = self.figure._axes
+        if isinstance(axes, AxesProxy):
+            yield axes
+        elif isinstance(axes, dict):
+            for ax in axes.values():
+                if isinstance(ax, AxesProxy):
+                    yield ax
+        elif isinstance(axes, (list, tuple)):
+            for item in axes:
+                if isinstance(item, AxesProxy):
+                    yield item
+                elif isinstance(item, (list, tuple)):
+                    for sub in item:
+                        if isinstance(sub, AxesProxy):
+                            yield sub
+
+    def _process_pick(self, mouseevent):
+        """Auto-process pick events on button press for all axes."""
+        for ax in self._iter_axes():
+            ax.pick(mouseevent)
+
+    def pick(self, mouseevent):
+        """Process pick events for all axes in the figure."""
+        self._process_pick(mouseevent)
 
 
 class FigureProxy:
@@ -2274,6 +2451,7 @@ class FigureProxy:
         self._fig = rust_fig
         self._axes = axes_proxies
         self._canvas = CanvasProxy()
+        self._canvas.figure = self
         self._figwidth = 6.4
         self._figheight = 4.8
 

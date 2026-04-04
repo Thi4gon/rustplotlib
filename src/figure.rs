@@ -129,6 +129,14 @@ impl RustFigure {
             Some(v.extract::<i32>()?)
         } else { None };
 
+        let outline_color = if let Some(c) = kwargs.get_item("outline_color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let outline_width = if let Some(v) = kwargs.get_item("outline_width")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
         ax.plot(
             x, y,
             color,
@@ -140,6 +148,8 @@ impl RustFigure {
             label,
             alpha,
             zorder,
+            outline_color,
+            outline_width,
         );
 
         Ok(())
@@ -1475,7 +1485,7 @@ impl RustFigure {
             .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twin axes"))?;
         twin.plot(
             x, y, color, linewidth, linestyle.as_deref(),
-            marker.as_deref(), marker_size, markevery, label, alpha, None,
+            marker.as_deref(), marker_size, markevery, label, alpha, None, None, None,
         );
         Ok(())
     }
@@ -1640,7 +1650,7 @@ impl RustFigure {
             .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twiny axes"))?;
         twin.plot(
             x, y, color, linewidth, linestyle.as_deref(),
-            marker.as_deref(), marker_size, markevery, label, alpha, None,
+            marker.as_deref(), marker_size, markevery, label, alpha, None, None, None,
         );
         Ok(())
     }
@@ -1872,6 +1882,73 @@ impl RustFigure {
         } else { None };
 
         ax.arrow(x, y, dx, dy, color, width, head_width, head_length, alpha, label, zorder);
+        Ok(())
+    }
+
+    fn axes_fancy_arrow(
+        &mut self,
+        ax_id: usize,
+        pos_a: (f64, f64),
+        pos_b: (f64, f64),
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let arrow_style = if let Some(v) = kwargs.get_item("arrowstyle")? {
+            v.extract::<String>().ok()
+        } else { None };
+
+        let connection_style = if let Some(v) = kwargs.get_item("connectionstyle")? {
+            v.extract::<String>().ok()
+        } else { None };
+
+        let head_width = if let Some(v) = kwargs.get_item("head_width")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let head_length = if let Some(v) = kwargs.get_item("head_length")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let shrink_a = if let Some(v) = kwargs.get_item("shrinkA")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let shrink_b = if let Some(v) = kwargs.get_item("shrinkB")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let mutation_scale = if let Some(v) = kwargs.get_item("mutation_scale")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            v.extract::<String>().ok()
+        } else { None };
+
+        let zorder = if let Some(v) = kwargs.get_item("zorder")? {
+            Some(v.extract::<i32>()?)
+        } else { None };
+
+        ax.fancy_arrow(
+            pos_a, pos_b, color, linewidth,
+            arrow_style.as_deref(), connection_style.as_deref(),
+            head_width, head_length, shrink_a, shrink_b,
+            mutation_scale, alpha, label, zorder,
+        );
         Ok(())
     }
 

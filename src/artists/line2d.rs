@@ -18,6 +18,8 @@ pub struct Line2D {
     pub label: Option<String>,
     pub alpha: f32,
     pub zorder: i32,
+    pub outline_color: Option<Color>,
+    pub outline_width: Option<f32>,
 }
 
 impl Line2D {
@@ -34,6 +36,8 @@ impl Line2D {
             label: None,
             alpha: 1.0,
             zorder: 2,
+            outline_color: None,
+            outline_width: None,
         }
     }
 }
@@ -56,8 +60,8 @@ impl Artist for Line2D {
 
         let ts = tiny_skia::Transform::identity();
 
-        // Draw line segments if linestyle is not None (with NaN gap handling)
-        if self.linestyle != LineStyle::None && n >= 2 {
+        // Build line path (shared between outline and main draw)
+        let line_path = if self.linestyle != LineStyle::None && n >= 2 {
             let mut pb = PathBuilder::new();
             let mut in_path = false;
             for i in 0..n {
@@ -77,12 +81,32 @@ impl Artist for Line2D {
                     pb.line_to(px, py);
                 }
             }
-            if let Some(path) = pb.finish() {
-                let mut stroke = Stroke::default();
-                stroke.width = self.linewidth;
-                stroke.dash = self.linestyle.to_dash(self.linewidth);
-                pixmap.stroke_path(&path, &paint, &stroke, ts, None);
-            }
+            pb.finish()
+        } else {
+            None
+        };
+
+        // Draw outline (path effect: withStroke) if set
+        if let (Some(ref path), Some(ref out_color), Some(out_width)) =
+            (&line_path, &self.outline_color, self.outline_width)
+        {
+            let mut out_paint = Paint::default();
+            let mut oc = *out_color;
+            oc.a = (self.alpha * 255.0) as u8;
+            out_paint.set_color(oc.to_tiny_skia());
+            out_paint.anti_alias = true;
+            let mut out_stroke = Stroke::default();
+            out_stroke.width = out_width;
+            out_stroke.dash = self.linestyle.to_dash(out_width);
+            pixmap.stroke_path(path, &out_paint, &out_stroke, ts, None);
+        }
+
+        // Draw main line segments
+        if let Some(ref path) = line_path {
+            let mut stroke = Stroke::default();
+            stroke.width = self.linewidth;
+            stroke.dash = self.linestyle.to_dash(self.linewidth);
+            pixmap.stroke_path(path, &paint, &stroke, ts, None);
         }
 
         // Draw markers (respecting marker_every, skipping NaN/infinite points)
@@ -110,19 +134,19 @@ impl Artist for Line2D {
         let color_str = color_to_svg(&self.color);
         let opacity = self.alpha;
 
-        // Draw line segments if linestyle is not None
+        // Build segments (split on NaN gaps)
         if self.linestyle != LineStyle::None && n >= 2 {
             let dash = linestyle_to_dash(&self.linestyle, self.linewidth);
             let dash_ref = dash.as_deref();
 
-            // Build segments (split on NaN gaps)
+            let mut segments: Vec<Vec<(f32, f32)>> = Vec::new();
             let mut segment: Vec<(f32, f32)> = Vec::new();
             for i in 0..n {
                 let x = self.x[i];
                 let y = self.y[i];
                 if x.is_nan() || y.is_nan() || x.is_infinite() || y.is_infinite() {
                     if segment.len() >= 2 {
-                        svg.add_polyline(&segment, &color_str, self.linewidth, "none", dash_ref, opacity);
+                        segments.push(std::mem::take(&mut segment));
                     }
                     segment.clear();
                     continue;
@@ -131,7 +155,22 @@ impl Artist for Line2D {
                 segment.push((px, py));
             }
             if segment.len() >= 2 {
-                svg.add_polyline(&segment, &color_str, self.linewidth, "none", dash_ref, opacity);
+                segments.push(segment);
+            }
+
+            // Draw outline (path effect) first
+            if let (Some(ref out_color), Some(out_width)) = (&self.outline_color, self.outline_width) {
+                let out_color_str = color_to_svg(out_color);
+                let out_dash = linestyle_to_dash(&self.linestyle, out_width);
+                let out_dash_ref = out_dash.as_deref();
+                for seg in &segments {
+                    svg.add_polyline(seg, &out_color_str, out_width, "none", out_dash_ref, opacity);
+                }
+            }
+
+            // Draw main line
+            for seg in &segments {
+                svg.add_polyline(seg, &color_str, self.linewidth, "none", dash_ref, opacity);
             }
         }
 

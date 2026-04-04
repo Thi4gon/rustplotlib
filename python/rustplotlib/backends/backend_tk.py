@@ -104,7 +104,16 @@ class FigureCanvasTk(FigureCanvasBase):
         button = _TK_BUTTON_MAP.get(event.num, event.num)
         me = MouseEvent("button_press_event", self, x=event.x, y=event.y,
                         button=button, guiEvent=event)
+        # Set data coordinates for pick events
+        if hasattr(self, 'pixel_to_data'):
+            xd, yd = self.pixel_to_data(event.x, event.y)
+            me.xdata = xd
+            me.ydata = yd
         self.callbacks.process("button_press_event", me)
+        # Trigger pick event testing
+        if hasattr(self, '_figure_proxy') and self._figure_proxy is not None:
+            for ax in self._figure_proxy._axes:
+                ax.pick(me)
 
     def _on_button_release(self, event):
         button = _TK_BUTTON_MAP.get(event.num, event.num)
