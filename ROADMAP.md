@@ -132,7 +132,7 @@ Goal: Full matplotlib reimplementation in Rust.
 
 ### Interactive Features (remaining)
 - [ ] Widget visual rendering in Tk (Slider/Button draw in axes)
-- [ ] Pick events (artist hit testing)
+- [x] Pick events (artist hit testing)
 - [ ] 3D mouse rotation
 - [ ] Blitting for fast animation updates
 - [ ] Interactive data cursors

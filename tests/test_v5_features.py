@@ -53,15 +53,102 @@ class TestBicubicInterpolation:
             assert os.path.getsize(f.name) > 0
             os.unlink(f.name)
 
-    def test_all_three_interpolations(self):
-        """Test all three interpolation modes in subplots."""
+    def test_all_four_interpolations(self):
+        """Test all four interpolation modes in subplots."""
         import rustplotlib.pyplot as plt
         import numpy as np
         data = np.random.rand(6, 6)
-        fig, axes = plt.subplots(1, 3)
+        fig, axes = plt.subplots(1, 4)
         axes[0].imshow(data, interpolation='nearest', cmap='viridis')
         axes[1].imshow(data, interpolation='bilinear', cmap='viridis')
         axes[2].imshow(data, interpolation='bicubic', cmap='viridis')
+        axes[3].imshow(data, interpolation='lanczos', cmap='viridis')
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            plt.savefig(f.name)
+            assert os.path.getsize(f.name) > 0
+            os.unlink(f.name)
+
+    def test_lanczos_renders(self):
+        import rustplotlib.pyplot as plt
+        import numpy as np
+        data = np.random.rand(10, 10)
+        fig, ax = plt.subplots()
+        ax.imshow(data, interpolation='lanczos', cmap='plasma')
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            plt.savefig(f.name)
+            assert os.path.getsize(f.name) > 0
+            os.unlink(f.name)
+
+    def test_lanczos_with_extent(self):
+        import rustplotlib.pyplot as plt
+        import numpy as np
+        data = np.random.rand(8, 8)
+        fig, ax = plt.subplots()
+        ax.imshow(data, interpolation='lanczos', cmap='hot', extent=[-5, 5, -5, 5])
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            plt.savefig(f.name)
+            assert os.path.getsize(f.name) > 0
+            os.unlink(f.name)
+
+
+class TestCSSNamedColors:
+    """Test CSS/X11 named colors."""
+
+    def test_basic_css_colors(self):
+        import rustplotlib.pyplot as plt
+        colors = ['steelblue', 'coral', 'tomato', 'gold', 'crimson',
+                  'dodgerblue', 'forestgreen', 'orchid', 'salmon']
+        fig, ax = plt.subplots()
+        x = list(range(len(colors)))
+        ax.bar(x, [1] * len(colors), color=colors[0])
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            plt.savefig(f.name)
+            assert os.path.getsize(f.name) > 0
+            os.unlink(f.name)
+
+    def test_extended_css_colors(self):
+        import rustplotlib.pyplot as plt
+        colors = ['aliceblue', 'antiquewhite', 'aquamarine', 'azure',
+                  'beige', 'bisque', 'blanchedalmond', 'burlywood',
+                  'chartreuse', 'chocolate', 'cornflowerblue', 'darkviolet']
+        fig, ax = plt.subplots()
+        for c in colors:
+            ax.plot([0, 1], [0, 1], color=c)
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            plt.savefig(f.name)
+            assert os.path.getsize(f.name) > 0
+            os.unlink(f.name)
+
+    def test_grey_gray_variants(self):
+        """Both 'grey' and 'gray' spellings should work."""
+        import rustplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        grays = ['darkgray', 'darkgrey', 'lightgray', 'lightgrey', 'dimgray', 'dimgrey']
+        for c in grays:
+            ax.plot([0, 1], [0, 1], color=c)
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            plt.savefig(f.name)
+            assert os.path.getsize(f.name) > 0
+            os.unlink(f.name)
+
+    def test_css_colors_in_plot(self):
+        import rustplotlib.pyplot as plt
+        import numpy as np
+        x = np.linspace(0, 5, 20)
+        fig, ax = plt.subplots()
+        ax.plot(x, np.sin(x), color='mediumseagreen')
+        ax.plot(x, np.cos(x), color='indianred')
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            plt.savefig(f.name)
+            assert os.path.getsize(f.name) > 0
+            os.unlink(f.name)
+
+    def test_css_colors_in_scatter(self):
+        import rustplotlib.pyplot as plt
+        import numpy as np
+        fig, ax = plt.subplots()
+        ax.scatter([1, 2, 3], [1, 2, 3], c='royalblue')
+        ax.scatter([4, 5, 6], [4, 5, 6], c='firebrick')
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
             plt.savefig(f.name)
             assert os.path.getsize(f.name) > 0

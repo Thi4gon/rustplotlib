@@ -439,6 +439,7 @@ impl Axes {
             img.interpolation = match interp.to_lowercase().as_str() {
                 "bilinear" => ImageInterpolation::Bilinear,
                 "bicubic" => ImageInterpolation::Bicubic,
+                "lanczos" => ImageInterpolation::Lanczos,
                 _ => ImageInterpolation::Nearest,
             };
         }
@@ -453,6 +454,7 @@ impl Axes {
             img.interpolation = match interp.to_lowercase().as_str() {
                 "bilinear" => ImageInterpolation::Bilinear,
                 "bicubic" => ImageInterpolation::Bicubic,
+                "lanczos" => ImageInterpolation::Lanczos,
                 _ => ImageInterpolation::Nearest,
             };
         }
@@ -467,6 +469,7 @@ impl Axes {
             img.interpolation = match interp.to_lowercase().as_str() {
                 "bilinear" => ImageInterpolation::Bilinear,
                 "bicubic" => ImageInterpolation::Bicubic,
+                "lanczos" => ImageInterpolation::Lanczos,
                 _ => ImageInterpolation::Nearest,
             };
         }

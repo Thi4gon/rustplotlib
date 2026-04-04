@@ -735,6 +735,7 @@ pub enum ImageInterpolation {
     Nearest,    // current behavior — no interpolation
     Bilinear,   // smooth blending between adjacent pixels
     Bicubic,    // smoother interpolation using cubic kernel
+    Lanczos,    // sharp interpolation using sinc-based Lanczos kernel (a=3)
 }
 
 /// Image data variants: scalar (uses colormap) or direct RGB/RGBA.
@@ -1100,6 +1101,129 @@ impl Artist for Image {
                     }
                 } else {
                     // RGB/RGBA: use bilinear-style fallback (per-pixel channel interpolation)
+                    for r in 0..self.rows {
+                        for c in 0..self.cols {
+                            let color = self.cell_color(r, c);
+                            let mut paint = Paint::default();
+                            paint.set_color(color.to_tiny_skia());
+                            paint.anti_alias = false;
+                            let (x0, x1, y0, y1) = self.cell_bounds(r, c);
+                            let (px0, py0) = transform.transform_xy(x0, y0);
+                            let (px1, py1) = transform.transform_xy(x1, y1);
+                            let rx = px0.min(px1);
+                            let ry = py0.min(py1);
+                            let rw = (px1 - px0).abs().max(1.0);
+                            let rh = (py1 - py0).abs().max(1.0);
+                            if let Some(rect) = Rect::from_xywh(rx, ry, rw, rh) {
+                                pixmap.fill_rect(rect, &paint, ts, None);
+                            }
+                        }
+                    }
+                }
+            }
+            ImageInterpolation::Lanczos => {
+                // Lanczos interpolation (a=3) using sinc-based kernel
+                // Works for scalar data; falls back to nearest for RGB/RGBA
+
+                fn sinc(x: f64) -> f64 {
+                    if x.abs() < 1e-15 { 1.0 } else {
+                        let px = std::f64::consts::PI * x;
+                        px.sin() / px
+                    }
+                }
+
+                fn lanczos_kernel(x: f64, a: f64) -> f64 {
+                    let ax = x.abs();
+                    if ax < a { sinc(x) * sinc(x / a) } else { 0.0 }
+                }
+
+                if let ImageData::Scalar(ref scalar_data) = self.data {
+                    let a = 3.0_f64; // Lanczos window size
+                    let (data_x_min, data_x_max, data_y_min, data_y_max) = if let Some((el, er, eb, et)) = self.extent {
+                        (el, er, eb, et)
+                    } else {
+                        (-0.5_f64, self.cols as f64 - 0.5, -0.5_f64, self.rows as f64 - 0.5)
+                    };
+
+                    let (px_left, py_top) = transform.transform_xy(data_x_min, data_y_min);
+                    let (px_right, py_bottom) = transform.transform_xy(data_x_max, data_y_max);
+                    let px_min = px_left.min(px_right) as i32;
+                    let px_max = px_left.max(px_right).ceil() as i32;
+                    let py_min = py_top.min(py_bottom) as i32;
+                    let py_max = py_top.max(py_bottom).ceil() as i32;
+
+                    let pw = pixmap.width() as i32;
+                    let ph = pixmap.height() as i32;
+                    let start_x = px_min.max(0);
+                    let end_x = px_max.min(pw);
+                    let start_y = py_min.max(0);
+                    let end_y = py_max.min(ph);
+
+                    let (p0x_f32, p0y_f32) = transform.transform_xy(data_x_min, data_y_min);
+                    let (p1x_f32, p1y_f32) = transform.transform_xy(data_x_max, data_y_max);
+                    let p0x = p0x_f32 as f64;
+                    let p0y = p0y_f32 as f64;
+                    let p1x = p1x_f32 as f64;
+                    let p1y = p1y_f32 as f64;
+
+                    let inv_sx = if (p1x - p0x).abs() > 1e-10 { (data_x_max - data_x_min) / (p1x - p0x) } else { 0.0 };
+                    let inv_sy = if (p1y - p0y).abs() > 1e-10 { (data_y_max - data_y_min) / (p1y - p0y) } else { 0.0 };
+
+                    let range = self.vmax - self.vmin;
+                    let pm_width = pixmap.width();
+                    let rows = self.rows as i32;
+                    let cols = self.cols as i32;
+                    let a_int = a as i32;
+
+                    for py in start_y..end_y {
+                        for px in start_x..end_x {
+                            let pxf = px as f64 + 0.5;
+                            let pyf = py as f64 + 0.5;
+
+                            let dx = data_x_min + (pxf - p0x) * inv_sx;
+                            let dy = data_y_min + (pyf - p0y) * inv_sy;
+
+                            let fx = dx.clamp(0.0, (self.cols - 1) as f64);
+                            let fy = dy.clamp(0.0, (self.rows - 1) as f64);
+
+                            let ix = fx.floor() as i32;
+                            let iy = fy.floor() as i32;
+                            let frac_x = fx - ix as f64;
+                            let frac_y = fy - iy as f64;
+
+                            // Sample (2a)x(2a) neighborhood
+                            let mut val = 0.0;
+                            let mut weight_sum = 0.0;
+                            for m in (1 - a_int)..=a_int {
+                                let wy = lanczos_kernel(frac_y - m as f64, a);
+                                let sy = (iy + m).clamp(0, rows - 1) as usize;
+                                for n in (1 - a_int)..=a_int {
+                                    let wx = lanczos_kernel(frac_x - n as f64, a);
+                                    let sx = (ix + n).clamp(0, cols - 1) as usize;
+                                    let w = wx * wy;
+                                    val += scalar_data[sy][sx] * w;
+                                    weight_sum += w;
+                                }
+                            }
+                            if weight_sum.abs() > 1e-15 {
+                                val /= weight_sum;
+                            }
+
+                            let t = ((val - self.vmin) / range).clamp(0.0, 1.0);
+                            let color = colormap_lookup(&self.cmap, t);
+
+                            let pixel = tiny_skia::PremultipliedColorU8::from_rgba(
+                                color.r, color.g, color.b, color.a,
+                            );
+                            if let Some(pixel_ref) = pixmap.pixels_mut().get_mut((py as u32 * pm_width + px as u32) as usize) {
+                                if let Some(p) = pixel {
+                                    *pixel_ref = p;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // RGB/RGBA: fallback to nearest
                     for r in 0..self.rows {
                         for c in 0..self.cols {
                             let color = self.cell_color(r, c);
