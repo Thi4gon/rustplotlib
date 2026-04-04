@@ -449,7 +449,7 @@ Contributions are welcome! This is an open-source project under the MIT license.
 - **25 Python modules** — 4,900+ lines of API
 - **47+ plot functions** (40 2D + 7 3D)
 - **70+ colormaps** (35 base + 35 reversed)
-- **298 tests** passing
+- **314 tests** passing
 - **22 formatters + locators** (functional)
 - **Tk interactive backend** with navigation toolbar and event system
 - **Jupyter rich display** (`_repr_png_`, `_repr_svg_`, `_repr_html_`)

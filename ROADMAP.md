@@ -82,6 +82,23 @@ Goal: Full matplotlib reimplementation in Rust.
 - [x] `CanvasProxy.mpl_connect()` / `mpl_disconnect()` functional
 - [x] `events` and `callback_registry` modules registered in package
 
+### Zoom/Pan Navigation
+- [x] `pixel_to_data()` coordinate mapping on `FigureCanvasTk`
+- [x] Functional zoom — rubber-band selection sets xlim/ylim and re-renders
+- [x] Functional pan — drag translates data limits with live update
+- [x] Home/Back/Forward view stack navigation
+- [x] Status bar shows data coordinates on mouse motion
+
+### Functional Widgets
+- [x] `Slider` — `on_changed()`, `set_val()`, `disconnect()`, valstep, clamp, inactive mode
+- [x] `RangeSlider` — tuple values, clamp, callbacks
+- [x] `Button` — `on_clicked()`, `click()` programmatic, inactive mode
+- [x] `CheckButtons` — toggle, `get_status()`, callbacks
+- [x] `RadioButtons` — exclusive selection, `value_selected`, callbacks
+- [x] `TextBox` — `on_submit()`, `on_text_change()`, `set_val()`
+- [x] `SpanSelector`, `RectangleSelector`, `LassoSelector` — interfaces with `onselect`
+- [x] `Cursor` — interface with horizOn/vertOn
+
 ### Compatibility Modules (25 total)
 - [x] Added: events, callback_registry (+ backends expanded with backend_base, backend_tk, backend_inline)
 
@@ -110,16 +127,8 @@ Goal: Full matplotlib reimplementation in Rust.
 - [ ] WebAgg (HTML5 Canvas, browser-based interactive)
 - [ ] macOS native backend (NSView/Metal)
 
-### Functional Widgets
-- [ ] `Slider` with real callback and visual rendering
-- [ ] `RangeSlider`
-- [ ] `Button` with click detection
-- [ ] `CheckButtons` / `RadioButtons`
-- [ ] `TextBox` with keyboard input
-- [ ] `SpanSelector` / `RectangleSelector` / `LassoSelector` functional
-- [ ] `Cursor` with crosshair rendering
-
-### Interactive Features
+### Interactive Features (remaining)
+- [ ] Widget visual rendering in Tk (Slider/Button draw in axes)
 - [ ] Pick events (artist hit testing)
 - [ ] 3D mouse rotation
 - [ ] Blitting for fast animation updates
@@ -195,6 +204,5 @@ Pick any unchecked item, open an issue to discuss, submit a PR with tests.
 
 **Highest impact areas:**
 1. Qt/GTK backends (v5.1.0) — needed for desktop applications
-2. Functional widgets (v5.1.0) — Slider, Button, CheckButtons with real rendering
-3. LaTeX rendering (v6.0.0) — needed for scientific papers
-4. Triangulation plots (v5.1.0) — tricontour, tripcolor
+2. LaTeX rendering (v6.0.0) — needed for scientific papers
+3. Triangulation plots (v5.1.0) — tricontour, tripcolor

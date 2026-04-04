@@ -11,10 +11,11 @@ Reimplementação completa do matplotlib em Rust puro. Drop-in replacement via P
 - 40+ plot types 2D, 7 plot types 3D
 - 70+ colormaps (35 base + 35 reversed)
 - 25 módulos Python compatíveis com API matplotlib
-- 298 testes passando
-- Tk backend interativo com toolbar, eventos de mouse/teclado e navegação
+- 314 testes passando
+- Tk backend interativo com toolbar, zoom/pan funcional, pixel-to-data mapping
 - Jupyter rich display (`_repr_png_`, `_repr_svg_`, `_repr_html_`)
 - Sistema de eventos com `CallbackRegistry` e `mpl_connect`/`mpl_disconnect`
+- Widgets funcionais: Slider, Button, CheckButtons, RadioButtons, TextBox, RangeSlider
 - Backend auto-detection (inline/tk/agg)
 - Output: PNG (tiny-skia), SVG nativo, PDF, GIF, janela interativa
 - Performance: até 16x mais rápido que matplotlib (benchmark real com 12 testes)
@@ -51,7 +52,7 @@ python/rustplotlib/           # Camada Python
 ├── dates.py, colors.py, patches.py, ...
 └── mpl_toolkits/mplot3d/     # Suporte 3D
 
-tests/                        # Testes Python (298 testes)
+tests/                        # Testes Python (314 testes)
 ```
 
 ## Stack Técnica
@@ -107,8 +108,7 @@ cargo check                  # Verificar compilação Rust
 Próximos itens prioritários (ver ROADMAP.md para lista completa):
 
 1. **Backends adicionais** — Qt, GTK, WebAgg, macOS native
-2. **Widgets funcionais** — Slider, Button, CheckButtons com renderização real
-3. **Features interativas** — pick events, rotação 3D, blitting
+2. **Features interativas** — pick events, rotação 3D, blitting
 4. **Triangulation plots** — tricontour, tricontourf, tripcolor (atualmente stubs)
 5. **Customização avançada** — spine positioning, TwoSlopeNorm, interpolação bicúbica
 
