@@ -2863,6 +2863,10 @@ class FigureProxy:
 
     def set_facecolor(self, color):
         self._fig.set_facecolor(color)
+        self._facecolor = color
+
+    def get_facecolor(self):
+        return getattr(self, '_facecolor', 'white')
 
     def show(self):
         from rustplotlib.backends import show_figure
