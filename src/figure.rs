@@ -1970,6 +1970,11 @@ impl RustFigure {
         Ok(PyBytes::new_bound(py, &png_data))
     }
 
+    /// Render the figure as an SVG XML string (for Jupyter _repr_svg_).
+    fn render_to_svg_string(&self) -> PyResult<String> {
+        Ok(self.render_svg_native(None, false))
+    }
+
     #[pyo3(signature = (path, dpi=None, transparent=None, tight=None))]
     fn savefig(&self, path: String, dpi: Option<u32>, transparent: Option<bool>, tight: Option<bool>) -> PyResult<()> {
         // Validate file extension
