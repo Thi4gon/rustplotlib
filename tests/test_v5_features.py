@@ -91,6 +91,61 @@ class TestBicubicInterpolation:
             os.unlink(f.name)
 
 
+class TestNewColormaps:
+    """Test newly added colormaps."""
+
+    def test_diverging_colormaps(self):
+        import rustplotlib.pyplot as plt
+        import numpy as np
+        cmaps = ['coolwarm', 'bwr', 'seismic', 'PuOr', 'RdGy', 'RdYlGn']
+        data = np.random.rand(5, 5)
+        for cm in cmaps:
+            fig, ax = plt.subplots()
+            ax.imshow(data, cmap=cm)
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                plt.savefig(f.name)
+                assert os.path.getsize(f.name) > 0
+                os.unlink(f.name)
+
+    def test_sequential_colormaps(self):
+        import rustplotlib.pyplot as plt
+        import numpy as np
+        cmaps = ['Greys', 'PuBuGn', 'RdPu', 'gist_yarg']
+        data = np.random.rand(5, 5)
+        for cm in cmaps:
+            fig, ax = plt.subplots()
+            ax.imshow(data, cmap=cm)
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                plt.savefig(f.name)
+                assert os.path.getsize(f.name) > 0
+                os.unlink(f.name)
+
+    def test_cyclic_colormaps(self):
+        import rustplotlib.pyplot as plt
+        import numpy as np
+        cmaps = ['flag', 'prism']
+        data = np.random.rand(5, 5)
+        for cm in cmaps:
+            fig, ax = plt.subplots()
+            ax.imshow(data, cmap=cm)
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                plt.savefig(f.name)
+                assert os.path.getsize(f.name) > 0
+                os.unlink(f.name)
+
+    def test_reversed_new_colormaps(self):
+        import rustplotlib.pyplot as plt
+        import numpy as np
+        data = np.random.rand(5, 5)
+        for cm in ['coolwarm_r', 'Greys_r', 'bwr_r']:
+            fig, ax = plt.subplots()
+            ax.imshow(data, cmap=cm)
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                plt.savefig(f.name)
+                assert os.path.getsize(f.name) > 0
+                os.unlink(f.name)
+
+
 class TestCSSNamedColors:
     """Test CSS/X11 named colors."""
 
