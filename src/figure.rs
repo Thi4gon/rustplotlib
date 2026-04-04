@@ -1963,6 +1963,13 @@ impl RustFigure {
         Ok(())
     }
 
+    fn axes_set_spine_linewidth(&mut self, ax_id: usize, lw: f64) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.set_spine_linewidth(lw as f32);
+        Ok(())
+    }
+
     fn render_to_png_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         let pixmap = self.render_pixmap_opts(None, false);
         let png_data = pixmap.encode_png()
