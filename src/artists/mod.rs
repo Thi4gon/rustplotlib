@@ -35,6 +35,7 @@ pub mod arrow;
 pub mod fancy_arrow;
 pub mod line_collection;
 pub mod widget;
+pub mod colorbar_artist;
 
 use tiny_skia::{PathBuilder, StrokeDash};
 

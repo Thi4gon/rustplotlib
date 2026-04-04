@@ -72,6 +72,22 @@ impl RustFigure {
         idx
     }
 
+    #[pyo3(signature = (ax_id, cmap, vmin, vmax, orientation, label=None))]
+    fn axes_add_colorbar_artist(
+        &mut self,
+        ax_id: usize,
+        cmap: String,
+        vmin: f64,
+        vmax: f64,
+        orientation: String,
+        label: Option<String>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.add_colorbar_artist(cmap, vmin, vmax, orientation, label);
+        Ok(())
+    }
+
     fn axes_add_widget_slider(
         &mut self,
         ax_id: usize,

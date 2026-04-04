@@ -19,6 +19,7 @@ use crate::artists::arrow::Arrow;
 use crate::artists::fancy_arrow::{FancyArrow, ArrowStyle, ConnectionStyle};
 use crate::artists::line_collection::LineCollection;
 use crate::artists::widget::WidgetArtist;
+use crate::artists::colorbar_artist::ColorbarArtist;
 use crate::artists::step::{Step, StepWhere};
 use crate::artists::pie::PieChart;
 use crate::artists::errorbar::ErrorBar;
@@ -3174,6 +3175,21 @@ impl Axes {
         let c = color.unwrap_or(Color::new(31, 119, 180, 255)); // tab:blue
         let w = WidgetArtist::new_slider(val, valmin, valmax, label, c);
         self.artists.push(Box::new(w));
+    }
+
+    /// Add a standalone colorbar artist to this axes.
+    pub fn add_colorbar_artist(
+        &mut self,
+        cmap: String,
+        vmin: f64,
+        vmax: f64,
+        orientation: String,
+        label: Option<String>,
+    ) {
+        let mut cb = ColorbarArtist::new(cmap, vmin, vmax, orientation);
+        cb.label = label;
+        self.axes_visible = false; // hide axes frame for colorbar-only axes
+        self.artists.push(Box::new(cb));
     }
 
     /// Add a visual button widget to the axes.
