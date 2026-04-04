@@ -280,12 +280,74 @@ class Cursor(Widget):
     """A crosshair cursor that follows the mouse.
 
     Compatible with matplotlib.widgets.Cursor.
+    Tracks mouse motion and stores current data coordinates.
     """
 
-    def __init__(self, ax, **kwargs):
+    def __init__(self, ax, horizOn=True, vertOn=True, useblit=False,
+                 color='red', linewidth=1, linestyle='--', **kwargs):
         super().__init__(ax)
-        self.horizOn = kwargs.get('horizOn', True)
-        self.vertOn = kwargs.get('vertOn', True)
+        self.horizOn = horizOn
+        self.vertOn = vertOn
+        self.useblit = useblit
+        self.color = color
+        self.linewidth = linewidth
+        self.linestyle = linestyle
+        self._x = None
+        self._y = None
+        self._callbacks = []
+
+    @property
+    def x(self):
+        """Current x data coordinate."""
+        return self._x
+
+    @property
+    def y(self):
+        """Current y data coordinate."""
+        return self._y
+
+    def on_moved(self, func):
+        """Register a callback when cursor moves. func(x, y)."""
+        self._callbacks.append(func)
+
+    def _update(self, x, y):
+        """Update cursor position (called from events)."""
+        if not self._active:
+            return
+        self._x = x
+        self._y = y
+        for cb in self._callbacks:
+            cb(x, y)
+
+    def clear(self):
+        """Clear cursor position."""
+        self._x = None
+        self._y = None
+
+
+class MultiCursor(Widget):
+    """Cursor that spans multiple axes simultaneously.
+
+    Compatible with matplotlib.widgets.MultiCursor.
+    """
+
+    def __init__(self, canvas, axes, horizOn=True, vertOn=True, **kwargs):
+        # MultiCursor takes a canvas + list of axes
+        super().__init__(axes[0] if axes else None)
+        self.canvas = canvas
+        self.axes = axes
+        self.horizOn = horizOn
+        self.vertOn = vertOn
+        self._x = None
+        self._y = None
+
+    @property
+    def x(self):
+        return self._x
+
+    @property
+    def y(self):
+        return self._y
 
 
 class SpanSelector(Widget):

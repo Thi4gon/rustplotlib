@@ -208,6 +208,68 @@ class Test3DRotation:
         assert abs(ax._elev - 20.0) < 1e-10
 
 
+class TestInteractiveCursor:
+    """Test interactive cursor widgets."""
+
+    def test_cursor_creation_with_options(self):
+        from rustplotlib.widgets import Cursor
+        import rustplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        cursor = Cursor(ax, horizOn=True, vertOn=False, color='blue')
+        assert cursor.horizOn is True
+        assert cursor.vertOn is False
+        assert cursor.color == 'blue'
+        assert cursor.active is True
+
+    def test_cursor_update(self):
+        from rustplotlib.widgets import Cursor
+        import rustplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        cursor = Cursor(ax)
+        cursor._update(3.0, 4.0)
+        assert cursor.x == 3.0
+        assert cursor.y == 4.0
+
+    def test_cursor_callback(self):
+        from rustplotlib.widgets import Cursor
+        import rustplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        cursor = Cursor(ax)
+        positions = []
+        cursor.on_moved(lambda x, y: positions.append((x, y)))
+        cursor._update(1.0, 2.0)
+        cursor._update(3.0, 4.0)
+        assert positions == [(1.0, 2.0), (3.0, 4.0)]
+
+    def test_cursor_inactive(self):
+        from rustplotlib.widgets import Cursor
+        import rustplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        cursor = Cursor(ax)
+        cursor.set_active(False)
+        cursor._update(5.0, 6.0)
+        assert cursor.x is None  # should not update when inactive
+
+    def test_cursor_clear(self):
+        from rustplotlib.widgets import Cursor
+        import rustplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        cursor = Cursor(ax)
+        cursor._update(1.0, 2.0)
+        cursor.clear()
+        assert cursor.x is None
+        assert cursor.y is None
+
+    def test_multicursor_creation(self):
+        from rustplotlib.widgets import MultiCursor
+        import rustplotlib.pyplot as plt
+        fig, (ax1, ax2) = plt.subplots(1, 2)
+        mc = MultiCursor(fig.canvas, [ax1, ax2], horizOn=False)
+        assert mc.horizOn is False
+        assert mc.vertOn is True
+        assert len(mc.axes) == 2
+
+
 class TestPickEvents:
     """Test pick event system."""
 
