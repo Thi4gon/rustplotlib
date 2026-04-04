@@ -572,8 +572,7 @@ class AxesProxy:
                extent=None, **kwargs):
         import numpy as _np
         arr = _np.asarray(data, dtype=float)
-        if origin == 'lower':
-            arr = arr[::-1]
+        # Origin flip and RGB detection are handled in Rust
 
         if arr.ndim == 3 and arr.shape[2] in (3, 4):
             # RGB or RGBA image — pass as 3D list to Rust
@@ -583,11 +582,12 @@ class AxesProxy:
                 kw["interpolation"] = str(interpolation)
             if extent is not None:
                 kw["extent"] = [float(e) for e in extent]
+            if origin is not None:
+                kw["origin"] = str(origin)
             self._fig.axes_imshow_rgb(self._id, rgb_list, kw)
         else:
             # Scalar 2D data — use colormap
             if arr.ndim == 3:
-                # Unexpected channel count; convert to grayscale
                 arr = arr.mean(axis=2)
             data_list = arr.tolist()
             kw = {"cmap": cmap}
@@ -603,6 +603,8 @@ class AxesProxy:
                 kw["interpolation"] = str(interpolation)
             if extent is not None:
                 kw["extent"] = [float(e) for e in extent]
+            if origin is not None:
+                kw["origin"] = str(origin)
             self._fig.axes_imshow(self._id, data_list, kw)
         return self
 

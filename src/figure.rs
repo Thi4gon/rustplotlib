@@ -309,7 +309,18 @@ impl RustFigure {
             }
         } else { None };
 
-        ax.imshow(data, cmap, annotate, fmt, interpolation, extent);
+        // Handle origin='lower' — flip data rows in Rust
+        let origin = if let Some(v) = kwargs.get_item("origin")? {
+            v.extract::<String>().ok()
+        } else { None };
+
+        let final_data = if origin.as_deref() == Some("lower") {
+            data.into_iter().rev().collect()
+        } else {
+            data
+        };
+
+        ax.imshow(final_data, cmap, annotate, fmt, interpolation, extent);
 
         Ok(())
     }
@@ -335,6 +346,17 @@ impl RustFigure {
                 None
             }
         } else { None };
+
+        // Handle origin='lower' — flip data rows in Rust
+        let origin = if let Some(v) = kwargs.get_item("origin")? {
+            v.extract::<String>().ok()
+        } else { None };
+
+        let data = if origin.as_deref() == Some("lower") {
+            data.into_iter().rev().collect::<Vec<_>>()
+        } else {
+            data
+        };
 
         // Determine if RGB or RGBA based on inner vector length
         let is_rgba = data.first()
