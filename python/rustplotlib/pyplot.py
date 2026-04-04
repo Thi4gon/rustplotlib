@@ -311,8 +311,11 @@ class AxesProxy:
         return self
 
     def imshow(self, data, cmap="viridis", aspect=None, vmin=None, vmax=None,
-               annotate=False, fmt=None, interpolation=None, **kwargs):
+               annotate=False, fmt=None, interpolation=None, origin=None,
+               extent=None, **kwargs):
         data_list = _to_2d_list(data)
+        if origin == 'lower':
+            data_list = list(reversed(data_list))
         kw = {"cmap": cmap}
         if vmin is not None:
             kw["vmin"] = vmin
@@ -1048,6 +1051,56 @@ class AxesProxy:
             kw["alpha"] = float(alpha)
         self._fig.axes_pcolor(self._id, c, kw)
         return self
+
+    def spy(self, Z, precision=0, marker=None, markersize=None, **kwargs):
+        """Plot the sparsity pattern of a 2D array."""
+        import numpy as np
+        Z = np.asarray(Z)
+        mask = np.abs(Z) > precision
+        self.imshow(mask.astype(float), cmap='gray_r', interpolation='nearest', **kwargs)
+        self.set_aspect('equal')
+
+    def stairs(self, values, edges=None, **kwargs):
+        """Draw a step-wise constant function (like matplotlib.pyplot.stairs)."""
+        if edges is None:
+            edges = list(range(len(values) + 1))
+        x = []
+        y = []
+        for i, v in enumerate(values):
+            x.extend([edges[i], edges[i+1]])
+            y.extend([v, v])
+        self.plot(x, y, **kwargs)
+
+    def ecdf(self, x, **kwargs):
+        """Plot the empirical cumulative distribution function."""
+        import numpy as np
+        x_sorted = np.sort(x)
+        y = np.arange(1, len(x_sorted) + 1) / len(x_sorted)
+        self.step(x_sorted.tolist(), y.tolist(), where='post', **kwargs)
+        self.set_ylabel('Proportion')
+
+    def triplot(self, x, y, triangles=None, **kwargs):
+        """Plot triangulation edges."""
+        if triangles is not None:
+            for tri in triangles:
+                i, j, k = tri
+                tx = [x[i], x[j], x[k], x[i]]
+                ty = [y[i], y[j], y[k], y[i]]
+                self.plot(tx, ty, **kwargs)
+        else:
+            self.plot(x, y, **kwargs)
+
+    def tricontour(self, *args, **kwargs):
+        """Stub for triangulation contour plot."""
+        pass
+
+    def tricontourf(self, *args, **kwargs):
+        """Stub for triangulation filled contour plot."""
+        pass
+
+    def tripcolor(self, *args, **kwargs):
+        """Stub for triangulation pseudocolor plot."""
+        pass
 
     def matshow(self, data, cmap=None, **kwargs):
         """Display a matrix as an image with integer ticks."""
@@ -2088,6 +2141,34 @@ def pcolormesh(*args, **kwargs):
 
 def pcolor(*args, **kwargs):
     _gca().pcolor(*args, **kwargs)
+
+
+def spy(Z, **kwargs):
+    _gca().spy(Z, **kwargs)
+
+
+def stairs(values, edges=None, **kwargs):
+    _gca().stairs(values, edges=edges, **kwargs)
+
+
+def ecdf(x, **kwargs):
+    _gca().ecdf(x, **kwargs)
+
+
+def triplot(x, y, triangles=None, **kwargs):
+    _gca().triplot(x, y, triangles=triangles, **kwargs)
+
+
+def tricontour(*args, **kwargs):
+    _gca().tricontour(*args, **kwargs)
+
+
+def tricontourf(*args, **kwargs):
+    _gca().tricontourf(*args, **kwargs)
+
+
+def tripcolor(*args, **kwargs):
+    _gca().tripcolor(*args, **kwargs)
 
 
 def matshow(data, **kwargs):
