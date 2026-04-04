@@ -54,7 +54,40 @@ Goal: Full matplotlib reimplementation in Rust.
 
 ---
 
-## PLANNED — v5.0.0
+## DONE — v5.0.0 (Phase 1 + Phase 2)
+
+### Backend System
+- [x] `backend_base.py` — `FigureCanvasBase`, `FigureManagerBase`, `NavigationToolbar2`
+- [x] `backends/__init__.py` — auto-detection (inline/tk/agg), registry, `show_figure()`
+- [x] `switch_backend()` / `set_backend()` functional
+
+### Tk Interactive Backend
+- [x] `backend_tk.py` — `FigureCanvasTk`, `FigureManagerTk`, `NavigationToolbarTk`
+- [x] Tkinter window with PhotoImage rendering
+- [x] Mouse events (click, release, motion, scroll)
+- [x] Keyboard events
+- [x] Navigation toolbar (Home, Back, Fwd, Pan, Zoom, Save)
+- [x] Coordinate display on mouse motion
+- [x] `show()` and `FigureProxy.show()` delegate to backend system
+
+### Jupyter Rich Display
+- [x] `render_to_svg_string()` exposed via PyO3
+- [x] `render_to_rgba_buffer()` exposed via PyO3
+- [x] `_repr_png_`, `_repr_svg_`, `_repr_html_` on FigureProxy
+- [x] `backend_inline.py` rewritten with SVG support and configurable `figure_format`
+
+### Event System
+- [x] Event classes: `Event`, `LocationEvent`, `MouseEvent`, `KeyEvent`, `PickEvent`, `DrawEvent`, `ResizeEvent`, `CloseEvent`
+- [x] `CallbackRegistry` with `connect(signal, func)`, `disconnect(cid)`, `process(signal, *args)`
+- [x] `CanvasProxy.mpl_connect()` / `mpl_disconnect()` functional
+- [x] `events` and `callback_registry` modules registered in package
+
+### Compatibility Modules (25 total)
+- [x] Added: events, callback_registry (+ backends expanded with backend_base, backend_tk, backend_inline)
+
+---
+
+## PLANNED — v5.1.0
 
 ### Remaining Plot Types
 - [ ] `tricontour()` / `tricontourf()` — contour on triangulation (currently stubs)
@@ -71,11 +104,9 @@ Goal: Full matplotlib reimplementation in Rust.
 ### Image Improvements
 - [ ] Bicubic, Lanczos, Spline interpolation
 
-### Functional Backends
+### Additional Backends
 - [ ] Qt backend (QApplication, mouse events, toolbar, save dialog)
 - [ ] GTK3/GTK4 backend
-- [ ] Tk backend (tkinter integration)
-- [ ] Jupyter inline backend (rich display protocol, `_repr_png_`)
 - [ ] WebAgg (HTML5 Canvas, browser-based interactive)
 - [ ] macOS native backend (NSView/Metal)
 
@@ -89,9 +120,7 @@ Goal: Full matplotlib reimplementation in Rust.
 - [ ] `Cursor` with crosshair rendering
 
 ### Interactive Features
-- [ ] Mouse events (click, motion, scroll, pick)
-- [ ] Keyboard events
-- [ ] Zoom/pan navigation toolbar
+- [ ] Pick events (artist hit testing)
 - [ ] 3D mouse rotation
 - [ ] Blitting for fast animation updates
 - [ ] Interactive data cursors
@@ -165,7 +194,7 @@ Goal: Full matplotlib reimplementation in Rust.
 Pick any unchecked item, open an issue to discuss, submit a PR with tests.
 
 **Highest impact areas:**
-1. Jupyter backend (v5.0.0) — huge for data scientists
-2. Interactive features (v5.0.0) — needed for exploratory analysis
+1. Qt/GTK backends (v5.1.0) — needed for desktop applications
+2. Functional widgets (v5.1.0) — Slider, Button, CheckButtons with real rendering
 3. LaTeX rendering (v6.0.0) — needed for scientific papers
-4. Triangulation plots (v5.0.0) — tricontour, tripcolor
+4. Triangulation plots (v5.1.0) — tricontour, tripcolor

@@ -6,14 +6,18 @@ Reimplementação completa do matplotlib em Rust puro. Drop-in replacement via P
 
 - Sempre responder em português (pt-BR)
 
-## Estado Atual — v4.0.0
+## Estado Atual — v5.0.0 (Phase 1 + Phase 2)
 
 - 40+ plot types 2D, 7 plot types 3D
 - 70+ colormaps (35 base + 35 reversed)
-- 21 módulos Python compatíveis com API matplotlib
-- 267 testes passando
+- 25 módulos Python compatíveis com API matplotlib
+- 298 testes passando
+- Tk backend interativo com toolbar, eventos de mouse/teclado e navegação
+- Jupyter rich display (`_repr_png_`, `_repr_svg_`, `_repr_html_`)
+- Sistema de eventos com `CallbackRegistry` e `mpl_connect`/`mpl_disconnect`
+- Backend auto-detection (inline/tk/agg)
 - Output: PNG (tiny-skia), SVG nativo, PDF, GIF, janela interativa
-- Performance: até 30x mais rápido que matplotlib
+- Performance: até 16x mais rápido que matplotlib (benchmark real com 12 testes)
 - Zero blocos `unsafe` em todo o código Rust
 
 ## Estrutura do Projeto
@@ -41,10 +45,13 @@ python/rustplotlib/           # Camada Python
 ├── style/                    # Temas (dark_background, ggplot, seaborn, bmh, fivethirtyeight)
 ├── animation.py              # FuncAnimation + GIF
 ├── ticker.py                 # 12 Formatters + 10 Locators funcionais
+├── backends/                 # backend_base, backend_inline, backend_tk, backend_pdf
+├── events.py                 # MouseEvent, KeyEvent, DrawEvent, ResizeEvent, CloseEvent
+├── callback_registry.py      # CallbackRegistry (mpl_connect/mpl_disconnect)
 ├── dates.py, colors.py, patches.py, ...
 └── mpl_toolkits/mplot3d/     # Suporte 3D
 
-tests/                        # Testes Python (267 testes)
+tests/                        # Testes Python (293 testes)
 ```
 
 ## Stack Técnica
@@ -95,15 +102,15 @@ cargo check                  # Verificar compilação Rust
 - **Manter compatibilidade com API do matplotlib** — mesmos nomes de funções e parâmetros
 - **Atualizar ROADMAP.md e README.md** ao completar features
 
-## Roadmap Ativo (próximo: v5.0.0)
+## Roadmap Ativo (próximo: v5.1.0)
 
 Próximos itens prioritários (ver ROADMAP.md para lista completa):
 
-1. **Jupyter inline backend** — rich display protocol, _repr_png_
-2. **Backends interativos** — Qt, GTK, macOS native
-3. **Widgets funcionais** — Slider, Button, CheckButtons com renderização real
-4. **Features interativas** — mouse events, zoom/pan, rotação 3D
-5. **Triangulation plots** — tricontour, tricontourf, tripcolor (atualmente stubs)
+1. **Backends adicionais** — Qt, GTK, WebAgg, macOS native
+2. **Widgets funcionais** — Slider, Button, CheckButtons com renderização real
+3. **Features interativas** — pick events, rotação 3D, blitting
+4. **Triangulation plots** — tricontour, tricontourf, tripcolor (atualmente stubs)
+5. **Customização avançada** — spine positioning, TwoSlopeNorm, interpolação bicúbica
 
 ## Git
 

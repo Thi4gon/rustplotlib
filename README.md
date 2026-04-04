@@ -178,8 +178,22 @@ plt.show()
 | `savefig("file.png")` | Raster PNG (with dpi, transparent options) |
 | `savefig("file.svg")` | Native vector SVG (real `<line>`, `<text>`, `<rect>` elements) |
 | `savefig("file.pdf")` | PDF output |
-| `show()` | Interactive window display |
+| `show()` | Interactive window with backend auto-detection (Tk/inline/agg) |
 | `PdfPages` | Multi-page PDF export |
+
+### Backends & Interactive
+| Feature | Description |
+|---|---|
+| Backend auto-detection | Automatically selects inline (Jupyter), Tk, or Agg backend |
+| Tk backend | Interactive window with `PhotoImage` rendering (640x480) |
+| Navigation toolbar | Home, Back, Forward, Pan, Zoom, Save + status bar (7 widgets) |
+| Event system | `mpl_connect` / `mpl_disconnect` with `CallbackRegistry` |
+| Mouse events | `MouseEvent` with button, x/y data, key modifiers |
+| Key events | `KeyEvent` for keyboard interaction |
+| Draw/Resize/Close events | `DrawEvent`, `ResizeEvent`, `CloseEvent` |
+| Jupyter rich display | `_repr_png_()`, `_repr_svg_()`, `_repr_html_()` on Figure |
+| `render_to_svg_string()` | SVG output as string (PyO3) for Jupyter inline |
+| `render_to_rgba_buffer()` | Raw RGBA buffer (PyO3) for interactive backends |
 
 ### Animation
 | Feature | Description |
@@ -225,7 +239,7 @@ All also available as `viridis_r`, `plasma_r`, `hot_r`, etc.
 - **Dates:** `date2num()`, `num2date()`, date formatters and locators
 - **Categorical axes:** string-based x values automatically converted
 
-### Compatibility Modules (21 modules)
+### Compatibility Modules (25 modules)
 | Module | Status |
 |---|---|
 | `rustplotlib.pyplot` | Full implementation (50+ functions) |
@@ -238,7 +252,9 @@ All also available as `viridis_r`, `plasma_r`, `hot_r`, etc.
 | `rustplotlib.colors` | LinearSegmentedColormap, Normalize, LogNorm, BoundaryNorm |
 | `rustplotlib.dates` | Date conversion, DateFormatter, DateLocator, Auto/Day/Month/Year/Hour/MinuteLocator |
 | `rustplotlib.gridspec` | GridSpec, SubplotSpec |
-| `rustplotlib.backends` | Backend system, PdfPages |
+| `rustplotlib.backends` | Backend system with auto-detection (inline/tk/agg), PdfPages |
+| `rustplotlib.backends.backend_base` | FigureCanvasBase, FigureManagerBase, NavigationToolbar2 |
+| `rustplotlib.backends.backend_tk` | Tk interactive window with toolbar and events |
 | `rustplotlib.mpl_toolkits.mplot3d` | Axes3D for 3D plotting |
 | `rustplotlib.cm` | Colormap access by name |
 | `rustplotlib.collections` | LineCollection, PathCollection, PatchCollection |
@@ -247,7 +263,10 @@ All also available as `viridis_r`, `plasma_r`, `hot_r`, etc.
 | `rustplotlib.transforms` | Bbox, Affine2D, BboxTransform |
 | `rustplotlib.patheffects` | Stroke, withStroke, SimplePatchShadow |
 | `rustplotlib.spines` | Spine |
-| `rustplotlib.figure` | Figure class reference |
+| `rustplotlib.axes` | Axes class reference |
+| `rustplotlib.figure` | Figure class with Jupyter rich display (`_repr_png_`, `_repr_svg_`, `_repr_html_`) |
+| `rustplotlib.events` | MouseEvent, KeyEvent, DrawEvent, ResizeEvent, CloseEvent |
+| `rustplotlib.callback_registry` | CallbackRegistry for mpl_connect/mpl_disconnect |
 | `rustplotlib.cycler` | cycler compatibility |
 
 ---
@@ -427,21 +446,24 @@ Contributions are welcome! This is an open-source project under the MIT license.
 
 **Project stats:**
 - **45+ Rust source files** — 23,000+ lines of native code
-- **21 Python modules** — 8,000+ lines of API
+- **25 Python modules** — 5,000+ lines of API
 - **47+ plot functions** (40 2D + 7 3D)
 - **70+ colormaps** (35 base + 35 reversed)
-- **267 tests** passing
+- **293 tests** passing
 - **22 formatters + locators** (functional)
+- **Tk interactive backend** with navigation toolbar and event system
+- **Jupyter rich display** (`_repr_png_`, `_repr_svg_`, `_repr_html_`)
+- **Event system** with `mpl_connect` / `mpl_disconnect`
 - **RGB/RGBA imshow**, bilinear interpolation, heatmap annotations
 - **Signal processing**: specgram, psd, acorr, xcorr, coherence
 - **Zero `unsafe` blocks**
 
 **Priority areas for contribution:**
-- Jupyter inline backend (rich display protocol)
-- Functional widgets (Slider, Button, CheckButtons with real rendering)
-- Interactive features (mouse events, zoom/pan, 3D rotation)
 - Qt/GTK backends
+- Functional widgets (Slider, Button, CheckButtons with real rendering)
+- 3D mouse rotation
 - Triangulation plots (tricontour, tripcolor)
+- LaTeX math rendering
 
 ---
 
