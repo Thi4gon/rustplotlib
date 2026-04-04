@@ -261,6 +261,49 @@ pub fn parse_plot_groups(
     result
 }
 
+/// Export figure metadata as JSON string.
+#[pyfunction]
+#[pyo3(signature = (title, n_axes, width, height, dpi, axes_titles, axes_xlabels, axes_ylabels))]
+pub fn figure_to_json(
+    title: Option<String>,
+    n_axes: usize,
+    width: f64,
+    height: f64,
+    dpi: u32,
+    axes_titles: Vec<Option<String>>,
+    axes_xlabels: Vec<Option<String>>,
+    axes_ylabels: Vec<Option<String>>,
+) -> String {
+    let mut json = String::from("{\n");
+    json.push_str(&format!("  \"width\": {},\n", width));
+    json.push_str(&format!("  \"height\": {},\n", height));
+    json.push_str(&format!("  \"dpi\": {},\n", dpi));
+    if let Some(ref t) = title {
+        json.push_str(&format!("  \"suptitle\": {:?},\n", t));
+    }
+    json.push_str(&format!("  \"n_axes\": {},\n", n_axes));
+    json.push_str("  \"axes\": [\n");
+    for i in 0..n_axes {
+        json.push_str("    {\n");
+        if let Some(Some(ref t)) = axes_titles.get(i) {
+            json.push_str(&format!("      \"title\": {:?},\n", t));
+        }
+        if let Some(Some(ref l)) = axes_xlabels.get(i) {
+            json.push_str(&format!("      \"xlabel\": {:?},\n", l));
+        }
+        if let Some(Some(ref l)) = axes_ylabels.get(i) {
+            json.push_str(&format!("      \"ylabel\": {:?},\n", l));
+        }
+        json.push_str(&format!("      \"index\": {}\n", i));
+        json.push_str("    }");
+        if i < n_axes - 1 { json.push(','); }
+        json.push('\n');
+    }
+    json.push_str("  ]\n");
+    json.push_str("}\n");
+    json
+}
+
 /// Hit test: check if a point (mx, my) is within tolerance of any point in (xs, ys).
 /// Returns indices of points within tolerance.
 #[pyfunction]

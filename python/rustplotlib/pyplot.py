@@ -2761,6 +2761,34 @@ class FigureProxy:
     def align_labels(self, axs=None):
         pass
 
+    def to_json(self):
+        """Export figure state as JSON string (via Rust)."""
+        from rustplotlib._rustplotlib import figure_to_json
+        n = self._fig.num_axes()
+        titles = []
+        xlabels = []
+        ylabels = []
+        for i in range(n):
+            ax = AxesProxy(self._fig, i)
+            titles.append(ax._title_cache or None)
+            xlabels.append(ax._xlabel_cache or None)
+            ylabels.append(ax._ylabel_cache or None)
+        return figure_to_json(
+            getattr(self, '_suptitle', None),
+            n,
+            self._figwidth,
+            self._figheight,
+            100,
+            titles,
+            xlabels,
+            ylabels,
+        )
+
+    def save_json(self, filename):
+        """Save figure state to a JSON file."""
+        with open(filename, 'w') as f:
+            f.write(self.to_json())
+
     def add_gridspec(self, nrows, ncols, **kwargs):
         """Create a GridSpec for this figure."""
         from rustplotlib.gridspec import GridSpec
