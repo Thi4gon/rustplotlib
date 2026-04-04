@@ -154,8 +154,8 @@ Goal: Full matplotlib reimplementation in Rust.
 - [ ] Constrained layout
 - [x] GridSpec with rowspan/colspan (Rust grid_span)
 - [x] Figure.add_axes() with custom position [left, bottom, width, height]
-- [ ] Axes divider (mpl_toolkits.axes_grid1)
-- [ ] `make_axes_locatable` for colorbar positioning
+- [x] Axes divider (mpl_toolkits.axes_grid1)
+- [x] `make_axes_locatable` for colorbar positioning
 - [ ] Nested subplots
 
 ### Transform System
@@ -178,17 +178,17 @@ Goal: Full matplotlib reimplementation in Rust.
 
 ### Serialization
 - [ ] Pickle save/load figures
-- [ ] JSON export/import of figure state
+- [x] JSON export of figure state (figure_to_json in Rust)
 - [ ] Copy to system clipboard (PNG)
-- [ ] Multi-page PDF (real, not separate files)
+- [x] Multi-page PDF (PdfPages with zlib compression)
 
 ### Full Artist Hierarchy
-- [ ] Artist base class with all properties (alpha, clip, zorder, transform, visible, picker, animated, label, url)
-- [ ] `set_clip_path()`, `set_clip_box()`
-- [ ] `contains()` for hit testing
-- [ ] `get_children()`, `findobj()`
-- [ ] `draw()` dispatch through artist tree
-- [ ] `stale` property for incremental redraw
+- [x] Artist base class with all properties (ArtistBase: alpha, clip, zorder, transform, visible, picker, animated, label, url)
+- [x] `set_clip_path()`, `set_clip_box()` 
+- [x] `contains()` for hit testing (backed by Rust hit_test)
+- [x] `get_children()`, `findobj()`
+- [x] `draw()` dispatch through artist tree
+- [x] `stale` property for incremental redraw
 
 ### Remaining API Surface
 - [ ] 100% of `matplotlib.pyplot` functions
@@ -196,7 +196,7 @@ Goal: Full matplotlib reimplementation in Rust.
 - [ ] 100% of `Figure` methods
 - [ ] Image comparison regression tests vs matplotlib output
 - [ ] Full API documentation with examples
-- [ ] Type stubs (.pyi) for all modules
+- [x] Type stubs (.pyi) for pyplot module
 
 ---
 
