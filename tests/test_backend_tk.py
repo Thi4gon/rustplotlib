@@ -88,3 +88,25 @@ def test_tk_manager_creation():
     assert manager.canvas is canvas
     assert manager.num == 1
     plt.close()
+
+
+def test_backend_registry():
+    """Backend registry tracks available backends."""
+    from rustplotlib.backends import get_backend, set_backend
+    original = get_backend()
+    # Default should be one of the valid backends
+    assert original in ('agg', 'tk', 'inline')
+    # Set and get
+    set_backend('agg')
+    assert get_backend() == 'agg'
+    # Reset
+    set_backend(original)
+
+
+def test_backend_list():
+    """list_backends returns available backends."""
+    from rustplotlib.backends import list_backends
+    backends = list_backends()
+    assert 'agg' in backends
+    assert 'inline' in backends
+    assert 'tk' in backends

@@ -1827,12 +1827,8 @@ class FigureProxy:
         self._fig.set_facecolor(color)
 
     def show(self):
-        try:
-            get_ipython()  # noqa: F821 — exists in Jupyter/IPython
-            from rustplotlib.backends.backend_inline import display_figure
-            display_figure(self._fig)
-        except NameError:
-            self._fig.show()
+        from rustplotlib.backends import show_figure
+        show_figure(self)
 
     def _repr_png_(self):
         """Jupyter rich display: render as PNG bytes."""
@@ -2587,12 +2583,9 @@ def savefig(fname, dpi=None, transparent=False, bbox_inches=None, **kwargs):
 
 
 def show():
-    try:
-        get_ipython()  # noqa: F821 — exists in Jupyter/IPython
-        from rustplotlib.backends.backend_inline import display_figure
-        display_figure(_gcf())
-    except NameError:
-        _gcf().show()
+    from rustplotlib.backends import show_figure
+    fig = gcf()
+    show_figure(fig)
 
 
 def close(*args):
@@ -2603,8 +2596,8 @@ def close(*args):
 
 def switch_backend(backend):
     """Switch rendering backend (compatibility stub)."""
-    from rustplotlib import backends
-    backends._current_backend = backend.lower()
+    from rustplotlib.backends import set_backend
+    set_backend(backend)
 
 
 # Also support matplotlib.use() pattern

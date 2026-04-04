@@ -40,7 +40,8 @@ class TestBackendSystem:
         from rustplotlib import pyplot as plt
         plt.switch_backend("TkAgg")
         from rustplotlib import backends
-        assert backends.get_backend() == "tkagg"
+        # 'TkAgg' is normalized to 'tk' by set_backend()
+        assert backends.get_backend() == "tk"
         backends._current_backend = "agg"  # reset
 
     def test_backend_inline_import(self):

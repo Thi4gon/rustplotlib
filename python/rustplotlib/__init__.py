@@ -32,5 +32,5 @@ __all__ = ["pyplot", "style", "animation", "widgets", "dates", "backends",
 
 def use(backend):
     """Set the rendering backend (compatibility stub)."""
-    from rustplotlib import backends as _backends
-    _backends._current_backend = backend.lower()
+    from rustplotlib.backends import set_backend
+    set_backend(backend)
