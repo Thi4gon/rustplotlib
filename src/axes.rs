@@ -644,8 +644,32 @@ impl Axes {
         });
     }
 
+    /// Clear all artists and reset axes state.
+    pub fn clear(&mut self) {
+        self.artists.clear();
+        self.title = None;
+        self.xlabel = None;
+        self.ylabel = None;
+        self.xlim = None;
+        self.ylim = None;
+        self.grid_visible = false;
+        self.show_legend = false;
+        self.annotations.clear();
+        self.ref_lines.clear();
+        self.texts.clear();
+        self.color_cycle_idx = 0;
+        self.custom_xticks = None;
+        self.custom_yticks = None;
+        self.custom_xtick_labels = None;
+        self.custom_ytick_labels = None;
+        self.span_regions.clear();
+        self.bounded_ref_lines.clear();
+        self.ax_lines.clear();
+        self.table_data = None;
+    }
+
     /// Compute the combined data bounds from all artists with 5% margin.
-    fn compute_bounds(&self) -> (f64, f64, f64, f64) {
+    pub fn compute_bounds(&self) -> (f64, f64, f64, f64) {
         let mut xmin = f64::MAX;
         let mut xmax = f64::MIN;
         let mut ymin = f64::MAX;

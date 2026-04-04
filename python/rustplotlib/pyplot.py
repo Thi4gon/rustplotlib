@@ -350,9 +350,11 @@ class AxesProxy:
         return self
 
     def set_title(self, title, fontsize=None, loc=None, **kwargs):
+        self._title_cache = str(title)
         self._fig.axes_set_title(self._id, str(title), fontsize, loc)
 
     def set_xlabel(self, label, fontsize=None, color=None, **kwargs):
+        self._xlabel_cache = str(label)
         color_str = None
         if color is not None:
             color_str = str(color)
@@ -362,6 +364,7 @@ class AxesProxy:
         self._fig.axes_set_xlabel(self._id, str(label), fontsize, color_str)
 
     def set_ylabel(self, label, fontsize=None, color=None, **kwargs):
+        self._ylabel_cache = str(label)
         color_str = None
         if color is not None:
             color_str = str(color)
@@ -749,6 +752,13 @@ class AxesProxy:
                     method(*val)
                 else:
                     method(val)
+            elif key == 'title':
+                self.set_title(val)
+            elif key == 'xlabel':
+                self.set_xlabel(val)
+            elif key == 'ylabel':
+                self.set_ylabel(val)
+        return self
 
     def twinx(self):
         twin_id = self._fig.axes_twinx(self._id)
@@ -871,10 +881,10 @@ class AxesProxy:
         pass
 
     def get_xlim(self):
-        return (0, 1)  # stub
+        return self._fig.axes_get_xlim(self._id)
 
     def get_ylim(self):
-        return (0, 1)  # stub
+        return self._fig.axes_get_ylim(self._id)
 
     def get_xaxis(self):
         return AxisProxy()
@@ -916,6 +926,68 @@ class AxesProxy:
 
     def has_data(self):
         return True
+
+    def clear(self):
+        """Clear all artists from this axes."""
+        self._fig.axes_clear(self._id)
+
+    def cla(self):
+        """Clear current axes (alias for clear)."""
+        self.clear()
+
+    def get_lines(self):
+        """Return list of Line2D artists in this axes."""
+        return []
+
+    def get_legend(self):
+        """Return the legend for this axes, or None."""
+        return None
+
+    def get_title(self):
+        """Return the axes title."""
+        return getattr(self, '_title_cache', '')
+
+    def get_xlabel(self):
+        """Return the x-axis label."""
+        return getattr(self, '_xlabel_cache', '')
+
+    def get_ylabel(self):
+        """Return the y-axis label."""
+        return getattr(self, '_ylabel_cache', '')
+
+    @property
+    def patches(self):
+        """Return list of Patch artists."""
+        return []
+
+    @property
+    def lines(self):
+        """Return list of Line2D artists."""
+        return []
+
+    @property
+    def texts(self):
+        """Return list of Text artists."""
+        return []
+
+    @property
+    def images(self):
+        """Return list of image artists."""
+        return []
+
+    @property
+    def collections(self):
+        """Return list of Collection artists."""
+        return []
+
+    @property
+    def containers(self):
+        """Return list of container artists."""
+        return []
+
+    def remove(self):
+        """Remove this axes from the figure."""
+        pass
 
     def can_pan(self):
         return False
@@ -1779,7 +1851,8 @@ class FigureProxy:
             return AxesProxy(self._fig, idx)
 
     def get_axes(self):
-        return self._axes
+        n = self._fig.num_axes()
+        return [AxesProxy(self._fig, i) for i in range(n)]
 
     def get_size_inches(self):
         return (6.4, 4.8)  # default
@@ -1807,7 +1880,8 @@ class FigureProxy:
 
     @property
     def axes(self):
-        return self._axes
+        n = self._fig.num_axes()
+        return [AxesProxy(self._fig, i) for i in range(n)]
 
     @property
     def number(self):
@@ -1826,6 +1900,17 @@ class FigureProxy:
 
     def align_ylabels(self, axs=None):
         pass
+
+    def legend(self, *args, **kwargs):
+        """Add a figure-level legend (applies to last axes)."""
+        n = self._fig.num_axes()
+        if n > 0:
+            kw = {}
+            if 'loc' in kwargs:
+                kw['loc'] = kwargs['loc']
+            if 'ncol' in kwargs:
+                kw['ncol'] = int(kwargs['ncol'])
+            self._fig.axes_legend(n - 1, kw)
 
 
 def _to_list(data):
@@ -2526,7 +2611,8 @@ def clf():
 
 def cla():
     """Clear current axes."""
-    close()
+    if _current_figure is not None and _current_axes_id is not None:
+        _current_figure.axes_clear(_current_axes_id)
 
 
 def gcf():

@@ -1853,6 +1853,37 @@ impl RustFigure {
         self.axes.len()
     }
 
+    fn axes_get_xlim(&self, ax_id: usize) -> PyResult<(f64, f64)> {
+        let ax = self.axes.get(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        match ax.xlim {
+            Some((a, b)) => Ok((a, b)),
+            None => {
+                let (xmin, xmax, _, _) = ax.compute_bounds();
+                Ok((xmin, xmax))
+            }
+        }
+    }
+
+    fn axes_get_ylim(&self, ax_id: usize) -> PyResult<(f64, f64)> {
+        let ax = self.axes.get(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        match ax.ylim {
+            Some((a, b)) => Ok((a, b)),
+            None => {
+                let (_, _, ymin, ymax) = ax.compute_bounds();
+                Ok((ymin, ymax))
+            }
+        }
+    }
+
+    fn axes_clear(&mut self, ax_id: usize) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.clear();
+        Ok(())
+    }
+
     fn axes_tick_params(&mut self, ax_id: usize, kwargs: &Bound<'_, PyDict>) -> PyResult<()> {
         let ax = self.axes.get_mut(ax_id)
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
