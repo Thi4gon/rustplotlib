@@ -40,7 +40,47 @@ rcParams = {
     'savefig.transparent': False,
     'mathtext.fontset': 'dejavusans',
     'image.cmap': 'viridis',
+    # Axes prop cycle (matplotlib default 10-color cycle)
+    'axes.prop_cycle': None,  # set below after cycler import attempt
+    # Layout
+    'figure.autolayout': False,
+    # Formatter options
+    'axes.formatter.useoffset': True,
+    'axes.formatter.use_mathtext': False,
+    # Spine visibility
+    'axes.spines.left': True,
+    'axes.spines.bottom': True,
+    'axes.spines.top': True,
+    'axes.spines.right': True,
+    # Patch properties
+    'patch.linewidth': 1.0,
+    'patch.facecolor': '#1f77b4',
+    'patch.edgecolor': 'black',
+    # Histogram default bins
+    'hist.bins': 10,
+    # Scatter default marker
+    'scatter.marker': 'o',
+    # Boxplot flier marker
+    'boxplot.flierprops.marker': 'o',
+    # Line defaults
+    'lines.linestyle': '-',
+    'lines.marker': 'None',
+    'lines.color': '#1f77b4',
 }
+
+# Try to set axes.prop_cycle with cycler if available
+try:
+    from cycler import cycler as _cycler
+    rcParams['axes.prop_cycle'] = _cycler('color', [
+        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+    ])
+except ImportError:
+    # cycler not installed — store a plain list as fallback
+    rcParams['axes.prop_cycle'] = [
+        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+    ]
 
 
 class SpineProxy:
@@ -3002,12 +3042,36 @@ def get_current_fig_manager():
 
 def colormaps():
     """Return list of available colormaps."""
-    return ['viridis', 'plasma', 'inferno', 'magma', 'cividis', 'twilight', 'turbo',
-            'hot', 'cool', 'gray', 'jet', 'spring', 'summer', 'autumn', 'winter',
-            'copper', 'bone', 'pink', 'binary', 'gist_heat', 'ocean', 'terrain',
-            'Blues', 'Reds', 'Greens', 'YlOrRd', 'YlGnBu', 'RdYlBu', 'RdBu',
-            'PiYG', 'PRGn', 'BrBG', 'Spectral', 'Set1', 'Set2', 'Set3',
-            'Pastel1', 'Pastel2', 'tab20']
+    base = [
+        # Perceptually uniform
+        'viridis', 'plasma', 'inferno', 'magma', 'cividis',
+        # Cyclic
+        'twilight', 'twilight_shifted', 'hsv',
+        # Misc sequential
+        'turbo', 'hot', 'cool', 'gray', 'jet',
+        'spring', 'summer', 'autumn', 'winter',
+        'copper', 'bone', 'pink', 'binary', 'gist_heat',
+        'ocean', 'terrain', 'afmhot', 'Wistia',
+        # ColorBrewer sequential (single-hue)
+        'Blues', 'Reds', 'Greens', 'Oranges', 'Purples',
+        # ColorBrewer sequential (multi-hue)
+        'YlOrRd', 'YlOrBr', 'YlGnBu', 'YlGn',
+        'GnBu', 'PuBu', 'PuRd', 'OrRd', 'BuGn', 'BuPu',
+        # ColorBrewer diverging
+        'RdYlBu', 'RdBu', 'PiYG', 'PRGn', 'BrBG', 'Spectral',
+        # Qualitative
+        'Set1', 'Set2', 'Set3',
+        'Pastel1', 'Pastel2',
+        'Accent', 'Dark2', 'Paired',
+        'tab10', 'tab20', 'tab20b', 'tab20c',
+        # Misc (rainbow, gnuplot, gist_*)
+        'rainbow', 'gist_rainbow', 'gnuplot', 'gnuplot2',
+        'CMRmap', 'cubehelix', 'brg',
+        'gist_earth', 'gist_stern', 'gist_ncar',
+    ]
+    # Add reversed variants
+    reversed_cmaps = [name + '_r' for name in base]
+    return base + reversed_cmaps
 
 
 def get_cmap(name='viridis'):
