@@ -1800,6 +1800,169 @@ impl RustFigure {
         Ok(())
     }
 
+    /// Add a radar / spider chart.
+    fn axes_radar(
+        &mut self,
+        ax_id: usize,
+        categories: Vec<String>,
+        values: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let colors = if let Some(v) = kwargs.get_item("colors")? {
+            let color_list: Vec<Bound<'_, pyo3::PyAny>> = v.extract()?;
+            let mut result = Vec::new();
+            for c in &color_list {
+                result.push(colors::parse_color_value(c)?);
+            }
+            Some(result)
+        } else {
+            None
+        };
+
+        let labels = if let Some(v) = kwargs.get_item("labels")? {
+            Some(v.extract::<Vec<String>>()?)
+        } else {
+            None
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            0.8
+        };
+
+        let fill = if let Some(v) = kwargs.get_item("fill")? {
+            v.extract::<bool>()?
+        } else {
+            true
+        };
+
+        ax.radar(categories, values, colors, labels, alpha, fill);
+        Ok(())
+    }
+
+    /// Add a broken horizontal bar chart.
+    fn axes_broken_barh(
+        &mut self,
+        ax_id: usize,
+        y_ranges: Vec<(f64, f64)>,
+        x_ranges: Vec<Vec<(f64, f64)>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let colors = if let Some(v) = kwargs.get_item("colors")? {
+            let color_list: Vec<Bound<'_, pyo3::PyAny>> = v.extract()?;
+            let mut result = Vec::new();
+            for c in &color_list {
+                result.push(colors::parse_color_value(c)?);
+            }
+            Some(result)
+        } else {
+            None
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            1.0
+        };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else {
+            None
+        };
+
+        ax.broken_barh(y_ranges, x_ranges, colors, alpha, label);
+        Ok(())
+    }
+
+    /// Add an event / raster plot.
+    fn axes_eventplot(
+        &mut self,
+        ax_id: usize,
+        positions: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let orientation = if let Some(v) = kwargs.get_item("orientation")? {
+            Some(v.extract::<String>()?)
+        } else {
+            None
+        };
+
+        let linewidths = if let Some(v) = kwargs.get_item("linewidths")? {
+            Some(v.extract::<f32>()?)
+        } else {
+            None
+        };
+
+        let colors = if let Some(v) = kwargs.get_item("colors")? {
+            let color_list: Vec<Bound<'_, pyo3::PyAny>> = v.extract()?;
+            let mut result = Vec::new();
+            for c in &color_list {
+                result.push(colors::parse_color_value(c)?);
+            }
+            Some(result)
+        } else {
+            None
+        };
+
+        let linelength = if let Some(v) = kwargs.get_item("linelength")? {
+            Some(v.extract::<f64>()?)
+        } else {
+            None
+        };
+
+        ax.eventplot(positions, orientation, linewidths, colors, linelength);
+        Ok(())
+    }
+
+    /// Add a stacked area chart.
+    fn axes_stackplot(
+        &mut self,
+        ax_id: usize,
+        x: Vec<f64>,
+        ys: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let colors = if let Some(v) = kwargs.get_item("colors")? {
+            let color_list: Vec<Bound<'_, pyo3::PyAny>> = v.extract()?;
+            let mut result = Vec::new();
+            for c in &color_list {
+                result.push(colors::parse_color_value(c)?);
+            }
+            Some(result)
+        } else {
+            None
+        };
+
+        let labels = if let Some(v) = kwargs.get_item("labels")? {
+            Some(v.extract::<Vec<String>>()?)
+        } else {
+            None
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            0.5
+        };
+
+        ax.stackplot(x, ys, colors, labels, alpha);
+        Ok(())
+    }
+
     fn show(&self) -> PyResult<()> {
         let pixmap = self.render_pixmap_opts(None, false);
         crate::window::show_pixmap(&pixmap)
@@ -2180,6 +2343,52 @@ impl RustFigure {
             x, y, z, levels, z_offset, true, linewidth, cmap, alpha,
         );
         ax.artists.push(Box::new(contour));
+
+        Ok(())
+    }
+
+    /// 3D triangulated surface plot (plot_trisurf).
+    fn axes3d_plot_trisurf(
+        &mut self,
+        ax3d_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        z: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+
+        let cmap = if let Some(v) = kwargs.get_item("cmap")? {
+            v.extract::<String>()?
+        } else {
+            "viridis".to_string()
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            0.9
+        };
+
+        let triangles = if let Some(v) = kwargs.get_item("triangles")? {
+            let tri_list: Vec<Vec<usize>> = v.extract()?;
+            let tris: Vec<(usize, usize, usize)> = tri_list.iter()
+                .filter(|t| t.len() == 3)
+                .map(|t| (t[0], t[1], t[2]))
+                .collect();
+            Some(tris)
+        } else {
+            None
+        };
+
+        let trisurf = if let Some(tris) = triangles {
+            crate::artists::trisurf3d::TriSurf3D::with_triangles(x, y, z, tris, cmap, alpha)
+        } else {
+            crate::artists::trisurf3d::TriSurf3D::from_points(x, y, z, cmap, alpha)
+        };
+
+        ax.artists.push(Box::new(trisurf));
 
         Ok(())
     }

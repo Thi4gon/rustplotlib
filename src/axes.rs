@@ -9,6 +9,9 @@ use crate::artists::image::Image;
 use crate::artists::fill_between::FillBetween;
 use crate::artists::fill_betweenx::FillBetweenX;
 use crate::artists::violin::ViolinPlot;
+use crate::artists::radar::Radar;
+use crate::artists::broken_barh::BrokenBarH;
+use crate::artists::eventplot::EventPlot;
 use crate::artists::step::{Step, StepWhere};
 use crate::artists::pie::PieChart;
 use crate::artists::errorbar::ErrorBar;
@@ -2458,5 +2461,77 @@ impl Axes {
             linewidth.unwrap_or(1.0),
         );
         self.artists.push(Box::new(sp));
+    }
+
+    /// Add a radar / spider chart.
+    pub fn radar(
+        &mut self,
+        categories: Vec<String>,
+        values: Vec<Vec<f64>>,
+        colors: Option<Vec<Color>>,
+        labels: Option<Vec<String>>,
+        alpha: f32,
+        fill: bool,
+    ) {
+        let cs = colors.unwrap_or_default();
+        let ls = labels.unwrap_or_default();
+        let r = Radar::new(categories, values, cs, ls, alpha, fill);
+        self.artists.push(Box::new(r));
+    }
+
+    /// Add a broken horizontal bar chart.
+    pub fn broken_barh(
+        &mut self,
+        y_ranges: Vec<(f64, f64)>,
+        x_ranges: Vec<Vec<(f64, f64)>>,
+        colors: Option<Vec<Color>>,
+        alpha: f32,
+        label: Option<String>,
+    ) {
+        let cs = colors.unwrap_or_else(|| {
+            (0..y_ranges.len()).map(|_| self.next_color()).collect()
+        });
+        let mut bb = BrokenBarH::new(y_ranges, x_ranges, cs, alpha);
+        bb.label = label;
+        self.artists.push(Box::new(bb));
+    }
+
+    /// Add an event / raster plot.
+    pub fn eventplot(
+        &mut self,
+        positions: Vec<Vec<f64>>,
+        orientation: Option<String>,
+        linewidths: Option<f32>,
+        colors: Option<Vec<Color>>,
+        linelength: Option<f64>,
+    ) {
+        let orient = orientation.unwrap_or_else(|| "horizontal".to_string());
+        let lw = linewidths.unwrap_or(1.5);
+        let cs = colors.unwrap_or_default();
+        let mut ep = EventPlot::new(positions, orient, lw, cs);
+        if let Some(ll) = linelength {
+            ep.linelength = ll;
+        }
+        self.artists.push(Box::new(ep));
+    }
+
+    /// Add a stacked area chart (stackplot).
+    /// Creates multiple fill_between calls with cumulative y values.
+    pub fn stackplot(
+        &mut self,
+        x: Vec<f64>,
+        ys: Vec<Vec<f64>>,
+        colors: Option<Vec<Color>>,
+        labels: Option<Vec<String>>,
+        alpha: f32,
+    ) {
+        let mut baseline = vec![0.0; x.len()];
+        for (i, y) in ys.iter().enumerate() {
+            let top: Vec<f64> = baseline.iter().zip(y.iter()).map(|(b, v)| b + v).collect();
+            let color = colors.as_ref().map(|c| c[i % c.len()]).unwrap_or_else(|| self.next_color());
+            let label = labels.as_ref().and_then(|l| l.get(i).cloned());
+            self.fill_between(x.clone(), baseline.clone(), top.clone(), Some(color), Some(alpha), label);
+            baseline = top;
+        }
     }
 }

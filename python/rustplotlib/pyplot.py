@@ -753,6 +753,81 @@ class AxesProxy:
     def set_picker(self, picker):
         pass
 
+    def radar(self, categories, values, colors=None, labels=None, alpha=0.8,
+              fill=True, **kwargs):
+        """Draw a radar / spider chart."""
+        kw = {"alpha": float(alpha), "fill": bool(fill)}
+        if colors is not None:
+            kw["colors"] = list(colors)
+        if labels is not None:
+            kw["labels"] = list(labels)
+        # values should be a list of lists (multiple series)
+        if values and not isinstance(values[0], (list, tuple)):
+            if hasattr(values[0], '__iter__'):
+                vals = [_to_list(v) for v in values]
+            else:
+                vals = [_to_list(values)]
+        else:
+            vals = [_to_list(v) for v in values]
+        self._fig.axes_radar(self._id, list(categories), vals, kw)
+        return self
+
+    def broken_barh(self, xranges, yrange, facecolors=None, alpha=1.0,
+                    label=None, **kwargs):
+        """Draw broken horizontal bars.
+
+        Parameters:
+            xranges: list of (x_start, width) tuples for each segment
+            yrange: (y_start, height) for this row
+            facecolors: color or list of colors
+        """
+        # Matplotlib API: broken_barh(xranges, yrange) for a single row
+        y_ranges = [(float(yrange[0]), float(yrange[1]))]
+        x_ranges = [[(float(xr[0]), float(xr[1])) for xr in xranges]]
+        kw = {"alpha": float(alpha)}
+        if facecolors is not None:
+            if isinstance(facecolors, (list, tuple)) and len(facecolors) > 0:
+                if isinstance(facecolors[0], str):
+                    kw["colors"] = facecolors
+                else:
+                    kw["colors"] = list(facecolors)
+            else:
+                kw["colors"] = [facecolors]
+        if label is not None:
+            kw["label"] = label
+        self._fig.axes_broken_barh(self._id, y_ranges, x_ranges, kw)
+        return self
+
+    def eventplot(self, positions, orientation='horizontal', linewidths=1.5,
+                  colors=None, linelength=0.8, **kwargs):
+        """Draw an event / raster plot."""
+        # positions can be a single list (one row) or list of lists
+        if positions and not isinstance(positions[0], (list, tuple)):
+            if hasattr(positions[0], '__iter__'):
+                pos = [_to_list(p) for p in positions]
+            else:
+                pos = [_to_list(positions)]
+        else:
+            pos = [_to_list(p) for p in positions]
+        kw = {"orientation": orientation, "linewidths": float(linewidths),
+              "linelength": float(linelength)}
+        if colors is not None:
+            kw["colors"] = list(colors)
+        self._fig.axes_eventplot(self._id, pos, kw)
+        return self
+
+    def stackplot(self, x, *args, colors=None, labels=None, alpha=0.5, **kwargs):
+        """Draw a stacked area chart."""
+        x = _to_list(x)
+        ys = [_to_list(y) for y in args]
+        kw = {"alpha": float(alpha)}
+        if colors is not None:
+            kw["colors"] = list(colors)
+        if labels is not None:
+            kw["labels"] = list(labels)
+        self._fig.axes_stackplot(self._id, x, ys, kw)
+        return self
+
     def get_figure(self):
         """Return the FigureProxy that owns this axes."""
         return FigureProxy(self._fig, [self])
@@ -1007,6 +1082,16 @@ class Axes3DProxy:
 
     # Alias: contourf3d (lowercase)
     contourf3d = contourf3D
+
+    def plot_trisurf(self, x, y, z, cmap='viridis', alpha=0.9, triangles=None, **kwargs):
+        """Draw a 3D triangulated surface plot."""
+        x, y, z = _to_list(x), _to_list(y), _to_list(z)
+        kw = {'cmap': str(cmap), 'alpha': float(alpha)}
+        if triangles is not None:
+            # triangles is a list of [i, j, k] triples
+            kw['triangles'] = [[int(v) for v in tri] for tri in triangles]
+        self._fig.axes3d_plot_trisurf(self._id, x, y, z, kw)
+        return self
 
     # No-op stubs for matplotlib compat
     def grid(self, visible=True, **kwargs):
@@ -1627,6 +1712,18 @@ def quiver(*args, **kwargs):
 
 def streamplot(x, y, u, v, **kwargs):
     _gca().streamplot(x, y, u, v, **kwargs)
+
+
+def broken_barh(xranges, yrange, **kwargs):
+    _gca().broken_barh(xranges, yrange, **kwargs)
+
+
+def eventplot(positions, **kwargs):
+    _gca().eventplot(positions, **kwargs)
+
+
+def stackplot(x, *args, **kwargs):
+    _gca().stackplot(x, *args, **kwargs)
 
 
 def subplot_polar(**kwargs):

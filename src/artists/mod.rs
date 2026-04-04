@@ -24,6 +24,10 @@ pub mod bar3d;
 pub mod contour3d;
 pub mod violin;
 pub mod fill_betweenx;
+pub mod trisurf3d;
+pub mod radar;
+pub mod broken_barh;
+pub mod eventplot;
 
 use tiny_skia::{PathBuilder, StrokeDash};
 
