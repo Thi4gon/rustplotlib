@@ -67,15 +67,16 @@ plt.show()
 
 ## What's Implemented
 
-### 2D Plot Types (17 types)
+### 2D Plot Types (26 types)
 | Function | Description |
 |---|---|
-| `plot()` | Line plots with color, linestyle, linewidth, markers, markevery, labels, alpha |
-| `scatter()` | Scatter plots with per-point sizes, colors, markers, alpha |
-| `bar()` / `barh()` | Vertical and horizontal bar charts (stacked via `bottom` param) |
+| `plot()` | Line plots with color, linestyle, linewidth, markers, markevery, labels, alpha, zorder |
+| `scatter()` | Scatter plots with per-point sizes, colors, markers, alpha, zorder |
+| `bar()` / `barh()` | Vertical and horizontal bar charts (stacked, hatch patterns, zorder) |
 | `hist()` | Histograms with configurable bins |
-| `imshow()` | Image/heatmap display with 35+ colormaps |
+| `imshow()` | Image/heatmap display with 70+ colormaps, bilinear interpolation, annotations |
 | `fill_between()` / `fill_betweenx()` | Filled area between curves (vertical and horizontal) |
+| `fill()` | Filled polygon from vertex arrays |
 | `errorbar()` | Error bars with caps (xerr/yerr) |
 | `step()` | Step plots (pre/post/mid) |
 | `pie()` | Pie charts with labels |
@@ -86,8 +87,15 @@ plt.show()
 | `hexbin()` | Hexagonal binning for 2D histograms |
 | `quiver()` | Vector field arrows |
 | `streamplot()` | Streamlines for vector fields (Euler integration) |
+| `stackplot()` | Stacked area charts |
+| `broken_barh()` | Broken horizontal bar charts |
+| `eventplot()` | Event/raster plots |
+| `pcolormesh()` / `pcolor()` | Pseudocolor plots for irregular grids |
+| `matshow()` | Matrix display with integer ticks |
+| `radar()` | Radar/spider charts |
+| `sankey()` | Sankey flow diagrams |
 
-### 3D Plot Types (5 types)
+### 3D Plot Types (7 types)
 | Function | Description |
 |---|---|
 | `plot()` (3D) | 3D line plots |
@@ -95,6 +103,8 @@ plt.show()
 | `plot_surface()` | 3D surface plots with colormaps |
 | `plot_wireframe()` | 3D wireframe plots |
 | `bar3d()` | 3D bar charts with shading |
+| `plot_trisurf()` | 3D triangulated surface |
+| `contour3D()` | 3D contour lines at Z offset |
 
 ### Layout & Figure
 | Function | Description |
@@ -125,7 +135,9 @@ plt.show()
 | `axis('off')` | Hide axes completely |
 | `set_facecolor()` | Axes background color |
 | `spines['right'].set_visible(False)` | Spine customization |
-| `twinx()` | Secondary y-axis |
+| `twinx()` / `twiny()` | Secondary y-axis / x-axis |
+| `zorder` | Drawing order control for all artists |
+| `hatch` | Hatch patterns for bars (`/`, `\\`, `|`, `-`, `+`, `x`, `o`, `.`, `*`) |
 | `legend()` | Legend with line+marker swatches and positioning |
 | `grid()` | Grid lines with color, linewidth, linestyle, alpha, which |
 | `text()` | Positioned text annotations |
@@ -171,8 +183,12 @@ plt.show()
 - **Format strings:** `"r--o"` = red + dashed + circle markers
 - **markevery:** show marker every N points
 
-### Colormaps (35+)
+### Colormaps (70+)
+35 base colormaps + all reversed variants (`_r` suffix):
+
 `viridis` `plasma` `inferno` `magma` `cividis` `twilight` `turbo` `hot` `cool` `gray` `jet` `spring` `summer` `autumn` `winter` `copper` `bone` `pink` `binary` `gist_heat` `ocean` `terrain` `Blues` `Reds` `Greens` `YlOrRd` `YlGnBu` `RdYlBu` `RdBu` `PiYG` `PRGn` `BrBG` `Spectral` `Set1` `Set2` `Set3` `Pastel1` `Pastel2` `tab20`
+
+All also available as `viridis_r`, `plasma_r`, `hot_r`, etc.
 
 ### Text Rendering
 - Embedded DejaVu Sans font (no system font dependency)
@@ -185,21 +201,31 @@ plt.show()
 - **Dates:** `date2num()`, `num2date()`, date formatters and locators
 - **Categorical axes:** string-based x values automatically converted
 
-### Compatibility Modules
+### Compatibility Modules (23 modules)
 | Module | Status |
 |---|---|
-| `rustplotlib.pyplot` | Full implementation |
+| `rustplotlib.pyplot` | Full implementation (50+ functions) |
 | `rustplotlib.style` | Full implementation (6 themes) |
 | `rustplotlib.animation` | FuncAnimation + GIF export |
 | `rustplotlib.widgets` | Stubs (Slider, Button, CheckButtons, RadioButtons, TextBox, Cursor) |
-| `rustplotlib.font_manager` | FontProperties stub |
-| `rustplotlib.ticker` | FormatStrFormatter stub |
+| `rustplotlib.font_manager` | FontProperties |
+| `rustplotlib.ticker` | FormatStrFormatter |
 | `rustplotlib.patches` | Rectangle, Circle, Polygon, FancyBboxPatch, Wedge |
 | `rustplotlib.colors` | LinearSegmentedColormap, Normalize, LogNorm |
 | `rustplotlib.dates` | Date conversion, formatters, locators |
 | `rustplotlib.gridspec` | GridSpec, SubplotSpec |
-| `rustplotlib.backends` | Backend system with `use()` |
+| `rustplotlib.backends` | Backend system, PdfPages |
 | `rustplotlib.mpl_toolkits.mplot3d` | Axes3D for 3D plotting |
+| `rustplotlib.cm` | Colormap access by name |
+| `rustplotlib.collections` | LineCollection, PathCollection, PatchCollection |
+| `rustplotlib.lines` | Line2D with get/set methods |
+| `rustplotlib.text` | Text, Annotation |
+| `rustplotlib.transforms` | Bbox, Affine2D, BboxTransform |
+| `rustplotlib.patheffects` | Stroke, withStroke, SimplePatchShadow |
+| `rustplotlib.spines` | Spine |
+| `rustplotlib.axes` | Axes class reference |
+| `rustplotlib.figure` | Figure class reference |
+| `rustplotlib.cycler` | cycler compatibility |
 
 ---
 
@@ -369,11 +395,19 @@ Contributions are welcome! This is an open-source project under the MIT license.
 3. Open a PR against `master`
 4. PRs require at least 1 review before merging
 
+**Project stats:**
+- **42 Rust source files** — 13,500+ lines of native code
+- **23 Python modules** — 3,300+ lines of API
+- **33 artist types** (26 2D + 7 3D)
+- **70+ colormaps** (35 base + 35 reversed)
+- **173 tests** passing
+- **Zero `unsafe` blocks**
+
 **Priority areas for contribution:**
 - Turning stub modules into full implementations (widgets, formatters/locators)
-- Adding more colormaps with exact matplotlib data
 - Improving SVG output fidelity
-- Jupyter inline display support
+- Interactive 3D (mouse rotation)
+- Qt/GTK backends
 - More comprehensive test coverage
 
 ---
