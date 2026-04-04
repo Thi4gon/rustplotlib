@@ -88,6 +88,14 @@ pub struct TextAnnotation {
     pub color: Color,
 }
 
+/// Background box style for an annotation text.
+pub struct AnnotationBbox {
+    pub boxstyle: String,    // "round", "square", etc.
+    pub facecolor: Color,
+    pub edgecolor: Color,
+    pub alpha: f32,
+}
+
 /// An annotation with arrow pointing from text to a data point.
 pub struct Annotation {
     pub text: String,
@@ -97,6 +105,9 @@ pub struct Annotation {
     pub color: Color,
     pub arrow_color: Color,
     pub arrow_width: f32,
+    pub bbox: Option<AnnotationBbox>,
+    pub fontweight: String,   // "normal", "bold"
+    pub fontstyle: String,    // "normal", "italic"
 }
 
 /// A reference line (axhline / axvline).
@@ -202,6 +213,10 @@ pub struct Axes {
     pub colorbar_cmap: String,
     pub colorbar_vmin: f64,
     pub colorbar_vmax: f64,
+    pub colorbar_label: Option<String>,
+    pub colorbar_orientation: String,  // "vertical" or "horizontal"
+    pub colorbar_shrink: f64,          // 0.0–1.0, default 1.0
+    pub colorbar_pad: f64,             // fraction of axes, default 0.05
     // Grid which (Major/Minor/Both)
     pub grid_which: GridWhich,
     // Bounded reference lines (hlines / vlines)
@@ -289,6 +304,10 @@ impl Axes {
             colorbar_cmap: "viridis".to_string(),
             colorbar_vmin: 0.0,
             colorbar_vmax: 1.0,
+            colorbar_label: None,
+            colorbar_orientation: "vertical".to_string(),
+            colorbar_shrink: 1.0,
+            colorbar_pad: 0.05,
             grid_which: GridWhich::Major,
             bounded_ref_lines: Vec::new(),
             table_data: None,
@@ -1049,12 +1068,44 @@ impl Axes {
                 }
             }
 
+            // Draw bbox (text background box) if specified
+            let text_draw_y = text_py - 4.0;
+            if let Some(ref bbox) = ann.bbox {
+                // Approximate text bounding box
+                let text_w = ann.text.len() as f32 * ann.fontsize * 0.6;
+                let text_h = ann.fontsize * 1.4;
+                let pad = 3.0_f32;
+                let bx = text_px - text_w / 2.0 - pad;
+                let by = text_draw_y - text_h - pad;
+                let bw = text_w + pad * 2.0;
+                let bh = text_h + pad * 2.0;
+
+                // Fill the background
+                if let Some(rect) = Rect::from_xywh(bx, by, bw, bh) {
+                    let mut bg_paint = Paint::default();
+                    let mut fc = bbox.facecolor;
+                    fc.a = (bbox.alpha * 255.0) as u8;
+                    bg_paint.set_color(fc.to_tiny_skia());
+                    bg_paint.anti_alias = false;
+                    pixmap.fill_rect(rect, &bg_paint, ts, None);
+
+                    // Draw border
+                    let path = PathBuilder::from_rect(rect);
+                    let mut border_paint = Paint::default();
+                    border_paint.set_color(bbox.edgecolor.to_tiny_skia());
+                    border_paint.anti_alias = true;
+                    let mut border_stroke = Stroke::default();
+                    border_stroke.width = 0.8;
+                    pixmap.stroke_path(&path, &border_paint, &border_stroke, ts, None);
+                }
+            }
+
             // Draw text at xytext position
             draw_text(
                 pixmap,
                 &ann.text,
                 text_px,
-                text_py - 4.0, // slight offset above the arrow start
+                text_draw_y, // slight offset above the arrow start
                 ann.fontsize,
                 ann.color,
                 TextAnchorX::Center,
@@ -1355,7 +1406,7 @@ impl Axes {
 
         // 12. Draw colorbar if enabled
         if self.show_colorbar {
-            self.draw_colorbar(pixmap, right, top, bottom);
+            self.draw_colorbar(pixmap, left, right, top, bottom);
         }
 
         // 13. Draw table if present
@@ -1904,83 +1955,206 @@ impl Axes {
         }
     }
 
-    /// Draw a vertical colorbar to the right of the plot area.
-    fn draw_colorbar(&self, pixmap: &mut Pixmap, right: f32, top: f32, bottom: f32) {
+    /// Draw a colorbar (vertical or horizontal) next to the plot area.
+    fn draw_colorbar(&self, pixmap: &mut Pixmap, left: f32, right: f32, top: f32, bottom: f32) {
         use crate::artists::image::colormap_lookup;
 
         let ts = tiny_skia::Transform::identity();
-        let bar_width = 15.0_f32;
-        let bar_left = right + 10.0;
-        let bar_right = bar_left + bar_width;
-        let bar_top = top;
-        let bar_bottom = bottom;
-        let bar_height = bar_bottom - bar_top;
+        let shrink = self.colorbar_shrink as f32;
+        let horizontal = self.colorbar_orientation == "horizontal";
 
-        if bar_height <= 0.0 { return; }
+        if horizontal {
+            // --- Horizontal colorbar below the axes ---
+            let plot_width = right - left;
+            let bar_height = 12.0_f32;
+            // pad in pixels (pad fraction of axes height)
+            let ax_height = bottom - top;
+            let pad_px = (self.colorbar_pad as f32 * ax_height).max(6.0) + bar_height;
+            let bar_bottom = bottom + pad_px;
+            let bar_top = bar_bottom - bar_height;
+            let bar_len = plot_width * shrink;
+            let bar_left = left + (plot_width - bar_len) / 2.0;
+            let bar_right = bar_left + bar_len;
 
-        // Draw gradient strip
-        let n_steps = (bar_height as usize).max(2);
-        for i in 0..n_steps {
-            let frac = i as f32 / (n_steps - 1) as f32;
-            // Top = vmax (t=1), bottom = vmin (t=0)
-            let t = 1.0 - frac;
-            let color = colormap_lookup(&self.colorbar_cmap, t as f64);
+            if bar_len <= 0.0 { return; }
 
-            let y = bar_top + frac * bar_height;
-            let row_h = (bar_height / n_steps as f32).max(1.0);
+            // Draw gradient strip
+            let n_steps = (bar_len as usize).max(2);
+            for i in 0..n_steps {
+                let frac = i as f32 / (n_steps - 1) as f32;
+                let t = frac as f64; // left = vmin, right = vmax
+                let color = colormap_lookup(&self.colorbar_cmap, t);
 
-            if let Some(rect) = Rect::from_xywh(bar_left, y, bar_width, row_h) {
-                let mut paint = Paint::default();
-                paint.set_color(color.to_tiny_skia());
-                paint.anti_alias = false;
-                pixmap.fill_rect(rect, &paint, ts, None);
-            }
-        }
+                let x = bar_left + frac * bar_len;
+                let col_w = (bar_len / n_steps as f32).max(1.0);
 
-        // Draw border around colorbar
-        if let Some(rect) = Rect::from_xywh(bar_left, bar_top, bar_width, bar_height) {
-            let path = PathBuilder::from_rect(rect);
-            let mut border_paint = Paint::default();
-            border_paint.set_color(self.spine_color.to_tiny_skia());
-            border_paint.anti_alias = true;
-            let mut stroke = Stroke::default();
-            stroke.width = 0.5;
-            pixmap.stroke_path(&path, &border_paint, &stroke, ts, None);
-        }
-
-        // Draw tick labels on the colorbar (5 ticks)
-        let n_ticks = 5;
-        let label_x = bar_right + 4.0;
-        for i in 0..n_ticks {
-            let frac = i as f32 / (n_ticks - 1) as f32;
-            let y = bar_top + frac * bar_height;
-            let val = self.colorbar_vmax + frac as f64 * (self.colorbar_vmin - self.colorbar_vmax);
-            let label = crate::ticker::format_tick_value(val);
-
-            // Tick mark
-            let mut pb = PathBuilder::new();
-            pb.move_to(bar_right, y);
-            pb.line_to(bar_right + 3.0, y);
-            if let Some(path) = pb.finish() {
-                let mut tick_paint = Paint::default();
-                tick_paint.set_color(self.spine_color.to_tiny_skia());
-                tick_paint.anti_alias = true;
-                let mut tick_stroke = Stroke::default();
-                tick_stroke.width = 0.5;
-                pixmap.stroke_path(&path, &tick_paint, &tick_stroke, ts, None);
+                if let Some(rect) = Rect::from_xywh(x, bar_top, col_w, bar_height) {
+                    let mut paint = Paint::default();
+                    paint.set_color(color.to_tiny_skia());
+                    paint.anti_alias = false;
+                    pixmap.fill_rect(rect, &paint, ts, None);
+                }
             }
 
-            draw_text(
-                pixmap,
-                &label,
-                label_x,
-                y,
-                8.0,
-                self.text_color,
-                TextAnchorX::Left,
-                TextAnchorY::Center,
-                0.0,
-            );
+            // Draw border
+            if let Some(rect) = Rect::from_xywh(bar_left, bar_top, bar_len, bar_height) {
+                let path = PathBuilder::from_rect(rect);
+                let mut border_paint = Paint::default();
+                border_paint.set_color(self.spine_color.to_tiny_skia());
+                border_paint.anti_alias = true;
+                let mut stroke = Stroke::default();
+                stroke.width = 0.5;
+                pixmap.stroke_path(&path, &border_paint, &stroke, ts, None);
+            }
+
+            // Draw tick labels (5 ticks)
+            let n_ticks = 5;
+            let label_y = bar_bottom + 10.0;
+            for i in 0..n_ticks {
+                let frac = i as f32 / (n_ticks - 1) as f32;
+                let x = bar_left + frac * bar_len;
+                let val = self.colorbar_vmin + frac as f64 * (self.colorbar_vmax - self.colorbar_vmin);
+                let tick_label = crate::ticker::format_tick_value(val);
+
+                // Tick mark
+                let mut pb = PathBuilder::new();
+                pb.move_to(x, bar_bottom);
+                pb.line_to(x, bar_bottom + 3.0);
+                if let Some(path) = pb.finish() {
+                    let mut tick_paint = Paint::default();
+                    tick_paint.set_color(self.spine_color.to_tiny_skia());
+                    tick_paint.anti_alias = true;
+                    let mut tick_stroke = Stroke::default();
+                    tick_stroke.width = 0.5;
+                    pixmap.stroke_path(&path, &tick_paint, &tick_stroke, ts, None);
+                }
+
+                draw_text(
+                    pixmap,
+                    &tick_label,
+                    x,
+                    label_y,
+                    8.0,
+                    self.text_color,
+                    TextAnchorX::Center,
+                    TextAnchorY::Top,
+                    0.0,
+                );
+            }
+
+            // Draw colorbar label below ticks
+            if let Some(ref lbl) = self.colorbar_label {
+                let center_x = (bar_left + bar_right) / 2.0;
+                let label_y2 = label_y + 14.0;
+                draw_text(
+                    pixmap,
+                    lbl,
+                    center_x,
+                    label_y2,
+                    10.0,
+                    self.text_color,
+                    TextAnchorX::Center,
+                    TextAnchorY::Top,
+                    0.0,
+                );
+            }
+        } else {
+            // --- Vertical colorbar to the right of the axes ---
+            let ax_height = bottom - top;
+            let bar_height = ax_height * shrink;
+            let bar_width = 15.0_f32;
+            // pad_px: fraction of axes width
+            let ax_width = right - left;
+            let pad_px = (self.colorbar_pad as f32 * ax_width).max(6.0);
+            let bar_left = right + pad_px;
+            let bar_right = bar_left + bar_width;
+            let bar_top = top + (ax_height - bar_height) / 2.0;
+            let bar_bottom = bar_top + bar_height;
+
+            if bar_height <= 0.0 { return; }
+
+            // Draw gradient strip
+            let n_steps = (bar_height as usize).max(2);
+            for i in 0..n_steps {
+                let frac = i as f32 / (n_steps - 1) as f32;
+                // Top = vmax (t=1), bottom = vmin (t=0)
+                let t = 1.0 - frac as f64;
+                let color = colormap_lookup(&self.colorbar_cmap, t);
+
+                let y = bar_top + frac * bar_height;
+                let row_h = (bar_height / n_steps as f32).max(1.0);
+
+                if let Some(rect) = Rect::from_xywh(bar_left, y, bar_width, row_h) {
+                    let mut paint = Paint::default();
+                    paint.set_color(color.to_tiny_skia());
+                    paint.anti_alias = false;
+                    pixmap.fill_rect(rect, &paint, ts, None);
+                }
+            }
+
+            // Draw border around colorbar
+            if let Some(rect) = Rect::from_xywh(bar_left, bar_top, bar_width, bar_height) {
+                let path = PathBuilder::from_rect(rect);
+                let mut border_paint = Paint::default();
+                border_paint.set_color(self.spine_color.to_tiny_skia());
+                border_paint.anti_alias = true;
+                let mut stroke = Stroke::default();
+                stroke.width = 0.5;
+                pixmap.stroke_path(&path, &border_paint, &stroke, ts, None);
+            }
+
+            // Draw tick labels on the colorbar (5 ticks)
+            let n_ticks = 5;
+            let label_x = bar_right + 4.0;
+            for i in 0..n_ticks {
+                let frac = i as f32 / (n_ticks - 1) as f32;
+                let y = bar_top + frac * bar_height;
+                let val = self.colorbar_vmax + frac as f64 * (self.colorbar_vmin - self.colorbar_vmax);
+                let tick_label = crate::ticker::format_tick_value(val);
+
+                // Tick mark
+                let mut pb = PathBuilder::new();
+                pb.move_to(bar_right, y);
+                pb.line_to(bar_right + 3.0, y);
+                if let Some(path) = pb.finish() {
+                    let mut tick_paint = Paint::default();
+                    tick_paint.set_color(self.spine_color.to_tiny_skia());
+                    tick_paint.anti_alias = true;
+                    let mut tick_stroke = Stroke::default();
+                    tick_stroke.width = 0.5;
+                    pixmap.stroke_path(&path, &tick_paint, &tick_stroke, ts, None);
+                }
+
+                draw_text(
+                    pixmap,
+                    &tick_label,
+                    label_x,
+                    y,
+                    8.0,
+                    self.text_color,
+                    TextAnchorX::Left,
+                    TextAnchorY::Center,
+                    0.0,
+                );
+            }
+
+            // Draw colorbar label rotated 90° along the bar
+            if let Some(ref lbl) = self.colorbar_label {
+                // Estimate label width to position it to the right of tick labels
+                let label_x2 = label_x + 40.0;
+                let center_y = (bar_top + bar_bottom) / 2.0;
+                draw_text(
+                    pixmap,
+                    lbl,
+                    label_x2,
+                    center_y,
+                    10.0,
+                    self.text_color,
+                    TextAnchorX::Left,
+                    TextAnchorY::Center,
+                    -90.0,
+                );
+            }
         }
     }
 
@@ -2391,6 +2565,9 @@ impl Axes {
         color: Color,
         arrow_color: Color,
         arrow_width: f32,
+        bbox: Option<AnnotationBbox>,
+        fontweight: String,
+        fontstyle: String,
     ) {
         self.annotations.push(Annotation {
             text,
@@ -2400,6 +2577,9 @@ impl Axes {
             color,
             arrow_color,
             arrow_width,
+            bbox,
+            fontweight,
+            fontstyle,
         });
     }
 
@@ -2654,12 +2834,31 @@ impl Axes {
         self.spine_linewidth = lw;
     }
 
-    /// Enable colorbar with the given colormap and value range.
-    pub fn colorbar(&mut self, cmap: &str, vmin: f64, vmax: f64) {
+    /// Enable colorbar with the given colormap, value range, and display options.
+    pub fn colorbar(
+        &mut self,
+        cmap: &str,
+        vmin: f64,
+        vmax: f64,
+        label: Option<String>,
+        orientation: Option<String>,
+        shrink: Option<f64>,
+        pad: Option<f64>,
+    ) {
         self.show_colorbar = true;
         self.colorbar_cmap = cmap.to_string();
         self.colorbar_vmin = vmin;
         self.colorbar_vmax = vmax;
+        self.colorbar_label = label;
+        if let Some(o) = orientation {
+            self.colorbar_orientation = o;
+        }
+        if let Some(s) = shrink {
+            self.colorbar_shrink = s.clamp(0.01, 1.0);
+        }
+        if let Some(p) = pad {
+            self.colorbar_pad = p;
+        }
     }
 
     /// Add a quiver (vector arrow) plot.

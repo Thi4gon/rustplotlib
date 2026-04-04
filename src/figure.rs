@@ -905,7 +905,46 @@ impl RustFigure {
             (crate::colors::Color::new(0, 0, 0, 255), 1.5)
         };
 
-        ax.annotate(text, xy, xytext, fontsize, color, arrow_color, arrow_width);
+        let bbox = if let Some(bx) = kwargs.get_item("bbox")? {
+            let bbox_dict: &Bound<'_, PyDict> = bx.downcast::<PyDict>()?;
+            let boxstyle = if let Some(v) = bbox_dict.get_item("boxstyle")? {
+                v.extract::<String>()?
+            } else {
+                "square".to_string()
+            };
+            let facecolor = if let Some(c) = bbox_dict.get_item("facecolor")? {
+                colors::parse_color_value(&c)?
+            } else {
+                crate::colors::Color::new(255, 255, 255, 255)
+            };
+            let edgecolor = if let Some(c) = bbox_dict.get_item("edgecolor")? {
+                colors::parse_color_value(&c)?
+            } else {
+                crate::colors::Color::new(0, 0, 0, 255)
+            };
+            let alpha = if let Some(v) = bbox_dict.get_item("alpha")? {
+                v.extract::<f32>()?
+            } else {
+                1.0
+            };
+            Some(crate::axes::AnnotationBbox { boxstyle, facecolor, edgecolor, alpha })
+        } else {
+            None
+        };
+
+        let fontweight = if let Some(v) = kwargs.get_item("fontweight")? {
+            v.extract::<String>()?
+        } else {
+            "normal".to_string()
+        };
+
+        let fontstyle = if let Some(v) = kwargs.get_item("fontstyle")? {
+            v.extract::<String>()?
+        } else {
+            "normal".to_string()
+        };
+
+        ax.annotate(text, xy, xytext, fontsize, color, arrow_color, arrow_width, bbox, fontweight, fontstyle);
 
         Ok(())
     }
@@ -1707,7 +1746,32 @@ impl RustFigure {
             1.0
         };
 
-        ax.colorbar(&cmap, vmin, vmax);
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            let s = v.extract::<String>()?;
+            if s.is_empty() { None } else { Some(s) }
+        } else {
+            None
+        };
+
+        let orientation = if let Some(v) = kwargs.get_item("orientation")? {
+            Some(v.extract::<String>()?)
+        } else {
+            None
+        };
+
+        let shrink = if let Some(v) = kwargs.get_item("shrink")? {
+            Some(v.extract::<f64>()?)
+        } else {
+            None
+        };
+
+        let pad = if let Some(v) = kwargs.get_item("pad")? {
+            Some(v.extract::<f64>()?)
+        } else {
+            None
+        };
+
+        ax.colorbar(&cmap, vmin, vmax, label, orientation, shrink, pad);
         Ok(())
     }
 
