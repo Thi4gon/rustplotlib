@@ -67,7 +67,7 @@ plt.show()
 
 ## What's Implemented
 
-### 2D Plot Types (30+ types)
+### 2D Plot Types (40+ types)
 | Function | Description |
 |---|---|
 | `plot()` | Line plots with color, linestyle, linewidth, markers, markevery, labels, alpha, zorder |
@@ -98,7 +98,16 @@ plt.show()
 | `stairs()` | Step-wise constant function with edges |
 | `ecdf()` | Empirical cumulative distribution |
 | `triplot()` | Triangulation edge drawing |
-| `pcolormesh()` / `pcolor()` already listed above |
+| `hist2d()` | 2D histogram heatmap |
+| `specgram()` | Spectrogram (STFT-based) |
+| `acorr()` / `xcorr()` | Auto/cross correlation |
+| `psd()` | Power spectral density (Welch) |
+| `magnitude_spectrum()` | FFT magnitude |
+| `angle_spectrum()` / `phase_spectrum()` | FFT phase |
+| `cohere()` / `csd()` | Coherence / cross spectral density |
+| `semilogx()` / `semilogy()` / `loglog()` | Convenience log-scale plots |
+| `arrow()` | Arrow drawing |
+| `axline()` | Infinite line through point with slope |
 
 ### 3D Plot Types (7 types)
 | Function | Description |
@@ -124,6 +133,9 @@ plt.show()
 | `add_subplot(projection='3d')` | Add 3D subplot |
 | `clf()` / `cla()` / `close()` | Clear and close figures |
 | `gcf()` / `gca()` | Get current figure/axes |
+| `subplot2grid()` | Subplot at specific grid position |
+| `fig.add_gridspec()` | GridSpec from figure |
+| `fig.legend()` | Figure-level legend |
 
 ### Axes Customization
 | Function | Description |
@@ -152,6 +164,13 @@ plt.show()
 | `axhspan()` / `axvspan()` | Shaded horizontal/vertical regions |
 | `hlines()` / `vlines()` | Multiple reference lines with bounds |
 | `colorbar()` | Color scale bar for imshow/contour |
+| `get_xlim()` / `get_ylim()` | Get current axis limits (functional) |
+| `clear()` | Clear all artists from axes |
+| `ax.set(**kwargs)` | Set multiple properties at once |
+| `minor=True` in set_xticks/yticks | Minor tick support |
+| `bar_label()` | Value labels on bars |
+| `set_xlabel(color=...)` | Label color customization |
+| `title(loc='left')` | Title alignment |
 
 ### Output Formats
 | Method | Description |
@@ -401,13 +420,14 @@ Contributions are welcome! This is an open-source project under the MIT license.
 4. PRs require at least 1 review before merging
 
 **Project stats:**
-- **45+ Rust source files** — 15,000+ lines of native code
-- **23 Python modules** — 4,000+ lines of API
-- **37+ artist types** (30 2D + 7 3D)
+- **45+ Rust source files** — 16,000+ lines of native code
+- **23 Python modules** — 5,000+ lines of API
+- **47+ plot functions** (40 2D + 7 3D)
 - **70+ colormaps** (35 base + 35 reversed)
-- **228 tests** passing
-- **12 formatters + 10 locators**
-- **RGB/RGBA imshow** support
+- **262 tests** passing
+- **12 formatters + 10 locators** (functional)
+- **RGB/RGBA imshow**, bilinear interpolation, heatmap annotations
+- **Signal processing**: specgram, psd, acorr, xcorr, coherence
 - **Zero `unsafe` blocks**
 
 **Priority areas for contribution:**

@@ -4,50 +4,51 @@ Goal: Full matplotlib reimplementation in Rust.
 
 ---
 
-## DONE — v2.0.0
+## DONE — v3.0.0
 
-### 2D Plot Types (26 implemented)
-- [x] plot, scatter, bar, barh, hist, imshow, fill_between, fill_betweenx, fill
+### 2D Plot Types (40+ implemented)
+- [x] plot, scatter, bar, barh, hist, imshow (RGB/RGBA + bilinear), fill_between, fill_betweenx, fill
 - [x] errorbar, step, pie, boxplot, violinplot, stem
 - [x] contour, contourf, hexbin, quiver, streamplot
 - [x] stackplot, broken_barh, eventplot, pcolormesh/pcolor, matshow, sankey
+- [x] spy, stairs, ecdf, triplot, hist2d, arrow, axline
+- [x] specgram, acorr, xcorr, psd, magnitude_spectrum, angle_spectrum, phase_spectrum
+- [x] cohere, csd, semilogx, semilogy, loglog, radar
 
 ### 3D Plot Types (7 implemented)
 - [x] plot3D, scatter3D, plot_surface, plot_wireframe, bar3d, plot_trisurf, contour3D
 
-### Drawing Elements (10 implemented)
-- [x] arrow, axhline, axvline, axhspan, axvspan, axline, hlines, vlines, annotate, text
+### Drawing Elements (12 implemented)
+- [x] arrow, axhline, axvline, axhspan, axvspan, axline, hlines, vlines, annotate, text, table, colorbar
 
 ### Rendering
 - [x] PNG raster (tiny-skia), Native SVG (vector), PDF, Interactive window, GIF animation
+- [x] bbox_inches='tight' (real whitespace cropping)
 
 ### Customization
 - [x] Log scale, twinx/twiny, spines, tick_params, zorder, hatch patterns
-- [x] Colorbar, 6 style themes, 70+ colormaps, custom fonts, rcParams (30+ keys)
-- [x] bbox_inches='tight', bilinear interpolation, title loc, multi-group plot
+- [x] 6 style themes, 70+ colormaps (+ reversed), custom fonts, rcParams (30+ keys)
+- [x] Bilinear interpolation, title loc, multi-group plot, image extent, RGB/RGBA imshow
 - [x] Aspect ratio, invert axes, axis off, subplot_mosaic, suptitle, subplots_adjust
+- [x] Minor ticks, label colors, get_xlim/get_ylim (functional), axes clear
+- [x] 12 formatters + 10 locators (functional)
 
 ### Compatibility Modules (23)
-- [x] pyplot, style, animation, widgets, font_manager, ticker, patches, colors
+- [x] pyplot (50+ functions), style, animation, widgets, font_manager, ticker, patches, colors
 - [x] dates, gridspec, backends, mpl_toolkits.mplot3d, cm, collections, lines
 - [x] text, transforms, patheffects, spines, axes, figure, cycler
 
 ### Data Integration
-- [x] Pandas, NumPy, NaN handling, dates, categorical axes, imread/imsave
+- [x] Pandas, NumPy, NaN handling, dates, categorical axes, imread/imsave, Jupyter inline
 
 ### Security
 - [x] Zero unsafe, path validation, dimension limits, no panics on user input
 
 ---
 
-## IN PROGRESS — v3.0.0
+## IN PROGRESS — v4.0.0
 
-### Missing Plot Types
-- [ ] `spy()` — sparsity pattern visualization
-- [ ] `specgram()` — spectrogram
-- [ ] `acorr()` / `xcorr()` — auto/cross correlation
-- [ ] `angle_spectrum()` / `magnitude_spectrum()` / `phase_spectrum()`
-- [ ] `cohere()` — coherence plot
+### Remaining Plot Types
 - [ ] `csd()` / `psd()` — cross/power spectral density
 - [ ] `ecdf()` — empirical cumulative distribution
 - [ ] `stairs()` — step plot with edges
