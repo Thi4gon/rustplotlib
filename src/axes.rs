@@ -21,6 +21,7 @@ use crate::artists::patches::Patch;
 use crate::artists::legend::draw_legend;
 use crate::artists::{LineStyle, MarkerStyle};
 use crate::colors::Color;
+use crate::svg_renderer::{SvgRenderer, color_to_svg, color_alpha, linestyle_to_dash};
 use crate::text::{draw_text, TextAnchorX, TextAnchorY};
 use crate::ticker::{compute_auto_ticks, compute_log_ticks, format_tick_value, format_log_tick_value};
 use crate::transforms::Transform;
@@ -1151,6 +1152,350 @@ impl Axes {
         // 13. Draw table if present
         if let Some(ref table) = self.table_data {
             self.draw_table(pixmap, table, left, top, right, bottom);
+        }
+    }
+
+    /// Draw this axes as native SVG elements.
+    pub fn draw_svg(&self, svg: &mut SvgRenderer, left: f32, top: f32, right: f32, bottom: f32) {
+        // Polar mode: skip SVG for now (complex, rare)
+        if self.polar {
+            return;
+        }
+
+        let (mut xmin, mut xmax, mut ymin, mut ymax) = self.compute_bounds();
+
+        // Handle axis inversion
+        if self.invert_x {
+            std::mem::swap(&mut xmin, &mut xmax);
+        }
+        if self.invert_y {
+            std::mem::swap(&mut ymin, &mut ymax);
+        }
+
+        let log_x = self.x_scale == AxisScale::Log;
+        let log_y = self.y_scale == AxisScale::Log;
+
+        let x_ticks_data: Vec<f64>;
+        let y_ticks_data: Vec<f64>;
+
+        let (xmin_abs, xmax_abs) = if xmin <= xmax { (xmin, xmax) } else { (xmax, xmin) };
+        let (ymin_abs, ymax_abs) = if ymin <= ymax { (ymin, ymax) } else { (ymax, ymin) };
+
+        if log_x {
+            xmin = if xmin > 0.0 { xmin } else { 1e-15_f64.copysign(1.0) };
+            xmax = if xmax > 0.0 { xmax } else { 1e-15_f64.copysign(1.0) };
+            x_ticks_data = compute_log_ticks(xmin_abs.max(1e-15), xmax_abs.max(1e-15));
+        } else {
+            x_ticks_data = Vec::new();
+        }
+        if log_y {
+            ymin = if ymin > 0.0 { ymin } else { 1e-15_f64.copysign(1.0) };
+            ymax = if ymax > 0.0 { ymax } else { 1e-15_f64.copysign(1.0) };
+            y_ticks_data = compute_log_ticks(ymin_abs.max(1e-15), ymax_abs.max(1e-15));
+        } else {
+            y_ticks_data = Vec::new();
+        }
+
+        let (dxmin, dxmax) = if log_x {
+            (xmin.max(1e-15).log10(), xmax.max(1e-15).log10())
+        } else {
+            (xmin, xmax)
+        };
+        let (dymin, dymax) = if log_y {
+            (ymin.max(1e-15).log10(), ymax.max(1e-15).log10())
+        } else {
+            (ymin, ymax)
+        };
+
+        // Handle equal aspect ratio
+        let (left, top, right, bottom) = if self.aspect == AspectRatio::Equal {
+            let data_w = (dxmax - dxmin).abs();
+            let data_h = (dymax - dymin).abs();
+            let pixel_w = right - left;
+            let pixel_h = bottom - top;
+
+            if data_w > 0.0 && data_h > 0.0 {
+                let data_aspect = data_w / data_h;
+                let pixel_aspect = pixel_w as f64 / pixel_h as f64;
+
+                if data_aspect > pixel_aspect {
+                    let new_pixel_h = pixel_w as f64 / data_aspect;
+                    let offset = (pixel_h as f64 - new_pixel_h) / 2.0;
+                    (left, top + offset as f32, right, bottom - offset as f32)
+                } else {
+                    let new_pixel_w = pixel_h as f64 * data_aspect;
+                    let offset = (pixel_w as f64 - new_pixel_w) / 2.0;
+                    (left + offset as f32, top, right - offset as f32, bottom)
+                }
+            } else {
+                (left, top, right, bottom)
+            }
+        } else {
+            (left, top, right, bottom)
+        };
+
+        let transform = Transform::new(
+            (dxmin, dxmax),
+            (dymin, dymax),
+            left as f64,
+            right as f64,
+            top as f64,
+            bottom as f64,
+            log_x,
+            log_y,
+        );
+
+        let tick_xmin = xmin_abs;
+        let tick_xmax = xmax_abs;
+        let tick_ymin = ymin_abs;
+        let tick_ymax = ymax_abs;
+
+        // 1. Background rect
+        if self.axes_visible {
+            let bg_str = color_to_svg(&self.bg_color);
+            svg.add_rect(left, top, right - left, bottom - top, &bg_str, "none", 0.0, 1.0);
+        }
+
+        // 2. Grid lines
+        if self.grid_visible && self.axes_visible {
+            let x_ticks: Vec<f64> = if log_x {
+                x_ticks_data.clone()
+            } else {
+                self.custom_xticks.clone().unwrap_or_else(|| compute_auto_ticks(tick_xmin, tick_xmax, 10))
+            };
+            let y_ticks: Vec<f64> = if log_y {
+                y_ticks_data.clone()
+            } else {
+                self.custom_yticks.clone().unwrap_or_else(|| compute_auto_ticks(tick_ymin, tick_ymax, 8))
+            };
+
+            let mut grid_color = self.grid_color;
+            grid_color.a = (self.grid_alpha * 255.0) as u8;
+            let grid_str = color_to_svg(&grid_color);
+
+            for &tx in &x_ticks {
+                let (px, _) = transform.transform_xy(tx, ymin);
+                svg.add_line(px, top, px, bottom, &grid_str, self.grid_linewidth, None, self.grid_alpha);
+            }
+
+            for &ty in &y_ticks {
+                let (_, py) = transform.transform_xy(xmin, ty);
+                svg.add_line(left, py, right, py, &grid_str, self.grid_linewidth, None, self.grid_alpha);
+            }
+        }
+
+        // 2b. Reference lines (axhline / axvline)
+        for rl in &self.ref_lines {
+            let mut rl_color = rl.color;
+            rl_color.a = (rl.alpha * 255.0) as u8;
+            let rl_str = color_to_svg(&rl_color);
+            let dash = linestyle_to_dash(&rl.linestyle, rl.linewidth);
+            let dash_ref = dash.as_deref();
+
+            if rl.horizontal {
+                let (_, py) = transform.transform_xy(xmin, rl.value);
+                svg.add_line(left, py, right, py, &rl_str, rl.linewidth, dash_ref, rl.alpha);
+            } else {
+                let (px, _) = transform.transform_xy(rl.value, ymin);
+                svg.add_line(px, top, px, bottom, &rl_str, rl.linewidth, dash_ref, rl.alpha);
+            }
+        }
+
+        // 2c. Span regions
+        for span in &self.span_regions {
+            let mut span_color = span.color;
+            span_color.a = (span.alpha * 255.0) as u8;
+            let span_str = color_to_svg(&span_color);
+
+            let (sx, sy, sw, sh) = if span.horizontal {
+                let (_, py_min) = transform.transform_xy(xmin, span.vmin);
+                let (_, py_max) = transform.transform_xy(xmin, span.vmax);
+                let y_top = py_min.min(py_max);
+                let y_bot = py_min.max(py_max);
+                (left, y_top.max(top), right - left, (y_bot.min(bottom) - y_top.max(top)).max(0.0))
+            } else {
+                let (px_min, _) = transform.transform_xy(span.vmin, ymin);
+                let (px_max, _) = transform.transform_xy(span.vmax, ymin);
+                let x_left = px_min.min(px_max);
+                let x_right = px_min.max(px_max);
+                (x_left.max(left), top, (x_right.min(right) - x_left.max(left)).max(0.0), bottom - top)
+            };
+
+            if sw > 0.0 && sh > 0.0 {
+                svg.add_rect(sx, sy, sw, sh, &span_str, "none", 0.0, span.alpha);
+            }
+        }
+
+        // Add clip path for the plot area
+        svg.add_clip_rect("plot-area", left, top, right - left, bottom - top);
+        svg.begin_group(Some("plot-area"));
+
+        // 3. Draw each artist
+        for artist in &self.artists {
+            artist.draw_svg(svg, &transform);
+        }
+
+        svg.end_group();
+
+        if self.axes_visible {
+            // 4. Draw spines
+            let spine_str = color_to_svg(&self.spine_color);
+
+            if self.spine_visible[2] {
+                svg.add_line(left, bottom, right, bottom, &spine_str, self.spine_linewidth, None, 1.0);
+            }
+            if self.spine_visible[0] {
+                svg.add_line(left, top, right, top, &spine_str, self.spine_linewidth, None, 1.0);
+            }
+            if self.spine_visible[3] {
+                svg.add_line(left, top, left, bottom, &spine_str, self.spine_linewidth, None, 1.0);
+            }
+            if self.spine_visible[1] {
+                svg.add_line(right, top, right, bottom, &spine_str, self.spine_linewidth, None, 1.0);
+            }
+
+            // 5. Tick marks and labels
+            let x_ticks: Vec<f64> = if log_x {
+                x_ticks_data.clone()
+            } else {
+                self.custom_xticks.clone().unwrap_or_else(|| compute_auto_ticks(tick_xmin, tick_xmax, 10))
+            };
+            let y_ticks: Vec<f64> = if log_y {
+                y_ticks_data.clone()
+            } else {
+                self.custom_yticks.clone().unwrap_or_else(|| compute_auto_ticks(tick_ymin, tick_ymax, 8))
+            };
+
+            let tick_len = self.tick_length;
+            let tick_str = color_to_svg(&self.tick_color);
+            let text_str = color_to_svg(&self.text_color);
+
+            let (tick_out, tick_in) = match self.tick_direction {
+                TickDirection::Out => (tick_len, 0.0_f32),
+                TickDirection::In => (0.0_f32, tick_len),
+                TickDirection::InOut => (tick_len, tick_len),
+            };
+
+            // X ticks
+            for (i, &tx) in x_ticks.iter().enumerate() {
+                let (px, _) = transform.transform_xy(tx, ymin);
+                if px < left || px > right {
+                    continue;
+                }
+
+                // Tick mark
+                svg.add_line(px, bottom - tick_in, px, bottom + tick_out, &tick_str, self.tick_width, None, 1.0);
+
+                // Tick label
+                let label = if let Some(ref labels) = self.custom_xtick_labels {
+                    labels.get(i).cloned().unwrap_or_default()
+                } else if log_x {
+                    format_log_tick_value(tx)
+                } else {
+                    format_tick_value(tx)
+                };
+                svg.add_text(px, bottom + tick_out + 2.0 + self.tick_label_size * 0.6, &label, self.tick_label_size, &text_str, "middle", 0.0);
+            }
+
+            // Y ticks
+            for (i, &ty) in y_ticks.iter().enumerate() {
+                let (_, py) = transform.transform_xy(xmin, ty);
+                if py < top || py > bottom {
+                    continue;
+                }
+
+                // Tick mark
+                svg.add_line(left + tick_in, py, left - tick_out, py, &tick_str, self.tick_width, None, 1.0);
+
+                // Tick label
+                let label = if let Some(ref labels) = self.custom_ytick_labels {
+                    labels.get(i).cloned().unwrap_or_default()
+                } else if log_y {
+                    format_log_tick_value(ty)
+                } else {
+                    format_tick_value(ty)
+                };
+                svg.add_text(left - tick_out - 3.0, py, &label, self.tick_label_size, &text_str, "end", 0.0);
+            }
+
+            // 7. xlabel
+            if let Some(ref xlabel) = self.xlabel {
+                let cx = (left + right) / 2.0;
+                svg.add_text(cx, bottom + tick_out + self.tick_label_size + 12.0, xlabel, self.label_size, &text_str, "middle", 0.0);
+            }
+
+            // 8. ylabel (rotated)
+            if let Some(ref ylabel) = self.ylabel {
+                let cy = (top + bottom) / 2.0;
+                svg.add_text(left - tick_out - 35.0, cy, ylabel, self.label_size, &text_str, "middle", -std::f32::consts::FRAC_PI_2);
+            }
+        }
+
+        // 6. Title
+        if let Some(ref title) = self.title {
+            let cx = (left + right) / 2.0;
+            let text_str = color_to_svg(&self.text_color);
+            svg.add_text(cx, top - 8.0, title, self.title_size, &text_str, "middle", 0.0);
+        }
+
+        // 9. Text annotations
+        for ann in &self.texts {
+            let (px, py) = transform.transform_xy(ann.x, ann.y);
+            let ann_color = color_to_svg(&ann.color);
+            svg.add_text(px, py, &ann.text, ann.fontsize, &ann_color, "start", 0.0);
+        }
+
+        // 10. Legend
+        if self.show_legend {
+            let mut entries: Vec<(&str, crate::colors::Color)> = Vec::new();
+            for artist in &self.artists {
+                if let Some(entry) = artist.legend_entry() {
+                    entries.push((Box::leak(entry.label.into_boxed_str()), entry.color));
+                }
+            }
+            if !entries.is_empty() {
+                let legend_w = 120.0_f32;
+                let legend_margin = 10.0_f32;
+                let (legend_x, legend_y) = match self.legend_loc.as_str() {
+                    "upper left" => (left + legend_margin, top + legend_margin),
+                    "lower right" => {
+                        let legend_h = 12.0 + entries.len() as f32 * 15.0;
+                        (right - legend_margin - legend_w, bottom - legend_margin - legend_h)
+                    }
+                    "lower left" => {
+                        let legend_h = 12.0 + entries.len() as f32 * 15.0;
+                        (left + legend_margin, bottom - legend_margin - legend_h)
+                    }
+                    _ => (right - legend_margin - legend_w, top + legend_margin),
+                };
+
+                let legend_h = 12.0 + entries.len() as f32 * 15.0;
+                // Legend background
+                svg.add_rect(legend_x, legend_y, legend_w, legend_h, "white", "rgb(200,200,200)", 0.5, 0.9);
+
+                // Legend entries
+                let font_size = 11.0_f32;
+                let padding = 6.0;
+                let swatch_size = 16.0;
+                let line_height = font_size + 4.0;
+
+                for (i, (label, color)) in entries.iter().enumerate() {
+                    let y = legend_y + padding + i as f32 * line_height + line_height / 2.0;
+                    let swatch_x = legend_x + padding;
+                    let swatch_y = y - swatch_size / 2.0 + 1.0;
+                    let color_str = color_to_svg(color);
+
+                    // Color swatch
+                    svg.add_rect(swatch_x, swatch_y, swatch_size, swatch_size * 0.6, &color_str, "none", 0.0, 1.0);
+                    // Label
+                    svg.add_text(swatch_x + swatch_size + 4.0, y, label, font_size, "rgb(0,0,0)", "start", 0.0);
+                }
+            }
+        }
+
+        // 11. Twin axes
+        if let Some(ref twin) = self.twin_axes {
+            twin.draw_svg(svg, left, top, right, bottom);
         }
     }
 

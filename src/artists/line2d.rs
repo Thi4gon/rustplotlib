@@ -1,6 +1,7 @@
 use crate::artists::{Artist, LineStyle, MarkerStyle, draw_marker};
 use crate::artists::legend::LegendEntry;
 use crate::colors::Color;
+use crate::svg_renderer::{SvgRenderer, color_to_svg, linestyle_to_dash};
 use crate::transforms::Transform;
 use tiny_skia::{Paint, PathBuilder, Stroke, Pixmap};
 
@@ -98,6 +99,58 @@ impl Artist for Line2D {
         }
     }
 
+    fn draw_svg(&self, svg: &mut SvgRenderer, transform: &Transform) {
+        if self.x.is_empty() || self.y.is_empty() {
+            return;
+        }
+        let n = self.x.len().min(self.y.len());
+        let color_str = color_to_svg(&self.color);
+        let opacity = self.alpha;
+
+        // Draw line segments if linestyle is not None
+        if self.linestyle != LineStyle::None && n >= 2 {
+            let dash = linestyle_to_dash(&self.linestyle, self.linewidth);
+            let dash_ref = dash.as_deref();
+
+            // Build segments (split on NaN gaps)
+            let mut segment: Vec<(f32, f32)> = Vec::new();
+            for i in 0..n {
+                let x = self.x[i];
+                let y = self.y[i];
+                if x.is_nan() || y.is_nan() || x.is_infinite() || y.is_infinite() {
+                    if segment.len() >= 2 {
+                        svg.add_polyline(&segment, &color_str, self.linewidth, "none", dash_ref, opacity);
+                    }
+                    segment.clear();
+                    continue;
+                }
+                let (px, py) = transform.transform_xy(x, y);
+                segment.push((px, py));
+            }
+            if segment.len() >= 2 {
+                svg.add_polyline(&segment, &color_str, self.linewidth, "none", dash_ref, opacity);
+            }
+        }
+
+        // Draw markers
+        if self.marker != MarkerStyle::None {
+            let every = self.marker_every.max(1);
+            let r = self.marker_size / 2.0;
+            for i in 0..n {
+                if i % every != 0 {
+                    continue;
+                }
+                let x = self.x[i];
+                let y = self.y[i];
+                if x.is_nan() || y.is_nan() || x.is_infinite() || y.is_infinite() {
+                    continue;
+                }
+                let (px, py) = transform.transform_xy(x, y);
+                draw_marker_svg(svg, self.marker, px, py, r, &color_str, opacity);
+            }
+        }
+    }
+
     fn data_bounds(&self) -> (f64, f64, f64, f64) {
         if self.x.is_empty() || self.y.is_empty() {
             return (0.0, 1.0, 0.0, 1.0);
@@ -140,5 +193,74 @@ impl Artist for Line2D {
             marker: if self.marker != MarkerStyle::None { Some(self.marker) } else { None },
             linewidth: self.linewidth,
         })
+    }
+}
+
+/// Draw a marker as SVG at pixel coordinates.
+pub fn draw_marker_svg(
+    svg: &mut SvgRenderer,
+    marker: MarkerStyle,
+    cx: f32,
+    cy: f32,
+    r: f32,
+    color: &str,
+    opacity: f32,
+) {
+    match marker {
+        MarkerStyle::None => {}
+        MarkerStyle::Point => {
+            svg.add_circle(cx, cy, r * 0.5, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::Circle => {
+            svg.add_circle(cx, cy, r, "none", color, 1.0, opacity);
+        }
+        MarkerStyle::Square => {
+            svg.add_rect(cx - r, cy - r, r * 2.0, r * 2.0, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::TriangleUp => {
+            let pts = vec![
+                (cx, cy - r),
+                (cx + r, cy + r),
+                (cx - r, cy + r),
+            ];
+            svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::TriangleDown => {
+            let pts = vec![
+                (cx, cy + r),
+                (cx + r, cy - r),
+                (cx - r, cy - r),
+            ];
+            svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::Plus => {
+            svg.add_line(cx, cy - r, cx, cy + r, color, 1.5, None, opacity);
+            svg.add_line(cx - r, cy, cx + r, cy, color, 1.5, None, opacity);
+        }
+        MarkerStyle::Cross => {
+            let d = r * 0.707;
+            svg.add_line(cx - d, cy - d, cx + d, cy + d, color, 1.5, None, opacity);
+            svg.add_line(cx + d, cy - d, cx - d, cy + d, color, 1.5, None, opacity);
+        }
+        MarkerStyle::Diamond => {
+            let pts = vec![
+                (cx, cy - r),
+                (cx + r, cy),
+                (cx, cy + r),
+                (cx - r, cy),
+            ];
+            svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
+        MarkerStyle::Star => {
+            // 5-pointed star
+            let inner_r = r * 0.38;
+            let mut pts = Vec::new();
+            for i in 0..10 {
+                let angle = -std::f32::consts::FRAC_PI_2 + i as f32 * std::f32::consts::PI / 5.0;
+                let radius = if i % 2 == 0 { r } else { inner_r };
+                pts.push((cx + radius * angle.cos(), cy + radius * angle.sin()));
+            }
+            svg.add_polygon(&pts, color, "none", 0.0, opacity);
+        }
     }
 }

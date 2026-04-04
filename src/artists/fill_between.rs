@@ -1,5 +1,6 @@
 use crate::artists::Artist;
 use crate::colors::Color;
+use crate::svg_renderer::{SvgRenderer, color_to_svg};
 use crate::transforms::Transform;
 use tiny_skia::{Paint, PathBuilder, Pixmap};
 
@@ -66,6 +67,33 @@ impl Artist for FillBetween {
         if let Some(path) = pb.finish() {
             pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, ts, None);
         }
+    }
+
+    fn draw_svg(&self, svg: &mut SvgRenderer, transform: &Transform) {
+        if self.x.is_empty() || self.y1.is_empty() || self.y2.is_empty() {
+            return;
+        }
+        let n = self.x.len().min(self.y1.len()).min(self.y2.len());
+        if n < 2 {
+            return;
+        }
+
+        let mut fill_color = self.color;
+        fill_color.a = (self.alpha * 255.0) as u8;
+        let fill_str = color_to_svg(&fill_color);
+
+        // Build polygon: forward along y1, backward along y2
+        let mut points: Vec<(f32, f32)> = Vec::with_capacity(n * 2);
+        for i in 0..n {
+            let (px, py) = transform.transform_xy(self.x[i], self.y1[i]);
+            points.push((px, py));
+        }
+        for i in (0..n).rev() {
+            let (px, py) = transform.transform_xy(self.x[i], self.y2[i]);
+            points.push((px, py));
+        }
+
+        svg.add_polygon(&points, &fill_str, "none", 0.0, self.alpha);
     }
 
     fn data_bounds(&self) -> (f64, f64, f64, f64) {

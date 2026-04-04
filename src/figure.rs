@@ -5,6 +5,7 @@ use tiny_skia::Pixmap;
 use crate::axes::Axes;
 use crate::axes3d::Axes3D;
 use crate::colors;
+use crate::svg_renderer::{SvgRenderer, color_to_svg};
 
 #[pyclass]
 pub struct RustFigure {
@@ -1631,21 +1632,8 @@ impl RustFigure {
             std::fs::write(&path, pdf_data)
                 .map_err(|e| pyo3::exceptions::PyIOError::new_err(format!("Failed to write PDF: {}", e)))?;
         } else if path.ends_with(".svg") {
-            let png_bytes = pixmap.encode_png()
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("PNG encode error: {}", e)))?;
-            let b64 = simple_base64_encode(&png_bytes);
-            let svg = format!(
-                r#"<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="{}" height="{}" viewBox="0 0 {} {}">
-  <image width="{}" height="{}" href="data:image/png;base64,{}"/>
-</svg>"#,
-                self.width, self.height,
-                self.width, self.height,
-                self.width, self.height,
-                b64,
-            );
-            std::fs::write(&path, svg)
+            let svg_content = self.render_svg_native(dpi, transparent.unwrap_or(false));
+            std::fs::write(&path, svg_content)
                 .map_err(|e| pyo3::exceptions::PyIOError::new_err(format!("Failed to write SVG: {}", e)))?;
         } else {
             let png_bytes = pixmap.encode_png()
@@ -2245,6 +2233,107 @@ impl RustFigure {
         }
 
         pixmap
+    }
+
+    /// Render the figure as native SVG XML string.
+    fn render_svg_native(&self, dpi: Option<u32>, transparent: bool) -> String {
+        let scale = if let Some(d) = dpi {
+            d as f32 / self.dpi as f32
+        } else {
+            1.0
+        };
+
+        let pw = (self.width as f32 * scale) as u32;
+        let ph = (self.height as f32 * scale) as u32;
+
+        let mut svg = SvgRenderer::new(pw, ph);
+
+        if self.axes.is_empty() {
+            let bg_str = if transparent {
+                "none".to_string()
+            } else {
+                color_to_svg(&self.bg_color)
+            };
+            return svg.to_svg(&bg_str);
+        }
+
+        // Layout margins (same as render_pixmap_opts)
+        let margin_left = 70.0_f32 * scale;
+        let margin_right = 20.0_f32 * scale;
+        let mut margin_top = 40.0_f32 * scale;
+        let margin_bottom = 50.0_f32 * scale;
+
+        if self.suptitle.is_some() {
+            margin_top += self.suptitle_fontsize * scale + 10.0 * scale;
+        }
+
+        let nrows = self.nrows.max(1);
+        let ncols = self.ncols.max(1);
+
+        let total_w = pw as f32 - margin_left - margin_right;
+        let total_h = ph as f32 - margin_top - margin_bottom;
+
+        let cell_w = if ncols > 1 {
+            total_w / (ncols as f32 + (ncols as f32 - 1.0) * self.wspace)
+        } else {
+            total_w
+        };
+        let cell_h = if nrows > 1 {
+            total_h / (nrows as f32 + (nrows as f32 - 1.0) * self.hspace)
+        } else {
+            total_h
+        };
+
+        let subplot_hgap = cell_w * self.wspace;
+        let subplot_vgap = cell_h * self.hspace;
+
+        let axes3d_indices: std::collections::HashSet<usize> =
+            self.axes3d.iter().map(|(idx, _)| *idx).collect();
+
+        for (idx, ax) in self.axes.iter().enumerate() {
+            if axes3d_indices.contains(&idx) {
+                continue;
+            }
+            let row = idx / ncols;
+            let col = idx % ncols;
+            if row >= nrows {
+                break;
+            }
+
+            let left = margin_left + col as f32 * (cell_w + subplot_hgap);
+            let top = margin_top + row as f32 * (cell_h + subplot_vgap);
+            let right = left + cell_w;
+            let bottom = top + cell_h;
+
+            ax.draw_svg(&mut svg, left, top, right, bottom);
+        }
+
+        // Draw suptitle
+        if let Some(ref suptitle) = self.suptitle {
+            let cx = pw as f32 / 2.0;
+            let y = 10.0 * scale + self.suptitle_fontsize * scale * 0.5;
+            let suptitle_color = if let Some(ax) = self.axes.first() {
+                color_to_svg(&ax.text_color)
+            } else {
+                "rgb(0,0,0)".to_string()
+            };
+            svg.add_text(
+                cx,
+                y,
+                suptitle,
+                self.suptitle_fontsize * scale,
+                &suptitle_color,
+                "middle",
+                0.0,
+            );
+        }
+
+        let bg_str = if transparent {
+            "none".to_string()
+        } else {
+            color_to_svg(&self.bg_color)
+        };
+        svg.to_svg(&bg_str)
     }
 }
 

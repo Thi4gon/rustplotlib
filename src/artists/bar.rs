@@ -1,5 +1,6 @@
 use crate::artists::Artist;
 use crate::colors::Color;
+use crate::svg_renderer::{SvgRenderer, color_to_svg};
 use crate::transforms::Transform;
 use tiny_skia::{Paint, PathBuilder, Rect, Stroke, Pixmap};
 
@@ -89,6 +90,53 @@ impl Artist for Bar {
                 stroke.width = 0.5;
                 pixmap.stroke_path(&path, &border_paint, &stroke, ts, None);
             }
+        }
+    }
+
+    fn draw_svg(&self, svg: &mut SvgRenderer, transform: &Transform) {
+        if self.x.is_empty() || self.heights.is_empty() {
+            return;
+        }
+        let n = self.x.len().min(self.heights.len());
+
+        let mut fill_color = self.color;
+        fill_color.a = (self.alpha * 255.0) as u8;
+        let fill_str = color_to_svg(&fill_color);
+
+        let border_color = Color::new(
+            (fill_color.r as u16 * 7 / 10) as u8,
+            (fill_color.g as u16 * 7 / 10) as u8,
+            (fill_color.b as u16 * 7 / 10) as u8,
+            fill_color.a,
+        );
+        let border_str = color_to_svg(&border_color);
+
+        let half_w = self.width / 2.0;
+
+        for i in 0..n {
+            let h = self.heights[i];
+            if h.abs() < 1e-15 {
+                continue;
+            }
+
+            let x_left = self.x[i] - half_w;
+            let x_right = self.x[i] + half_w;
+
+            let (y_bottom, y_top) = if h >= 0.0 {
+                (self.bottom, self.bottom + h)
+            } else {
+                (self.bottom + h, self.bottom)
+            };
+
+            let (px_left, py_top) = transform.transform_xy(x_left, y_top);
+            let (px_right, py_bottom) = transform.transform_xy(x_right, y_bottom);
+
+            let rect_x = px_left.min(px_right);
+            let rect_y = py_top.min(py_bottom);
+            let rect_w = (px_right - px_left).abs().max(1.0);
+            let rect_h = (py_bottom - py_top).abs().max(1.0);
+
+            svg.add_rect(rect_x, rect_y, rect_w, rect_h, &fill_str, &border_str, 0.5, self.alpha);
         }
     }
 

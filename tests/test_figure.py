@@ -103,7 +103,10 @@ def test_savefig_svg():
     with open("/tmp/test_rustplot.svg", "r") as f:
         content = f.read()
     assert "<svg" in content
-    assert "data:image/png;base64," in content
+    # Native SVG: should contain real vector elements, not embedded PNG
+    assert "<polyline" in content or "<line" in content
+    assert "<text" in content
+    assert "data:image/png;base64," not in content
     os.remove("/tmp/test_rustplot.svg")
 
 

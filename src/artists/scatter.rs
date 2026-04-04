@@ -1,6 +1,8 @@
 use crate::artists::{Artist, MarkerStyle, draw_marker};
 use crate::artists::legend::LegendEntry;
+use crate::artists::line2d::draw_marker_svg;
 use crate::colors::Color;
+use crate::svg_renderer::{SvgRenderer, color_to_svg};
 use crate::transforms::Transform;
 use tiny_skia::Pixmap;
 
@@ -47,6 +49,27 @@ impl Artist for Scatter {
             // size is area-like, so marker render size = sqrt(size_val)
             let marker_size = size_val.sqrt();
             draw_marker(pixmap, self.marker, px, py, marker_size, self.color, self.alpha);
+        }
+    }
+
+    fn draw_svg(&self, svg: &mut SvgRenderer, transform: &Transform) {
+        if self.x.is_empty() || self.y.is_empty() {
+            return;
+        }
+        let n = self.x.len().min(self.y.len());
+        let color_str = color_to_svg(&self.color);
+
+        for i in 0..n {
+            let (px, py) = transform.transform_xy(self.x[i], self.y[i]);
+            let size_val = if self.sizes.len() == 1 {
+                self.sizes[0]
+            } else if i < self.sizes.len() {
+                self.sizes[i]
+            } else {
+                36.0
+            };
+            let marker_r = size_val.sqrt() / 2.0;
+            draw_marker_svg(svg, self.marker, px, py, marker_r, &color_str, self.alpha);
         }
     }
 

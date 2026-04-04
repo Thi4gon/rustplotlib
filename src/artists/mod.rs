@@ -36,6 +36,11 @@ pub trait Artist: Send {
     /// Draw this artist onto the pixmap using the given transform.
     fn draw(&self, pixmap: &mut tiny_skia::Pixmap, transform: &Transform);
 
+    /// Draw this artist as SVG elements using the given transform.
+    fn draw_svg(&self, _svg: &mut crate::svg_renderer::SvgRenderer, _transform: &Transform) {
+        // Default: no SVG rendering (artists that don't implement this are skipped)
+    }
+
     /// Return the data-space bounding box (xmin, xmax, ymin, ymax).
     fn data_bounds(&self) -> (f64, f64, f64, f64);
 

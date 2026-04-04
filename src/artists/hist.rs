@@ -1,6 +1,7 @@
 use crate::artists::Artist;
 use crate::artists::bar::Bar;
 use crate::colors::Color;
+use crate::svg_renderer::SvgRenderer;
 use crate::transforms::Transform;
 use tiny_skia::Pixmap;
 
@@ -75,6 +76,10 @@ impl Histogram {
 impl Artist for Histogram {
     fn draw(&self, pixmap: &mut Pixmap, transform: &Transform) {
         self.bar.draw(pixmap, transform);
+    }
+
+    fn draw_svg(&self, svg: &mut SvgRenderer, transform: &Transform) {
+        self.bar.draw_svg(svg, transform);
     }
 
     fn data_bounds(&self) -> (f64, f64, f64, f64) {

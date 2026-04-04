@@ -6,6 +6,7 @@ mod axes3d;
 mod colors;
 mod figure;
 mod projection3d;
+pub mod svg_renderer;
 mod text;
 mod ticker;
 mod transforms;

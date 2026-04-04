@@ -9,16 +9,36 @@ _current_style = "default"
 
 # Global rcParams dict (matplotlib compatibility — accepts any key/value)
 rcParams = {
-    'font.family': ['sans-serif'],
-    'mathtext.fontset': 'dejavusans',
-    'font.size': 10,
-    'axes.labelsize': 12,
-    'axes.titlesize': 14,
-    'xtick.labelsize': 10,
-    'ytick.labelsize': 10,
-    'legend.fontsize': 10,
     'figure.figsize': [6.4, 4.8],
     'figure.dpi': 100,
+    'figure.facecolor': 'white',
+    'figure.edgecolor': 'white',
+    'axes.facecolor': 'white',
+    'axes.edgecolor': 'black',
+    'axes.linewidth': 0.8,
+    'axes.grid': False,
+    'axes.titlesize': 14,
+    'axes.labelsize': 12,
+    'text.color': 'black',
+    'font.family': ['sans-serif'],
+    'font.size': 10.0,
+    'xtick.color': 'black',
+    'ytick.color': 'black',
+    'xtick.labelsize': 10,
+    'ytick.labelsize': 10,
+    'grid.color': '#b0b0b0',
+    'grid.linestyle': '-',
+    'grid.linewidth': 0.8,
+    'grid.alpha': 1.0,
+    'legend.fontsize': 10,
+    'legend.frameon': True,
+    'legend.loc': 'best',
+    'lines.linewidth': 1.5,
+    'lines.markersize': 6.0,
+    'savefig.dpi': 'figure',
+    'savefig.transparent': False,
+    'mathtext.fontset': 'dejavusans',
+    'image.cmap': 'viridis',
 }
 
 
@@ -1141,28 +1161,48 @@ def _apply_current_style(fig, ax_ids=None):
     if ax_ids is None:
         ax_ids = list(range(fig.num_axes()))
     for ax_id in ax_ids:
+        # Axes background
         axes_fc = rcParams.get("axes.facecolor")
         if axes_fc:
             try:
                 fig.axes_set_facecolor(ax_id, axes_fc)
             except Exception:
                 pass
+        # Text color
         text_c = rcParams.get("text.color")
         if text_c:
             try:
                 fig.axes_set_text_color(ax_id, text_c)
             except Exception:
                 pass
+        # Spine / edge color
         edge_c = rcParams.get("axes.edgecolor")
         if edge_c:
             try:
                 fig.axes_set_spine_color(ax_id, edge_c)
             except Exception:
                 pass
+        # Tick color (x and y)
         xtick_c = rcParams.get("xtick.color")
         if xtick_c:
             try:
                 fig.axes_set_tick_color(ax_id, xtick_c)
+            except Exception:
+                pass
+        # Grid settings
+        if rcParams.get("axes.grid"):
+            try:
+                kw = {"visible": True}
+                grid_color = rcParams.get("grid.color")
+                if grid_color:
+                    kw["color"] = grid_color
+                grid_alpha = rcParams.get("grid.alpha")
+                if grid_alpha is not None:
+                    kw["alpha"] = float(grid_alpha)
+                grid_lw = rcParams.get("grid.linewidth")
+                if grid_lw is not None:
+                    kw["linewidth"] = float(grid_lw)
+                fig.axes_grid(ax_id, kw)
             except Exception:
                 pass
 

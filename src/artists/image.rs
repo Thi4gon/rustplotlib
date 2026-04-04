@@ -3,6 +3,28 @@ use crate::colors::Color;
 use crate::transforms::Transform;
 use tiny_skia::{Paint, Rect, Pixmap};
 
+/// Linearly interpolate between uniformly-spaced RGB control points.
+/// `stops` is a slice of (r, g, b) where the position is implicit: t = i / (len - 1).
+fn lerp_colormap_uniform(t: f32, stops: &[(f32, f32, f32)]) -> Color {
+    if stops.is_empty() {
+        return Color::new(0, 0, 0, 255);
+    }
+    if stops.len() == 1 {
+        return Color::from_f32(stops[0].0, stops[0].1, stops[0].2, 1.0);
+    }
+    let t = t.clamp(0.0, 1.0);
+    let n = stops.len() - 1;
+    let scaled = t * n as f32;
+    let idx = (scaled.floor() as usize).min(n - 1);
+    let frac = scaled - idx as f32;
+    let (r0, g0, b0) = stops[idx];
+    let (r1, g1, b1) = stops[idx + 1];
+    let r = r0 + frac * (r1 - r0);
+    let g = g0 + frac * (g1 - g0);
+    let b = b0 + frac * (b1 - b0);
+    Color::from_f32(r, g, b, 1.0)
+}
+
 /// Linearly interpolate between control points.
 /// `stops` is a slice of (position, r, g, b) where position is in [0, 1].
 fn lerp_colormap(t: f32, stops: &[(f32, f32, f32, f32)]) -> Color {
@@ -62,41 +84,57 @@ pub fn colormap_lookup(name: &str, t: f64) -> Color {
         "Greens" => {
             Color::from_f32(1.0 - t * 0.8, 1.0 - t * 0.2, 1.0 - t * 0.8, 1.0)
         }
-        // --- Perceptually uniform colormaps ---
+        // --- Perceptually uniform colormaps (9 control points from matplotlib source) ---
         "plasma" => {
-            lerp_colormap(t, &[
-                (0.0, 0.050, 0.030, 0.528),
-                (0.25, 0.494, 0.012, 0.658),
-                (0.5, 0.798, 0.280, 0.470),
-                (0.75, 0.973, 0.585, 0.254),
-                (1.0, 0.940, 0.975, 0.131),
+            lerp_colormap_uniform(t, &[
+                (0.050, 0.030, 0.528),  // t=0.000
+                (0.229, 0.029, 0.630),  // t=0.125
+                (0.417, 0.001, 0.658),  // t=0.250
+                (0.600, 0.088, 0.582),  // t=0.375
+                (0.742, 0.215, 0.474),  // t=0.500
+                (0.859, 0.345, 0.356),  // t=0.625
+                (0.948, 0.497, 0.246),  // t=0.750
+                (0.988, 0.683, 0.153),  // t=0.875
+                (0.940, 0.975, 0.131),  // t=1.000
             ])
         }
         "inferno" => {
-            lerp_colormap(t, &[
-                (0.0, 0.001, 0.000, 0.014),
-                (0.25, 0.320, 0.060, 0.480),
-                (0.5, 0.730, 0.210, 0.330),
-                (0.75, 0.980, 0.530, 0.120),
-                (1.0, 0.988, 0.998, 0.645),
+            lerp_colormap_uniform(t, &[
+                (0.001, 0.000, 0.014),  // t=0.000
+                (0.087, 0.044, 0.225),  // t=0.125
+                (0.258, 0.039, 0.406),  // t=0.250
+                (0.459, 0.082, 0.396),  // t=0.375
+                (0.647, 0.165, 0.314),  // t=0.500
+                (0.825, 0.281, 0.198),  // t=0.625
+                (0.946, 0.449, 0.062),  // t=0.750
+                (0.988, 0.668, 0.086),  // t=0.875
+                (0.988, 0.998, 0.645),  // t=1.000
             ])
         }
         "magma" => {
-            lerp_colormap(t, &[
-                (0.0, 0.001, 0.000, 0.014),
-                (0.25, 0.270, 0.060, 0.530),
-                (0.5, 0.720, 0.150, 0.430),
-                (0.75, 0.990, 0.490, 0.370),
-                (1.0, 0.987, 0.991, 0.750),
+            lerp_colormap_uniform(t, &[
+                (0.001, 0.000, 0.014),  // t=0.000
+                (0.078, 0.042, 0.206),  // t=0.125
+                (0.232, 0.059, 0.437),  // t=0.250
+                (0.432, 0.075, 0.524),  // t=0.375
+                (0.647, 0.108, 0.511),  // t=0.500
+                (0.847, 0.210, 0.415),  // t=0.625
+                (0.960, 0.401, 0.344),  // t=0.750
+                (0.993, 0.635, 0.432),  // t=0.875
+                (0.987, 0.991, 0.750),  // t=1.000
             ])
         }
         "cividis" => {
-            lerp_colormap(t, &[
-                (0.0, 0.000, 0.135, 0.305),
-                (0.25, 0.226, 0.290, 0.404),
-                (0.5, 0.471, 0.457, 0.420),
-                (0.75, 0.734, 0.643, 0.329),
-                (1.0, 0.995, 0.863, 0.196),
+            lerp_colormap_uniform(t, &[
+                (0.000, 0.135, 0.305),  // t=0.000
+                (0.107, 0.209, 0.370),  // t=0.125
+                (0.209, 0.283, 0.404),  // t=0.250
+                (0.326, 0.359, 0.424),  // t=0.375
+                (0.471, 0.457, 0.420),  // t=0.500
+                (0.596, 0.543, 0.384),  // t=0.625
+                (0.734, 0.643, 0.329),  // t=0.750
+                (0.877, 0.750, 0.252),  // t=0.875
+                (0.995, 0.863, 0.196),  // t=1.000
             ])
         }
         "twilight" => {
@@ -317,26 +355,19 @@ pub fn colormap_lookup(name: &str, t: f64) -> Color {
             let idx = ((t * (colors.len() as f32 - 0.001)) as usize).min(colors.len() - 1);
             Color::from_f32(colors[idx].0, colors[idx].1, colors[idx].2, 1.0)
         }
-        // "viridis" and default
+        // "viridis" and default (9 control points from matplotlib source data)
         "viridis" | _ => {
-            // Simplified viridis approximation
-            let r = (0.267004 + t * (0.993248 - 0.267004)) as f32;
-            let g_val = if t < 0.5 {
-                (0.004874 + t * 2.0 * (0.554906 - 0.004874)) as f32
-            } else {
-                (0.554906 + (t - 0.5) * 2.0 * (0.906157 - 0.554906)) as f32
-            };
-            let b_val = if t < 0.5 {
-                (0.329415 + t * 2.0 * (0.554906 - 0.329415)) as f32
-            } else {
-                (0.554906 - (t - 0.5) * 2.0 * (0.554906 - 0.143936)) as f32
-            };
-            Color::from_f32(
-                r.clamp(0.0, 1.0),
-                g_val.clamp(0.0, 1.0),
-                b_val.clamp(0.0, 1.0),
-                1.0,
-            )
+            lerp_colormap_uniform(t, &[
+                (0.267, 0.005, 0.329),  // t=0.000 (dark purple)
+                (0.283, 0.141, 0.458),  // t=0.125
+                (0.254, 0.265, 0.530),  // t=0.250
+                (0.207, 0.372, 0.553),  // t=0.375
+                (0.164, 0.471, 0.558),  // t=0.500
+                (0.128, 0.567, 0.551),  // t=0.625
+                (0.135, 0.659, 0.518),  // t=0.750
+                (0.360, 0.786, 0.387),  // t=0.875
+                (0.993, 0.906, 0.144),  // t=1.000 (yellow)
+            ])
         }
     }
 }
