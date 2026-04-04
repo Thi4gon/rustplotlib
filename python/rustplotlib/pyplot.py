@@ -2760,6 +2760,7 @@ class FigureProxy:
         hspace = 0.3 if h_pad is None else h_pad / 72.0
         wspace = 0.3 if w_pad is None else w_pad / 72.0
         self._fig.subplots_adjust(hspace, wspace)
+        self._fig.set_tight_layout_flag(True)
         self._tight = True
 
     def colorbar(self, mappable=None, ax=None, **kwargs):

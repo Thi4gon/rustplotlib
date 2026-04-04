@@ -22,6 +22,7 @@ pub struct RustFigure {
     bg_color: crate::colors::Color,
     /// 3D axes, stored separately. Keyed by subplot index.
     axes3d: Vec<(usize, Axes3D)>,
+    tight: bool,
 }
 
 #[pymethods]
@@ -45,7 +46,12 @@ impl RustFigure {
             wspace: 0.2,
             bg_color: crate::colors::Color::new(240, 240, 240, 255),
             axes3d: Vec::new(),
+            tight: false,
         }
+    }
+
+    fn set_tight_layout_flag(&mut self, tight: bool) {
+        self.tight = tight;
     }
 
     fn set_size_inches(&mut self, w: f64, h: f64) -> PyResult<()> {
@@ -3315,11 +3321,41 @@ impl RustFigure {
             return pixmap;
         }
 
-        // Layout margins
-        let margin_left = 70.0_f32 * scale;
-        let margin_right = 20.0_f32 * scale;
-        let mut margin_top = 40.0_f32 * scale;
-        let margin_bottom = 50.0_f32 * scale;
+        // Layout margins — dynamic when tight layout is enabled
+        let (margin_left, margin_right, mut margin_top, margin_bottom) = if self.tight {
+            // Tight layout: calculate margins from axis content
+            let mut max_ylabel_w = 0.0_f32;
+            let mut max_title_h = 0.0_f32;
+            let mut max_xlabel_h = 0.0_f32;
+
+            for ax in &self.axes {
+                if let Some(ref ylabel) = ax.ylabel {
+                    let (tw, _) = crate::text::measure_text(ylabel, ax.label_size * scale);
+                    max_ylabel_w = max_ylabel_w.max(tw);
+                }
+                if let Some(ref title) = ax.title {
+                    let (_, th) = crate::text::measure_text(title, ax.title_size * scale);
+                    max_title_h = max_title_h.max(th);
+                }
+                if let Some(ref xlabel) = ax.xlabel {
+                    let (_, eh) = crate::text::measure_text(xlabel, ax.label_size * scale);
+                    max_xlabel_h = max_xlabel_h.max(eh);
+                }
+            }
+
+            // Tick labels take ~40px, plus padding
+            let tick_space = 40.0 * scale;
+            let padding = 10.0 * scale;
+
+            (
+                (max_ylabel_w + tick_space + padding).max(40.0 * scale),  // left
+                20.0 * scale,                                              // right
+                (max_title_h + padding).max(25.0 * scale),                // top
+                (max_xlabel_h + tick_space + padding).max(35.0 * scale), // bottom
+            )
+        } else {
+            (70.0_f32 * scale, 20.0_f32 * scale, 40.0_f32 * scale, 50.0_f32 * scale)
+        };
 
         // If suptitle exists, add extra top padding
         if self.suptitle.is_some() {
