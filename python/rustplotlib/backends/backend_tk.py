@@ -155,6 +155,48 @@ class FigureCanvasTk(FigureCanvasBase):
             return (w, h)
         return super().get_width_height()
 
+    def pixel_to_data(self, px, py):
+        """Convert pixel coordinates to data coordinates.
+
+        Returns (xdata, ydata) or (None, None) if outside the plot area.
+        """
+        fig = self.figure
+        # Get figure dimensions
+        if self._last_rgba:
+            _, fw, fh = self._last_rgba
+        else:
+            fw, fh = 640, 480
+
+        # Layout margins (match Rust figure.rs hardcoded values)
+        ml, mr, mt, mb = 70, 20, 40, 50
+
+        # Plot area in pixels
+        plot_left = ml
+        plot_right = fw - mr
+        plot_top = mt
+        plot_bottom = fh - mb
+
+        # Check if point is inside plot area
+        if not (plot_left <= px <= plot_right and plot_top <= py <= plot_bottom):
+            return (None, None)
+
+        # Get data limits from first axes
+        axes_list = fig._axes if isinstance(fig._axes, list) else [fig._axes]
+        if not axes_list:
+            return (None, None)
+        ax = axes_list[0]
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+
+        # Linear interpolation pixel -> data
+        xfrac = (px - plot_left) / (plot_right - plot_left)
+        yfrac = (py - plot_top) / (plot_bottom - plot_top)
+
+        xdata = xlim[0] + xfrac * (xlim[1] - xlim[0])
+        ydata = ylim[1] - yfrac * (ylim[1] - ylim[0])  # Y invertido (topo=max)
+
+        return (xdata, ydata)
+
 
 class FigureManagerTk(FigureManagerBase):
     """Tkinter window manager for displaying figures."""
@@ -235,12 +277,99 @@ class NavigationToolbarTk(NavigationToolbar2):
         self._status = tk.Label(self._frame, text="", anchor=tk.W)
         self._status.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=4)
 
-        canvas.mpl_connect("motion_notify_event", self._update_status)
+        canvas.mpl_connect("button_press_event", self._on_press)
+        canvas.mpl_connect("button_release_event", self._on_release)
+        canvas.mpl_connect("motion_notify_event", self._on_motion)
+        self._press_data = None  # (px0, py0, xdata0, ydata0) ao pressionar
         self.push_current()
 
-    def _update_status(self, event):
-        if event.x is not None and event.y is not None:
-            self._status.config(text=f"x={event.x} y={event.y}")
+    def _on_press(self, event):
+        """Registra posição ao pressionar o mouse para zoom/pan."""
+        if self._active_mode is None:
+            return
+        if not hasattr(self.canvas, 'pixel_to_data'):
+            return
+        xdata, ydata = self.canvas.pixel_to_data(event.x, event.y)
+        if xdata is None:
+            return
+        self._press_data = (event.x, event.y, xdata, ydata)
+
+    def _on_release(self, event):
+        """Aplica zoom ou pan ao soltar o mouse."""
+        if self._press_data is None:
+            return
+
+        px0, py0, xdata0, ydata0 = self._press_data
+        self._press_data = None
+
+        if not hasattr(self.canvas, 'pixel_to_data'):
+            return
+        xdata1, ydata1 = self.canvas.pixel_to_data(event.x, event.y)
+        if xdata1 is None:
+            return
+
+        fig = self.canvas.figure
+        axes_list = fig._axes if isinstance(fig._axes, list) else [fig._axes]
+        if not axes_list:
+            return
+        ax = axes_list[0]
+
+        if self._active_mode == 'zoom':
+            # Zoom para o retângulo selecionado
+            xmin = min(xdata0, xdata1)
+            xmax = max(xdata0, xdata1)
+            ymin = min(ydata0, ydata1)
+            ymax = max(ydata0, ydata1)
+            # Só aplica se o retângulo for grande o suficiente (evita cliques acidentais)
+            if abs(event.x - px0) > 5 and abs(event.y - py0) > 5:
+                self.push_current()
+                ax.set_xlim(xmin, xmax)
+                ax.set_ylim(ymin, ymax)
+                self.canvas.draw()
+
+        elif self._active_mode == 'pan':
+            # Pan: desloca os limites pelo delta de arrasto
+            dx = xdata1 - xdata0
+            dy = ydata1 - ydata0
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+            self.push_current()
+            ax.set_xlim(xlim[0] - dx, xlim[1] - dx)
+            ax.set_ylim(ylim[0] - dy, ylim[1] - dy)
+            self.canvas.draw()
+
+    def _on_motion(self, event):
+        """Atualiza status com coordenadas de dados e aplica pan contínuo."""
+        # Atualiza barra de status com coordenadas de dados
+        if hasattr(self.canvas, 'pixel_to_data'):
+            xdata, ydata = self.canvas.pixel_to_data(event.x, event.y)
+            if xdata is not None:
+                self._status.config(text=f"x={xdata:.4g}  y={ydata:.4g}")
+            else:
+                self._status.config(text="")
+
+        # Pan ao vivo durante arrasto
+        if self._active_mode == 'pan' and self._press_data is not None:
+            px0, py0, xdata0, ydata0 = self._press_data
+            xdata1, ydata1 = self.canvas.pixel_to_data(event.x, event.y)
+            if xdata1 is None:
+                return
+
+            fig = self.canvas.figure
+            axes_list = fig._axes if isinstance(fig._axes, list) else [fig._axes]
+            if not axes_list:
+                return
+            ax = axes_list[0]
+
+            dx = xdata1 - xdata0
+            dy = ydata1 - ydata0
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+            ax.set_xlim(xlim[0] - dx, xlim[1] - dx)
+            ax.set_ylim(ylim[0] - dy, ylim[1] - dy)
+            self.canvas.draw()
+            # Atualiza press_data para pan contínuo
+            self._press_data = (event.x, event.y, xdata1 - dx, ydata1 - dy)
 
     def _save_dialog(self):
         import tkinter.filedialog as fd

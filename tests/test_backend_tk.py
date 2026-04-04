@@ -110,3 +110,78 @@ def test_backend_list():
     assert 'agg' in backends
     assert 'inline' in backends
     assert 'tk' in backends
+
+
+def test_pixel_to_data_conversion():
+    """pixel_to_data converts pixel coords to data coords."""
+    pytest.importorskip("tkinter")
+    from rustplotlib.backends.backend_tk import FigureCanvasTk
+
+    fig, ax = plt.subplots()
+    ax.plot([0, 10], [0, 100])
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 100)
+
+    canvas = FigureCanvasTk(fig)
+    canvas.draw()
+
+    # Center of plot area should be approximately center of data range
+    # Plot area: left=70, right=620, top=40, bottom=430
+    cx = (70 + 620) // 2  # pixel center x = 345
+    cy = (40 + 430) // 2  # pixel center y = 235
+    xdata, ydata = canvas.pixel_to_data(cx, cy)
+    assert xdata is not None
+    assert ydata is not None
+    # Should be approximately center of data range (5, 50)
+    assert abs(xdata - 5.0) < 1.0
+    assert abs(ydata - 50.0) < 10.0
+    plt.close()
+
+
+def test_pixel_to_data_outside():
+    """pixel_to_data returns None for points outside plot area."""
+    pytest.importorskip("tkinter")
+    from rustplotlib.backends.backend_tk import FigureCanvasTk
+
+    fig, ax = plt.subplots()
+    ax.plot([0, 10], [0, 100])
+
+    canvas = FigureCanvasTk(fig)
+    canvas.draw()
+
+    # Point outside plot area (in margin)
+    xdata, ydata = canvas.pixel_to_data(10, 10)
+    assert xdata is None
+    assert ydata is None
+    plt.close()
+
+
+def test_zoom_mode_toggle():
+    """NavigationToolbar zoom mode toggles on/off."""
+    from rustplotlib.backends.backend_base import NavigationToolbar2, FigureCanvasBase
+
+    fig, ax = plt.subplots()
+    canvas = FigureCanvasBase(fig)
+    toolbar = NavigationToolbar2(canvas)
+
+    assert toolbar._active_mode is None
+    toolbar.zoom()
+    assert toolbar._active_mode == 'zoom'
+    toolbar.zoom()
+    assert toolbar._active_mode is None
+    plt.close()
+
+
+def test_pan_mode_toggle():
+    """NavigationToolbar pan mode toggles on/off."""
+    from rustplotlib.backends.backend_base import NavigationToolbar2, FigureCanvasBase
+
+    fig, ax = plt.subplots()
+    canvas = FigureCanvasBase(fig)
+    toolbar = NavigationToolbar2(canvas)
+
+    toolbar.pan()
+    assert toolbar._active_mode == 'pan'
+    toolbar.pan()
+    assert toolbar._active_mode is None
+    plt.close()
