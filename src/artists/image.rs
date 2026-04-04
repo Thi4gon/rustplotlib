@@ -859,11 +859,21 @@ fn format_annotation_value(val: f64, fmt: &str) -> String {
 
 #[derive(Clone, Copy, Debug)]
 pub enum ImageInterpolation {
-    Nearest,    // current behavior — no interpolation
-    Bilinear,   // smooth blending between adjacent pixels
-    Bicubic,    // smoother interpolation using cubic kernel
-    Lanczos,    // sharp interpolation using sinc-based Lanczos kernel (a=3)
-    Spline16,   // B-spline interpolation (order 3, 4x4 window)
+    Nearest,
+    Bilinear,
+    Bicubic,
+    Lanczos,
+    Spline16,
+    Hanning,
+    Hamming,
+    Hermite,
+    Kaiser,
+    Quadric,
+    CatRom,
+    Gaussian,
+    Bessel,
+    Mitchell,
+    Sinc,
 }
 
 /// Image data variants: scalar (uses colormap) or direct RGB/RGBA.
@@ -990,6 +1000,107 @@ impl Image {
             (x0, x1, y0, y1)
         }
     }
+}
+
+/// Interpolation kernel functions
+mod kernels {
+    use std::f64::consts::PI;
+
+    pub fn hanning(x: f64) -> f64 {
+        if x.abs() >= 1.0 { 0.0 } else { 0.5 * (1.0 + (PI * x).cos()) }
+    }
+    pub fn hamming(x: f64) -> f64 {
+        if x.abs() >= 1.0 { 0.0 } else { 0.54 + 0.46 * (PI * x).cos() }
+    }
+    pub fn hermite(x: f64) -> f64 {
+        let ax = x.abs();
+        if ax >= 2.0 { 0.0 }
+        else if ax <= 1.0 { (2.0 * ax - 3.0) * ax * ax + 1.0 }
+        else { let t = ax - 1.0; -(t * t * t) + t * t }
+    }
+    pub fn kaiser(x: f64) -> f64 {
+        // Simplified Kaiser window (beta=6.5)
+        if x.abs() >= 3.0 { 0.0 }
+        else {
+            let r = x / 3.0;
+            let t = 1.0 - r * r;
+            if t <= 0.0 { 0.0 } else { t.sqrt() }
+        }
+    }
+    pub fn quadric(x: f64) -> f64 {
+        let ax = x.abs();
+        if ax >= 1.5 { 0.0 }
+        else if ax <= 0.5 { 0.75 - ax * ax }
+        else { 0.5 * (ax - 1.5).powi(2) }
+    }
+    pub fn catrom(x: f64) -> f64 {
+        // Catmull-Rom spline (a = -0.5 Keys cubic)
+        let ax = x.abs();
+        if ax >= 2.0 { 0.0 }
+        else if ax <= 1.0 { 1.5 * ax * ax * ax - 2.5 * ax * ax + 1.0 }
+        else { -0.5 * ax * ax * ax + 2.5 * ax * ax - 4.0 * ax + 2.0 }
+    }
+    pub fn gaussian(x: f64) -> f64 {
+        (-2.0 * x * x).exp()
+    }
+    pub fn bessel(x: f64) -> f64 {
+        // Approximation using sinc-like falloff
+        if x.abs() < 1e-15 { 1.0 }
+        else {
+            let px = PI * x;
+            (px.sin() / px) * (-x * x / 4.0).exp()
+        }
+    }
+    pub fn mitchell(x: f64) -> f64 {
+        // Mitchell-Netravali (B=1/3, C=1/3)
+        let ax = x.abs();
+        let b = 1.0 / 3.0;
+        let c = 1.0 / 3.0;
+        if ax >= 2.0 { 0.0 }
+        else if ax >= 1.0 {
+            ((-b - 6.0*c)*ax*ax*ax + (6.0*b + 30.0*c)*ax*ax + (-12.0*b - 48.0*c)*ax + (8.0*b + 24.0*c)) / 6.0
+        } else {
+            ((12.0 - 9.0*b - 6.0*c)*ax*ax*ax + (-18.0 + 12.0*b + 6.0*c)*ax*ax + (6.0 - 2.0*b)) / 6.0
+        }
+    }
+    pub fn sinc_kernel(x: f64) -> f64 {
+        if x.abs() < 1e-15 { 1.0 }
+        else {
+            let px = PI * x;
+            px.sin() / px
+        }
+    }
+}
+
+/// Generic kernel-based interpolation for scalar image data.
+/// Applies the given kernel function over a window of radius `radius`.
+fn interpolate_with_kernel(
+    data: &[Vec<f64>],
+    rows: usize,
+    cols: usize,
+    fx: f64, fy: f64,
+    kernel: fn(f64) -> f64,
+    radius: i32,
+) -> f64 {
+    let ix = fx.floor() as i32;
+    let iy = fy.floor() as i32;
+    let frac_x = fx - ix as f64;
+    let frac_y = fy - iy as f64;
+
+    let mut val = 0.0;
+    let mut weight_sum = 0.0;
+    for m in (1 - radius)..=radius {
+        let wy = kernel(frac_y - m as f64);
+        let sy = (iy + m).clamp(0, rows as i32 - 1) as usize;
+        for n in (1 - radius)..=radius {
+            let wx = kernel(frac_x - n as f64);
+            let sx = (ix + n).clamp(0, cols as i32 - 1) as usize;
+            let w = wx * wy;
+            val += data[sy][sx] * w;
+            weight_sum += w;
+        }
+    }
+    if weight_sum.abs() > 1e-15 { val / weight_sum } else { val }
 }
 
 impl Artist for Image {
@@ -1457,6 +1568,105 @@ impl Artist for Image {
                                 val /= weight_sum;
                             }
 
+                            let t = ((val - self.vmin) / range).clamp(0.0, 1.0);
+                            let color = colormap_lookup(&self.cmap, t);
+
+                            let pixel = tiny_skia::PremultipliedColorU8::from_rgba(
+                                color.r, color.g, color.b, color.a,
+                            );
+                            if let Some(pixel_ref) = pixmap.pixels_mut().get_mut((py as u32 * pm_width + px as u32) as usize) {
+                                if let Some(p) = pixel {
+                                    *pixel_ref = p;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // RGB/RGBA: fallback to nearest
+                    for r in 0..self.rows {
+                        for c in 0..self.cols {
+                            let color = self.cell_color(r, c);
+                            let mut paint = Paint::default();
+                            paint.set_color(color.to_tiny_skia());
+                            paint.anti_alias = false;
+                            let (x0, x1, y0, y1) = self.cell_bounds(r, c);
+                            let (px0, py0) = transform.transform_xy(x0, y0);
+                            let (px1, py1) = transform.transform_xy(x1, y1);
+                            let rx = px0.min(px1);
+                            let ry = py0.min(py1);
+                            let rw = (px1 - px0).abs().max(1.0);
+                            let rh = (py1 - py0).abs().max(1.0);
+                            if let Some(rect) = Rect::from_xywh(rx, ry, rw, rh) {
+                                pixmap.fill_rect(rect, &paint, ts, None);
+                            }
+                        }
+                    }
+                }
+            }
+            // Generic kernel-based interpolation for remaining modes
+            ImageInterpolation::Hanning | ImageInterpolation::Hamming |
+            ImageInterpolation::Hermite | ImageInterpolation::Kaiser |
+            ImageInterpolation::Quadric | ImageInterpolation::CatRom |
+            ImageInterpolation::Gaussian | ImageInterpolation::Bessel |
+            ImageInterpolation::Mitchell | ImageInterpolation::Sinc => {
+                let (kernel_fn, radius): (fn(f64) -> f64, i32) = match self.interpolation {
+                    ImageInterpolation::Hanning => (kernels::hanning, 1),
+                    ImageInterpolation::Hamming => (kernels::hamming, 1),
+                    ImageInterpolation::Hermite => (kernels::hermite, 2),
+                    ImageInterpolation::Kaiser => (kernels::kaiser, 3),
+                    ImageInterpolation::Quadric => (kernels::quadric, 2),
+                    ImageInterpolation::CatRom => (kernels::catrom, 2),
+                    ImageInterpolation::Gaussian => (kernels::gaussian, 2),
+                    ImageInterpolation::Bessel => (kernels::bessel, 3),
+                    ImageInterpolation::Mitchell => (kernels::mitchell, 2),
+                    ImageInterpolation::Sinc => (kernels::sinc_kernel, 3),
+                    _ => (kernels::hanning, 1),
+                };
+
+                if let ImageData::Scalar(ref scalar_data) = self.data {
+                    let (data_x_min, data_x_max, data_y_min, data_y_max) = if let Some((el, er, eb, et)) = self.extent {
+                        (el, er, eb, et)
+                    } else {
+                        (-0.5_f64, self.cols as f64 - 0.5, -0.5_f64, self.rows as f64 - 0.5)
+                    };
+
+                    let (px_left, py_top) = transform.transform_xy(data_x_min, data_y_min);
+                    let (px_right, py_bottom) = transform.transform_xy(data_x_max, data_y_max);
+                    let px_min = px_left.min(px_right) as i32;
+                    let px_max = px_left.max(px_right).ceil() as i32;
+                    let py_min = py_top.min(py_bottom) as i32;
+                    let py_max = py_top.max(py_bottom).ceil() as i32;
+
+                    let pw = pixmap.width() as i32;
+                    let ph = pixmap.height() as i32;
+                    let start_x = px_min.max(0);
+                    let end_x = px_max.min(pw);
+                    let start_y = py_min.max(0);
+                    let end_y = py_max.min(ph);
+
+                    let (p0x_f32, p0y_f32) = transform.transform_xy(data_x_min, data_y_min);
+                    let (p1x_f32, p1y_f32) = transform.transform_xy(data_x_max, data_y_max);
+                    let p0x = p0x_f32 as f64;
+                    let p0y = p0y_f32 as f64;
+                    let p1x = p1x_f32 as f64;
+                    let p1y = p1y_f32 as f64;
+
+                    let inv_sx = if (p1x - p0x).abs() > 1e-10 { (data_x_max - data_x_min) / (p1x - p0x) } else { 0.0 };
+                    let inv_sy = if (p1y - p0y).abs() > 1e-10 { (data_y_max - data_y_min) / (p1y - p0y) } else { 0.0 };
+
+                    let range = self.vmax - self.vmin;
+                    let pm_width = pixmap.width();
+
+                    for py in start_y..end_y {
+                        for px in start_x..end_x {
+                            let pxf = px as f64 + 0.5;
+                            let pyf = py as f64 + 0.5;
+                            let dx = data_x_min + (pxf - p0x) * inv_sx;
+                            let dy = data_y_min + (pyf - p0y) * inv_sy;
+                            let fx = dx.clamp(0.0, (self.cols - 1) as f64);
+                            let fy = dy.clamp(0.0, (self.rows - 1) as f64);
+
+                            let val = interpolate_with_kernel(scalar_data, self.rows, self.cols, fx, fy, kernel_fn, radius);
                             let t = ((val - self.vmin) / range).clamp(0.0, 1.0);
                             let color = colormap_lookup(&self.cmap, t);
 
