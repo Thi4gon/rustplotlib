@@ -11,7 +11,7 @@ Reimplementação completa do matplotlib em Rust puro. Drop-in replacement via P
 - 40+ plot types 2D, 7 plot types 3D
 - 70+ colormaps (35 base + 35 reversed)
 - 25 módulos Python compatíveis com API matplotlib
-- 326 testes passando
+- 523 testes passando
 - Tk backend interativo com toolbar, zoom/pan funcional, pixel-to-data mapping
 - Jupyter rich display (`_repr_png_`, `_repr_svg_`, `_repr_html_`)
 - Sistema de eventos com `CallbackRegistry` e `mpl_connect`/`mpl_disconnect`

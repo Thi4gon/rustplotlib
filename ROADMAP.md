@@ -123,7 +123,7 @@ Goal: Full matplotlib reimplementation in Rust.
 ### Image Improvements
 - [x] Bicubic interpolation (Keys cubic kernel, scalar data)
 - [x] Lanczos interpolation (sinc-based kernel, a=3)
-- [ ] Spline interpolation
+- [x] Spline16 (B-spline) interpolation
 
 ### Additional Backends
 - [ ] Qt backend (QApplication, mouse events, toolbar, save dialog)
@@ -132,39 +132,37 @@ Goal: Full matplotlib reimplementation in Rust.
 - [ ] macOS native backend (NSView/Metal)
 
 ### Interactive Features (remaining)
-- [ ] Widget visual rendering in Tk (Slider/Button draw in axes)
+- [x] Widget visual rendering (Slider/Button artists in Rust)
 - [x] Pick events (artist hit testing)
 - [x] 3D mouse rotation (drag to rotate azim/elev in Tk backend)
 - [x] Blitting for fast animation updates (FuncAnimation blit=True, pause/resume)
-- [ ] Interactive data cursors
+- [x] Interactive data cursors (Cursor + MultiCursor widgets)
 
 ---
 
 ## PLANNED — v6.0.0
 
 ### Full LaTeX Math Rendering
-- [ ] TeX layout engine (fractions, roots, integrals, summation)
-- [ ] Subscript/superscript positioning
+- [x] Basic math text: Greek letters (24+12), sub/superscript (Unicode), operators (±×÷·≤≥≠≈∞∫Σ√)
+- [x] `\frac{}{}` → fraction, `\mathbf{}`, `\text{}` pass-through
+- [ ] Full TeX layout engine (proper glyph positioning, stacking)
 - [ ] Math font rendering (Computer Modern, STIX)
-- [ ] `\frac{}{}`, `\sqrt{}`, `\int`, `\sum`, `\prod`
 - [ ] Matrices, arrays, aligned equations
-- [ ] `\mathbf{}`, `\mathit{}`, `\mathrm{}`
 
 ### Advanced Layout
 - [ ] Tight layout engine (constraint solver)
 - [ ] Constrained layout
-- [ ] GridSpec with rowspan/colspan
-- [ ] Figure.add_axes() with custom position [left, bottom, width, height]
+- [x] GridSpec with rowspan/colspan (Rust grid_span)
+- [x] Figure.add_axes() with custom position [left, bottom, width, height]
 - [ ] Axes divider (mpl_toolkits.axes_grid1)
 - [ ] `make_axes_locatable` for colorbar positioning
 - [ ] Nested subplots
 
 ### Transform System
-- [ ] Composable transforms (data → axes → figure → display)
-- [ ] `ax.transData`, `ax.transAxes`, `fig.transFigure`
+- [x] Composable Affine2D transforms in Rust (rotate, scale, translate, compose, invert)
+- [ ] `ax.transData`, `ax.transAxes`, `fig.transFigure` (stubs exist)
 - [ ] Blended transforms
 - [ ] Custom projections
-- [ ] Affine2D functional (rotate, scale, translate)
 - [ ] `ax.set_transform()` on artists
 
 ---
