@@ -20,11 +20,13 @@ from rustplotlib import transforms
 from rustplotlib import lines
 from rustplotlib import text
 from rustplotlib import spines
+from rustplotlib import events
+from rustplotlib import callback_registry
 
 __all__ = ["pyplot", "style", "animation", "widgets", "dates", "backends",
            "font_manager", "ticker", "patches", "colors", "gridspec", "cycler",
            "axes", "figure", "collections", "cm", "patheffects", "transforms",
-           "lines", "text", "spines",
+           "lines", "text", "spines", "events", "callback_registry",
            "__version__", "use"]
 
 
