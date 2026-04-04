@@ -164,6 +164,7 @@ pub struct Axes {
     pub span_regions: Vec<SpanRegion>,
     pub polar: bool,
     pub twin_axes: Option<Box<Axes>>,
+    pub twin_x_axes: Option<Box<Axes>>,
     // Style fields
     pub bg_color: Color,
     pub tick_color: Color,
@@ -243,6 +244,7 @@ impl Axes {
             span_regions: Vec::new(),
             polar: false,
             twin_axes: None,
+            twin_x_axes: None,
             bg_color: Color::new(255, 255, 255, 255),
             tick_color: Color::new(0, 0, 0, 255),
             text_color: Color::new(0, 0, 0, 255),
@@ -358,9 +360,13 @@ impl Axes {
     }
 
     /// Add an image display.
-    pub fn imshow(&mut self, data: Vec<Vec<f64>>, cmap: Option<String>) {
+    pub fn imshow(&mut self, data: Vec<Vec<f64>>, cmap: Option<String>, annotate: bool, fmt: Option<String>) {
         let cm = cmap.unwrap_or_else(|| "viridis".to_string());
-        let img = Image::new(data, cm);
+        let mut img = Image::new(data, cm);
+        img.annotate = annotate;
+        if let Some(f) = fmt {
+            img.fmt = f;
+        }
         self.artists.push(Box::new(img));
     }
 
@@ -597,7 +603,9 @@ impl Axes {
 
     /// Draw this axes and all its artists onto the pixmap.
     /// left, top, right, bottom are pixel coordinates of the plot area.
-    pub fn draw(&self, pixmap: &mut Pixmap, left: f32, top: f32, right: f32, bottom: f32) {
+    /// area_left/top/right/bottom are the full allocated area (including margins) for overpaint clipping.
+    /// fig_bg is the figure background color for the overpaint clipping technique.
+    pub fn draw(&self, pixmap: &mut Pixmap, left: f32, top: f32, right: f32, bottom: f32, area_left: Option<f32>, area_top: Option<f32>, area_right: Option<f32>, area_bottom: Option<f32>, fig_bg: Option<Color>) {
         // Polar mode: use dedicated polar drawing
         if self.polar {
             self.draw_polar(pixmap, left, top, right, bottom);
@@ -1144,6 +1152,11 @@ impl Axes {
             twin.draw_as_twin(pixmap, left, top, right, bottom);
         }
 
+        // 11b. Draw twin x-axes (twiny) if present
+        if let Some(ref twin_x) = self.twin_x_axes {
+            twin_x.draw_as_twiny(pixmap, left, top, right, bottom);
+        }
+
         // 12. Draw colorbar if enabled
         if self.show_colorbar {
             self.draw_colorbar(pixmap, right, top, bottom);
@@ -1152,6 +1165,41 @@ impl Axes {
         // 13. Draw table if present
         if let Some(ref table) = self.table_data {
             self.draw_table(pixmap, table, left, top, right, bottom);
+        }
+
+        // 14. Overpaint clipping: paint the figure background over the margin areas
+        //     to hide any artist content that overflows outside the plot area.
+        if let (Some(al), Some(at), Some(ar), Some(ab), Some(bg)) =
+            (area_left, area_top, area_right, area_bottom, fig_bg)
+        {
+            let mut clip_paint = Paint::default();
+            clip_paint.set_color(bg.to_tiny_skia());
+            let ts = tiny_skia::Transform::identity();
+
+            // Top margin
+            if top > at {
+                if let Some(rect) = Rect::from_xywh(al, at, ar - al, top - at) {
+                    pixmap.fill_rect(rect, &clip_paint, ts, None);
+                }
+            }
+            // Bottom margin
+            if ab > bottom {
+                if let Some(rect) = Rect::from_xywh(al, bottom, ar - al, ab - bottom) {
+                    pixmap.fill_rect(rect, &clip_paint, ts, None);
+                }
+            }
+            // Left margin
+            if left > al {
+                if let Some(rect) = Rect::from_xywh(al, top, left - al, bottom - top) {
+                    pixmap.fill_rect(rect, &clip_paint, ts, None);
+                }
+            }
+            // Right margin
+            if ar > right {
+                if let Some(rect) = Rect::from_xywh(right, top, ar - right, bottom - top) {
+                    pixmap.fill_rect(rect, &clip_paint, ts, None);
+                }
+            }
         }
     }
 
@@ -1822,6 +1870,142 @@ impl Axes {
         }
     }
 
+    /// Draw twin X axes (twiny) — independent X axis on top, shared Y axis.
+    fn draw_as_twiny(&self, pixmap: &mut Pixmap, left: f32, top: f32, right: f32, bottom: f32) {
+        let (xmin, xmax, ymin, ymax) = self.compute_bounds();
+
+        let log_x = self.x_scale == AxisScale::Log;
+        let log_y = self.y_scale == AxisScale::Log;
+
+        let (dxmin, dxmax) = if log_x { (xmin.max(1e-15).log10(), xmax.max(1e-15).log10()) } else { (xmin, xmax) };
+        let (dymin, dymax) = if log_y { (ymin.max(1e-15).log10(), ymax.max(1e-15).log10()) } else { (ymin, ymax) };
+
+        let transform = Transform::new(
+            (dxmin, dxmax),
+            (dymin, dymax),
+            left as f64,
+            right as f64,
+            top as f64,
+            bottom as f64,
+            log_x,
+            log_y,
+        );
+
+        let ts = tiny_skia::Transform::identity();
+
+        // Draw artists
+        for artist in &self.artists {
+            artist.draw(pixmap, &transform);
+        }
+
+        // Draw top-side X axis ticks
+        let tick_xmin = xmin;
+        let tick_xmax = xmax;
+        let x_ticks: Vec<f64> = if log_x {
+            compute_log_ticks(tick_xmin.max(1e-15), tick_xmax.max(1e-15))
+        } else {
+            self.custom_xticks.clone().unwrap_or_else(|| compute_auto_ticks(tick_xmin, tick_xmax, 10))
+        };
+
+        // Empty ticks check
+        if x_ticks.is_empty() {
+            // Draw xlabel on top if set, then return
+            if let Some(ref xlabel) = self.xlabel {
+                let cx = (left + right) / 2.0;
+                draw_text(
+                    pixmap,
+                    xlabel,
+                    cx,
+                    top - 25.0,
+                    self.label_size,
+                    Color::new(0, 0, 0, 255),
+                    TextAnchorX::Center,
+                    TextAnchorY::Bottom,
+                    0.0,
+                );
+            }
+            return;
+        }
+
+        let tick_len = 5.0_f32;
+        let tick_color = Color::new(0, 0, 0, 255);
+
+        let mut tick_paint = Paint::default();
+        tick_paint.set_color(tiny_skia::Color::from_rgba8(0, 0, 0, 255));
+        tick_paint.anti_alias = true;
+
+        let mut tick_stroke = Stroke::default();
+        tick_stroke.width = 1.0;
+
+        // Top-side X ticks
+        for (i, &tx) in x_ticks.iter().enumerate() {
+            let (px, _) = transform.transform_xy(tx, ymin);
+            if px < left || px > right { continue; }
+
+            // Tick mark on top side
+            let mut pb = PathBuilder::new();
+            pb.move_to(px, top);
+            pb.line_to(px, top - tick_len);
+            if let Some(path) = pb.finish() {
+                pixmap.stroke_path(&path, &tick_paint, &tick_stroke, ts, None);
+            }
+
+            let label = if let Some(ref labels) = self.custom_xtick_labels {
+                labels.get(i).cloned().unwrap_or_default()
+            } else if log_x {
+                format_log_tick_value(tx)
+            } else {
+                format_tick_value(tx)
+            };
+            draw_text(
+                pixmap,
+                &label,
+                px,
+                top - tick_len - 2.0,
+                self.tick_size,
+                tick_color,
+                TextAnchorX::Center,
+                TextAnchorY::Bottom,
+                0.0,
+            );
+        }
+
+        // Top-side X label
+        if let Some(ref xlabel) = self.xlabel {
+            let cx = (left + right) / 2.0;
+            draw_text(
+                pixmap,
+                xlabel,
+                cx,
+                top - tick_len - self.tick_label_size - 10.0,
+                self.label_size,
+                tick_color,
+                TextAnchorX::Center,
+                TextAnchorY::Bottom,
+                0.0,
+            );
+        }
+
+        // Legend for twiny axes
+        if self.show_legend {
+            let mut entries = Vec::new();
+            for artist in &self.artists {
+                if let Some(entry) = artist.legend_entry() {
+                    entries.push(entry);
+                }
+            }
+            if !entries.is_empty() {
+                let legend_w = 120.0_f32;
+                let legend_margin = 10.0_f32;
+                let entry_count = entries.len() as f32;
+                let legend_h = 12.0 + entry_count * 15.0;
+                let legend_x = left + legend_margin;
+                let legend_y = bottom - legend_margin - legend_h;
+                draw_legend(pixmap, &entries, legend_x, legend_y);
+            }
+        }
+    }
+
     /// Draw polar plot.
     fn draw_polar(&self, pixmap: &mut Pixmap, left: f32, top: f32, right: f32, bottom: f32) {
         let ts = tiny_skia::Transform::identity();
@@ -2175,6 +2359,12 @@ impl Axes {
     pub fn twinx(&mut self) -> &mut Axes {
         self.twin_axes = Some(Box::new(Axes::new()));
         self.twin_axes.as_mut().unwrap()
+    }
+
+    /// Create a twin x-axis (twiny). Returns a mutable reference to the twin Axes.
+    pub fn twiny(&mut self) -> &mut Axes {
+        self.twin_x_axes = Some(Box::new(Axes::new()));
+        self.twin_x_axes.as_mut().unwrap()
     }
 
     /// Set axis visibility.

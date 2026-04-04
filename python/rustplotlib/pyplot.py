@@ -170,13 +170,18 @@ class AxesProxy:
         self._fig.axes_hist(self._id, x, kw)
         return self
 
-    def imshow(self, data, cmap="viridis", aspect=None, vmin=None, vmax=None, **kwargs):
+    def imshow(self, data, cmap="viridis", aspect=None, vmin=None, vmax=None,
+               annotate=False, fmt=None, **kwargs):
         data_list = _to_2d_list(data)
         kw = {"cmap": cmap}
         if vmin is not None:
             kw["vmin"] = vmin
         if vmax is not None:
             kw["vmax"] = vmax
+        if annotate:
+            kw["annotate"] = True
+        if fmt is not None:
+            kw["fmt"] = str(fmt)
         self._fig.axes_imshow(self._id, data_list, kw)
         return self
 
@@ -552,6 +557,10 @@ class AxesProxy:
         twin_id = self._fig.axes_twinx(self._id)
         return TwinAxesProxy(self._fig, twin_id)
 
+    def twiny(self):
+        twin_id = self._fig.axes_twiny(self._id)
+        return TwinXAxesProxy(self._fig, twin_id)
+
     @property
     def spines(self):
         return SpinesProxy(self._fig, self._id)
@@ -653,13 +662,13 @@ class AxesProxy:
         self._fig.axes_table(self._id, kw)
         return self
 
-    def secondary_xaxis(self, location='top', **kwargs):
-        """Stub for secondary x-axis — returns self for chaining."""
-        return self
+    def secondary_xaxis(self, location='top', functions=None, **kwargs):
+        """Return a SecondaryAxisProxy for the secondary x-axis."""
+        return SecondaryAxisProxy(self)
 
-    def secondary_yaxis(self, location='right', **kwargs):
-        """Stub for secondary y-axis — returns self for chaining."""
-        return self
+    def secondary_yaxis(self, location='right', functions=None, **kwargs):
+        """Return a SecondaryAxisProxy for the secondary y-axis."""
+        return SecondaryAxisProxy(self)
 
     def set_frame_on(self, b):
         pass
@@ -793,6 +802,81 @@ class TwinAxesProxy:
         self._fig.twin_axes_legend(self._id, kw)
 
 
+class TwinXAxesProxy:
+    """Python wrapper for a twin (top-side x-axis) axes (twiny)."""
+
+    def __init__(self, figure, twin_id):
+        self._fig = figure
+        self._id = twin_id
+
+    def plot(self, *args, **kwargs):
+        x, y, kwargs = _parse_plot_args(*args, **kwargs)
+        self._fig.twiny_axes_plot(self._id, x, y, kwargs)
+        return self
+
+    def scatter(self, x, y, s=None, c=None, marker="o", alpha=1.0, label=None, **kwargs):
+        x, y = _to_list(x), _to_list(y)
+        kw = {"marker": marker, "alpha": alpha}
+        if s is not None:
+            kw["s"] = list(np.atleast_1d(s).astype(float))
+        if c is not None:
+            kw["color"] = c
+        if label is not None:
+            kw["label"] = label
+        self._fig.twiny_axes_scatter(self._id, x, y, kw)
+        return self
+
+    def set_xlabel(self, label, fontsize=None, **kwargs):
+        self._fig.twiny_axes_set_xlabel(self._id, str(label), fontsize)
+
+    def set_xlim(self, left=None, right=None, **kwargs):
+        if left is not None and right is not None:
+            self._fig.twiny_axes_set_xlim(self._id, float(left), float(right))
+
+    def legend(self, *args, **kwargs):
+        kw = {}
+        if 'loc' in kwargs:
+            kw['loc'] = kwargs['loc']
+        self._fig.twiny_axes_legend(self._id, kw)
+
+
+class SecondaryAxisProxy:
+    """Proxy for secondary axes returned by secondary_xaxis()/secondary_yaxis().
+
+    Provides no-op methods for matplotlib compatibility.
+    """
+
+    def __init__(self, parent_ax):
+        self._parent = parent_ax
+
+    def set_xlabel(self, label, **kwargs):
+        pass
+
+    def set_ylabel(self, label, **kwargs):
+        pass
+
+    def set_ticks(self, ticks, **kwargs):
+        pass
+
+    def set_ticklabels(self, labels, **kwargs):
+        pass
+
+    def set_label(self, label, **kwargs):
+        pass
+
+    def set_color(self, color):
+        pass
+
+    def set_visible(self, visible):
+        pass
+
+    def tick_params(self, **kwargs):
+        pass
+
+    def set_functions(self, functions):
+        pass
+
+
 class Axes3DProxy:
     """Python wrapper around a Rust 3D axes, accessed by ID."""
 
@@ -880,6 +964,40 @@ class Axes3DProxy:
 
     def legend(self, *args, **kwargs):
         self._fig.axes3d_legend(self._id)
+
+    def contour3D(self, X, Y, Z, levels=None, cmap='viridis', linewidth=1.0,
+                  alpha=1.0, offset=None, **kwargs):
+        """Draw 3D contour lines projected at a fixed Z level."""
+        x_2d = _to_2d_list(X)
+        y_2d = _to_2d_list(Y)
+        z_2d = _to_2d_list(Z)
+        kw = {'cmap': str(cmap), 'alpha': float(alpha), 'linewidth': float(linewidth)}
+        if levels is not None:
+            kw['levels'] = [float(l) for l in levels]
+        if offset is not None:
+            kw['offset'] = float(offset)
+        self._fig.axes3d_contour3d(self._id, x_2d, y_2d, z_2d, kw)
+        return self
+
+    # Alias: contour3d (lowercase) for convenience
+    contour3d = contour3D
+
+    def contourf3D(self, X, Y, Z, levels=None, cmap='viridis', linewidth=0.5,
+                   alpha=0.7, offset=None, **kwargs):
+        """Draw 3D filled contour lines projected at a fixed Z level."""
+        x_2d = _to_2d_list(X)
+        y_2d = _to_2d_list(Y)
+        z_2d = _to_2d_list(Z)
+        kw = {'cmap': str(cmap), 'alpha': float(alpha), 'linewidth': float(linewidth)}
+        if levels is not None:
+            kw['levels'] = [float(l) for l in levels]
+        if offset is not None:
+            kw['offset'] = float(offset)
+        self._fig.axes3d_contourf3d(self._id, x_2d, y_2d, z_2d, kw)
+        return self
+
+    # Alias: contourf3d (lowercase)
+    contourf3d = contourf3D
 
     # No-op stubs for matplotlib compat
     def grid(self, visible=True, **kwargs):

@@ -191,15 +191,23 @@ class TestHlinesVlines:
 class TestSecondaryAxes:
     """Tests for secondary_xaxis() / secondary_yaxis()."""
 
-    def test_secondary_xaxis_returns_self(self):
+    def test_secondary_xaxis_returns_proxy(self):
         fig, ax = plt.subplots()
         result = ax.secondary_xaxis('top')
-        assert result is ax
+        # Now returns a SecondaryAxisProxy instead of self
+        assert result is not None
+        # Should support common methods without crashing
+        result.set_xlabel("Top axis")
+        result.set_ticks([0, 1, 2])
+        result.set_ticklabels(["a", "b", "c"])
+        result.tick_params(direction='in')
 
-    def test_secondary_yaxis_returns_self(self):
+    def test_secondary_yaxis_returns_proxy(self):
         fig, ax = plt.subplots()
         result = ax.secondary_yaxis('right')
-        assert result is ax
+        assert result is not None
+        result.set_ylabel("Right axis")
+        result.set_ticks([0, 1, 2])
 
 
 class TestPdfPages:

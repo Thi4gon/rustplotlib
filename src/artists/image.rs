@@ -1,6 +1,7 @@
 use crate::artists::Artist;
 use crate::colors::Color;
 use crate::transforms::Transform;
+use crate::text::{draw_text, TextAnchorX, TextAnchorY};
 use tiny_skia::{Paint, Rect, Pixmap};
 
 /// Linearly interpolate between uniformly-spaced RGB control points.
@@ -372,6 +373,37 @@ pub fn colormap_lookup(name: &str, t: f64) -> Color {
     }
 }
 
+/// Format a value for heatmap annotation based on a format spec.
+fn format_annotation_value(val: f64, fmt: &str) -> String {
+    match fmt {
+        ".0f" => format!("{:.0}", val),
+        ".1f" => format!("{:.1}", val),
+        ".2f" => format!("{:.2}", val),
+        ".3f" => format!("{:.3}", val),
+        ".0g" | ".0" => {
+            if val == val.floor() && val.abs() < 1e15 {
+                format!("{:.0}", val)
+            } else {
+                format!("{:.0e}", val)
+            }
+        }
+        ".1g" => format!("{:.1}", val),
+        ".3g" => format!("{:.3}", val),
+        "d" => format!("{}", val as i64),
+        // Default: ".2g" — show 2 significant figures, trim trailing zeros
+        _ => {
+            let s = format!("{:.2}", val);
+            // Trim trailing zeros after decimal point
+            if s.contains('.') {
+                let trimmed = s.trim_end_matches('0').trim_end_matches('.');
+                trimmed.to_string()
+            } else {
+                s
+            }
+        }
+    }
+}
+
 pub struct Image {
     pub data: Vec<Vec<f64>>,
     pub rows: usize,
@@ -379,6 +411,8 @@ pub struct Image {
     pub cmap: String,
     pub vmin: f64,
     pub vmax: f64,
+    pub annotate: bool,
+    pub fmt: String,
 }
 
 impl Image {
@@ -399,7 +433,7 @@ impl Image {
             vmax = vmin + 1.0;
         }
 
-        Image { data, rows, cols, cmap, vmin, vmax }
+        Image { data, rows, cols, cmap, vmin, vmax, annotate: false, fmt: ".2g".to_string() }
     }
 }
 
@@ -437,6 +471,41 @@ impl Artist for Image {
 
                 if let Some(rect) = Rect::from_xywh(rx, ry, rw, rh) {
                     pixmap.fill_rect(rect, &paint, ts, None);
+                }
+
+                // Draw annotation text if enabled
+                if self.annotate {
+                    let cx_px = (px0 + px1) / 2.0;
+                    let cy_px = (py0 + py1) / 2.0;
+
+                    // Format value
+                    let text = format_annotation_value(val, &self.fmt);
+
+                    // Choose text color based on cell brightness (dark text on light cells, etc.)
+                    let brightness = 0.299 * (color.r as f32 / 255.0)
+                        + 0.587 * (color.g as f32 / 255.0)
+                        + 0.114 * (color.b as f32 / 255.0);
+                    let text_color = if brightness > 0.5 {
+                        Color::new(0, 0, 0, 255) // dark text on light cell
+                    } else {
+                        Color::new(255, 255, 255, 255) // light text on dark cell
+                    };
+
+                    // Compute font size based on cell size
+                    let cell_h_px = rh;
+                    let fontsize = (cell_h_px * 0.4).clamp(6.0, 16.0);
+
+                    draw_text(
+                        pixmap,
+                        &text,
+                        cx_px,
+                        cy_px,
+                        fontsize,
+                        text_color,
+                        TextAnchorX::Center,
+                        TextAnchorY::Center,
+                        0.0,
+                    );
                 }
             }
         }

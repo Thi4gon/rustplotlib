@@ -21,6 +21,7 @@ pub mod scatter3d;
 pub mod surface3d;
 pub mod wireframe3d;
 pub mod bar3d;
+pub mod contour3d;
 pub mod violin;
 pub mod fill_betweenx;
 

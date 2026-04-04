@@ -260,7 +260,15 @@ impl RustFigure {
             Some(v.extract::<String>()?)
         } else { None };
 
-        ax.imshow(data, cmap);
+        let annotate = if let Some(v) = kwargs.get_item("annotate")? {
+            v.extract::<bool>()?
+        } else { false };
+
+        let fmt = if let Some(v) = kwargs.get_item("fmt")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        ax.imshow(data, cmap, annotate, fmt);
 
         Ok(())
     }
@@ -1425,6 +1433,141 @@ impl RustFigure {
         Ok(())
     }
 
+    // ---- twiny (twin X axis) methods ----
+
+    fn axes_twiny(&mut self, ax_id: usize) -> PyResult<usize> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.twiny();
+        // Encode the twiny as parent_id * 1000 + 998 (different sentinel from twinx which uses 999)
+        Ok(ax_id * 1000 + 998)
+    }
+
+    fn twiny_axes_plot(
+        &mut self,
+        twin_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let linestyle = if let Some(v) = kwargs.get_item("linestyle")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let marker = if let Some(v) = kwargs.get_item("marker")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let marker_size = if let Some(v) = kwargs.get_item("markersize")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let markevery = kwargs.get_item("markevery")?
+            .map(|v| v.extract::<usize>().unwrap_or(1));
+
+        let parent_id = twin_id / 1000;
+        let twin = self.axes.get_mut(parent_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
+            .twin_x_axes.as_mut()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twiny axes"))?;
+        twin.plot(
+            x, y, color, linewidth, linestyle.as_deref(),
+            marker.as_deref(), marker_size, markevery, label, alpha,
+        );
+        Ok(())
+    }
+
+    #[pyo3(signature = (twin_id, label, fontsize=None))]
+    fn twiny_axes_set_xlabel(&mut self, twin_id: usize, label: String, fontsize: Option<f32>) -> PyResult<()> {
+        let parent_id = twin_id / 1000;
+        let twin = self.axes.get_mut(parent_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
+            .twin_x_axes.as_mut()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twiny axes"))?;
+        twin.xlabel = Some(label);
+        if let Some(fs) = fontsize {
+            twin.label_size = fs;
+        }
+        Ok(())
+    }
+
+    fn twiny_axes_set_xlim(&mut self, twin_id: usize, lo: f64, hi: f64) -> PyResult<()> {
+        let parent_id = twin_id / 1000;
+        let twin = self.axes.get_mut(parent_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
+            .twin_x_axes.as_mut()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twiny axes"))?;
+        twin.xlim = Some((lo, hi));
+        Ok(())
+    }
+
+    fn twiny_axes_legend(&mut self, twin_id: usize, kwargs: &Bound<'_, PyDict>) -> PyResult<()> {
+        let parent_id = twin_id / 1000;
+        let twin = self.axes.get_mut(parent_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
+            .twin_x_axes.as_mut()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twiny axes"))?;
+        twin.show_legend = true;
+        if let Some(v) = kwargs.get_item("loc")? {
+            twin.legend_loc = v.extract::<String>()?;
+        }
+        Ok(())
+    }
+
+    fn twiny_axes_scatter(
+        &mut self,
+        twin_id: usize,
+        x: Vec<f64>,
+        y: Vec<f64>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let color = if let Some(c) = kwargs.get_item("color")? {
+            Some(colors::parse_color_value(&c)?)
+        } else { None };
+
+        let sizes = if let Some(v) = kwargs.get_item("s")? {
+            Some(v.extract::<Vec<f32>>()?)
+        } else { None };
+
+        let marker = if let Some(v) = kwargs.get_item("marker")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let label = if let Some(v) = kwargs.get_item("label")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            Some(v.extract::<f32>()?)
+        } else { None };
+
+        let parent_id = twin_id / 1000;
+        let twin = self.axes.get_mut(parent_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?
+            .twin_x_axes.as_mut()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("No twiny axes"))?;
+        twin.scatter(x, y, color, sizes, marker.as_deref(), label, alpha);
+        Ok(())
+    }
+
+    // ---- end twiny methods ----
+
     fn axes_colorbar(
         &mut self,
         ax_id: usize,
@@ -1921,6 +2064,112 @@ impl RustFigure {
         ax.show_legend = true;
         Ok(())
     }
+
+    /// 3D contour plot.
+    fn axes3d_contour3d(
+        &mut self,
+        ax3d_id: usize,
+        x: Vec<Vec<f64>>,
+        y: Vec<Vec<f64>>,
+        z: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+
+        let cmap = if let Some(v) = kwargs.get_item("cmap")? {
+            v.extract::<String>()?
+        } else {
+            "viridis".to_string()
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            1.0
+        };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            v.extract::<f32>()?
+        } else {
+            1.0
+        };
+
+        let levels = if let Some(v) = kwargs.get_item("levels")? {
+            Some(v.extract::<Vec<f64>>()?)
+        } else {
+            None
+        };
+
+        let z_offset = if let Some(v) = kwargs.get_item("offset")? {
+            Some(v.extract::<f64>()?)
+        } else {
+            None
+        };
+
+        let filled = if let Some(v) = kwargs.get_item("filled")? {
+            v.extract::<bool>()?
+        } else {
+            false
+        };
+
+        let contour = crate::artists::contour3d::Contour3D::new(
+            x, y, z, levels, z_offset, filled, linewidth, cmap, alpha,
+        );
+        ax.artists.push(Box::new(contour));
+
+        Ok(())
+    }
+
+    /// 3D filled contour plot (contourf3D).
+    fn axes3d_contourf3d(
+        &mut self,
+        ax3d_id: usize,
+        x: Vec<Vec<f64>>,
+        y: Vec<Vec<f64>>,
+        z: Vec<Vec<f64>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let (_, ax) = self.axes3d.get_mut(ax3d_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid 3D axes index"))?;
+
+        let cmap = if let Some(v) = kwargs.get_item("cmap")? {
+            v.extract::<String>()?
+        } else {
+            "viridis".to_string()
+        };
+
+        let alpha = if let Some(v) = kwargs.get_item("alpha")? {
+            v.extract::<f32>()?
+        } else {
+            0.7
+        };
+
+        let linewidth = if let Some(v) = kwargs.get_item("linewidth")? {
+            v.extract::<f32>()?
+        } else {
+            0.5
+        };
+
+        let levels = if let Some(v) = kwargs.get_item("levels")? {
+            Some(v.extract::<Vec<f64>>()?)
+        } else {
+            None
+        };
+
+        let z_offset = if let Some(v) = kwargs.get_item("offset")? {
+            Some(v.extract::<f64>()?)
+        } else {
+            None
+        };
+
+        let contour = crate::artists::contour3d::Contour3D::new(
+            x, y, z, levels, z_offset, true, linewidth, cmap, alpha,
+        );
+        ax.artists.push(Box::new(contour));
+
+        Ok(())
+    }
 }
 
 impl RustFigure {
@@ -2192,7 +2441,16 @@ impl RustFigure {
             let right = left + cell_w;
             let bottom = top + cell_h;
 
-            ax.draw(&mut pixmap, left, top, right, bottom);
+            // Compute area bounds for overpaint clipping
+            // The area for this subplot extends to the midpoint of gaps (or to figure edge)
+            let area_left = if col == 0 { 0.0 } else { left - subplot_hgap / 2.0 };
+            let area_top = if row == 0 { 0.0 } else { top - subplot_vgap / 2.0 };
+            let area_right = if col == ncols - 1 { pw as f32 } else { right + subplot_hgap / 2.0 };
+            let area_bottom = if row == nrows - 1 { ph as f32 } else { bottom + subplot_vgap / 2.0 };
+
+            ax.draw(&mut pixmap, left, top, right, bottom,
+                Some(area_left), Some(area_top), Some(area_right), Some(area_bottom),
+                Some(self.bg_color));
         }
 
         // Draw 3D axes in their subplot slots
