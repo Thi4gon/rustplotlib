@@ -104,7 +104,7 @@ impl RustFigure {
         } else { None };
 
         let marker = if let Some(v) = kwargs.get_item("marker")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let marker_size = if let Some(v) = kwargs.get_item("markersize")? {
@@ -112,7 +112,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let alpha = if let Some(v) = kwargs.get_item("alpha")? {
@@ -164,11 +164,11 @@ impl RustFigure {
         } else { None };
 
         let marker = if let Some(v) = kwargs.get_item("marker")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let alpha = if let Some(v) = kwargs.get_item("alpha")? {
@@ -211,7 +211,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let alpha = if let Some(v) = kwargs.get_item("alpha")? {
@@ -257,7 +257,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         ax.hist(&data, bins, color, alpha, label);
@@ -479,7 +479,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         ax.fill_between(x, y1, y2, color, alpha, label);
@@ -510,7 +510,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let alpha = if let Some(v) = kwargs.get_item("alpha")? {
@@ -688,7 +688,7 @@ impl RustFigure {
         } else { None };
 
         let marker = if let Some(v) = kwargs.get_item("marker")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let marker_size = if let Some(v) = kwargs.get_item("markersize")? {
@@ -696,7 +696,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let alpha = if let Some(v) = kwargs.get_item("alpha")? {
@@ -742,7 +742,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let alpha = if let Some(v) = kwargs.get_item("alpha")? {
@@ -803,7 +803,7 @@ impl RustFigure {
         } else { None };
 
         let marker = if let Some(v) = kwargs.get_item("marker")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let marker_size = if let Some(v) = kwargs.get_item("markersize")? {
@@ -811,7 +811,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let baseline = if let Some(v) = kwargs.get_item("baseline")? {
@@ -1158,7 +1158,7 @@ impl RustFigure {
         };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let patch = match patch_type.as_str() {
@@ -1308,7 +1308,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         ax.violinplot(data, positions, widths, color, show_means, show_medians, alpha, label);
@@ -1335,7 +1335,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         ax.fill_betweenx(y, x1, x2, color, alpha, label);
@@ -1411,7 +1411,7 @@ impl RustFigure {
         } else { None };
 
         let marker = if let Some(v) = kwargs.get_item("marker")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let marker_size = if let Some(v) = kwargs.get_item("markersize")? {
@@ -1419,7 +1419,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let alpha = if let Some(v) = kwargs.get_item("alpha")? {
@@ -1494,11 +1494,11 @@ impl RustFigure {
         } else { None };
 
         let marker = if let Some(v) = kwargs.get_item("marker")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let alpha = if let Some(v) = kwargs.get_item("alpha")? {
@@ -1530,7 +1530,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let alpha = if let Some(v) = kwargs.get_item("alpha")? {
@@ -1576,7 +1576,7 @@ impl RustFigure {
         } else { None };
 
         let marker = if let Some(v) = kwargs.get_item("marker")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let marker_size = if let Some(v) = kwargs.get_item("markersize")? {
@@ -1584,7 +1584,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let alpha = if let Some(v) = kwargs.get_item("alpha")? {
@@ -1659,11 +1659,11 @@ impl RustFigure {
         } else { None };
 
         let marker = if let Some(v) = kwargs.get_item("marker")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let alpha = if let Some(v) = kwargs.get_item("alpha")? {
@@ -1800,7 +1800,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         let zorder = if let Some(v) = kwargs.get_item("zorder")? {
@@ -2209,7 +2209,7 @@ impl RustFigure {
         } else { None };
 
         let label = if let Some(v) = kwargs.get_item("label")? {
-            Some(v.extract::<String>()?)
+            v.extract::<String>().ok()
         } else { None };
 
         ax.fill(x, y, color, alpha, label);
