@@ -1,171 +1,189 @@
 # RustPlotLib Roadmap
 
-This roadmap outlines the path to full matplotlib feature parity, implemented entirely in Rust.
+Goal: Full matplotlib reimplementation in Rust.
 
 ---
 
-## Phase 1: Essential Enhancements (v0.2.0) — COMPLETE
+## DONE — v2.0.0
 
-- [x] **Logarithmic scale** — `set_xscale('log')`, `set_yscale('log')`
-- [x] **Twin axes** — `twinx()` for dual Y axes
-- [x] **Error bars** — `errorbar()` with xerr/yerr
-- [x] **Fill between** — `fill_between()`, `fill_betweenx()`
-- [x] **Horizontal bars** — `barh()`
-- [x] **Stacked bars** — `bottom` parameter for stacked bars
-- [x] **Text annotations** — `text()`, `annotate()` with arrows
-- [x] **Colorbar** — `colorbar()` for imshow/contour
-- [x] **Axis formatting** — custom tick labels, tick rotation, tick fontsize
-- [x] **Aspect ratio** — `set_aspect('equal')`, `set_aspect('auto')`
-- [x] **Box plots** — `boxplot()`
-- [x] **Pie charts** — `pie()`
-- [x] **Stem plots** — `stem()`
-- [x] **Step plots** — `step()`
-- [x] **PDF output** — savefig to PDF
-- [x] **DPI control** — proper DPI handling in savefig
-- [x] **Figure suptitle** — `suptitle()` for figure-level title
-- [x] **Subplot spacing** — `subplots_adjust()`, `hspace`, `wspace`
-- [x] **Invert axes** — `invert_xaxis()`, `invert_yaxis()`
-- [x] **Axis visibility** — `set_visible(False)`, `axis('off')`
+### 2D Plot Types (26 implemented)
+- [x] plot, scatter, bar, barh, hist, imshow, fill_between, fill_betweenx, fill
+- [x] errorbar, step, pie, boxplot, violinplot, stem
+- [x] contour, contourf, hexbin, quiver, streamplot
+- [x] stackplot, broken_barh, eventplot, pcolormesh/pcolor, matshow, sankey
 
-## Phase 2: Advanced 2D (v0.3.0) — COMPLETE
+### 3D Plot Types (7 implemented)
+- [x] plot3D, scatter3D, plot_surface, plot_wireframe, bar3d, plot_trisurf, contour3D
 
-- [x] **Contour plots** — `contour()`, `contourf()` with marching squares
-- [x] **Quiver plots** — `quiver()` for vector arrows
-- [x] **Streamplots** — `streamplot()` with Euler integration
-- [x] **Hexbin plots** — `hexbin()` for 2D histograms
-- [x] **Polar plots** — `subplot_polar()`, polar coordinates
-- [x] **Span selectors** — `axhspan()`, `axvspan()`, `axhline()`, `axvline()`
-- [x] **Patch objects** — `Rectangle`, `Circle`, `Polygon`, `FancyBboxPatch`, `Wedge`
-- [x] **GridSpec** — `GridSpec`, `SubplotSpec` (compatibility stubs)
-- [x] **Multiple colormaps** — 35+ colormaps with accurate data
-- [x] **Custom colormaps** — `LinearSegmentedColormap`, `Normalize`, `LogNorm`
-- [ ] **Heatmap annotations** — text inside imshow cells
-- [ ] **Table** — `table()` inside axes (partial)
-- [ ] **Path effects** — shadows, strokes
-- [ ] **Clipping** — proper clip to axes bounds
-- [ ] **Constrained layout** — automatic spacing algorithm
+### Drawing Elements (10 implemented)
+- [x] arrow, axhline, axvline, axhspan, axvspan, axline, hlines, vlines, annotate, text
 
-## Phase 3: Styles and Themes (v0.3.0) — COMPLETE
+### Rendering
+- [x] PNG raster (tiny-skia), Native SVG (vector), PDF, Interactive window, GIF animation
 
-- [x] **Style sheets** — `plt.style.use()` with 6 built-in themes
-- [x] **rcParams** — functional global configuration (30+ keys)
-- [x] **Dark mode** — `dark_background` theme
-- [x] **Spine customization** — `spines['top'].set_visible(False)`
-- [x] **Tick parameters** — `tick_params()` with direction, length, width, colors
-- [x] **Figure facecolor/edgecolor** — background customization
-- [x] **Axes facecolor** — per-axes background
-- [x] **Savefig options** — `transparent`, `dpi` parameters
-- [x] **LaTeX-to-Unicode** — Greek letters, subscripts, superscripts, math operators
-- [ ] **Custom fonts** — load user fonts, font families
-- [ ] **Full LaTeX rendering** — math text with TeX-like layout engine
-- [ ] **Unicode support** — full Unicode text rendering
-- [ ] **Cycle customization** — `cycler()` (stub exists)
-- [ ] **Grid customization** — major/minor grid separation
+### Customization
+- [x] Log scale, twinx/twiny, spines, tick_params, zorder, hatch patterns
+- [x] Colorbar, 6 style themes, 70+ colormaps, custom fonts, rcParams (30+ keys)
+- [x] bbox_inches='tight', bilinear interpolation, title loc, multi-group plot
+- [x] Aspect ratio, invert axes, axis off, subplot_mosaic, suptitle, subplots_adjust
 
-## Phase 4: 3D Plotting (v0.4.0) — COMPLETE
+### Compatibility Modules (23)
+- [x] pyplot, style, animation, widgets, font_manager, ticker, patches, colors
+- [x] dates, gridspec, backends, mpl_toolkits.mplot3d, cm, collections, lines
+- [x] text, transforms, patheffects, spines, axes, figure, cycler
 
-- [x] **3D axes** — `add_subplot(projection='3d')`
-- [x] **3D line plots** — `plot(x, y, z)`
-- [x] **3D scatter** — `scatter(x, y, z)` with depth sorting
-- [x] **3D surface** — `plot_surface(X, Y, Z)` with colormaps
-- [x] **3D wireframe** — `plot_wireframe(X, Y, Z)`
-- [x] **3D bar charts** — `bar3d()` with shading
-- [x] **Camera control** — `view_init(elev, azim)`
-- [x] **Z-axis** — labels, limits
-- [ ] **3D contour** — `contour3D()`, `contourf3D()`
-- [ ] **Trisurf** — `plot_trisurf()`
-- [ ] **Mouse rotation** — interactive 3D navigation
-- [ ] **Projection types** — perspective projection
+### Data Integration
+- [x] Pandas, NumPy, NaN handling, dates, categorical axes, imread/imsave
 
-## Phase 5: Interactivity and Animation (v0.4.0) — COMPLETE
-
-- [x] **Animation** — `FuncAnimation` with frame generation
-- [x] **GIF export** — save animations as GIF (via Pillow)
-- [x] **PNG sequence** — save animation frames individually
-- [x] **Event stubs** — `canvas.mpl_connect()` compatibility
-- [x] **Widget stubs** — `Slider`, `Button`, `CheckButtons`, `RadioButtons`, `TextBox`
-- [ ] **Real event handling** — mouse click, motion, key press, scroll
-- [ ] **Zoom and pan** — interactive navigation
-- [ ] **Functional widgets** — working Slider, Button with callbacks
-- [ ] **Blitting** — fast animation via partial redraw
-- [ ] **MP4 export** — save animations as video
-
-## Phase 6: Backend System (v0.4.0) — PARTIAL
-
-- [x] **Backend selection** — `rustplotlib.use('Agg')` equivalent
-- [x] **Headless backend** — pure raster, no display
-- [ ] **Qt backend** — QApplication integration
-- [ ] **GTK backend** — GTK3/GTK4 integration
-- [ ] **Tk backend** — Tkinter integration
-- [ ] **Web/HTML backend** — render to HTML5 Canvas
-- [ ] **Jupyter backend** — inline display in Jupyter notebooks
-- [ ] **Cairo backend** — vector rendering via Cairo
-- [ ] **macOS native backend** — Cocoa/Metal integration
-
-## Phase 7: Data Integration (v0.4.0) — COMPLETE
-
-- [x] **Pandas integration** — plot directly from DataFrame/Series
-- [x] **NumPy support** — full array support
-- [x] **NaN handling** — automatic gaps in line plots
-- [x] **Date handling** — `date2num()`, `num2date()`, formatters, locators
-- [x] **Categorical axes** — string-based categorical data
-- [ ] **xarray support** — labeled multi-dimensional arrays
-- [ ] **Units support** — pint, astropy.units
-- [ ] **NumPy zero-copy** — via PyO3 without `.tolist()`
-
-## Phase 8: Advanced Features (v0.4.0) — PARTIAL
-
-- [x] **Violin plots** — `violinplot()` with Gaussian KDE
-- [x] **Subplot mosaic** — `subplot_mosaic()` for named layouts
-- [x] **Table** — `table()` inside axes
-- [x] **hlines/vlines** — multiple reference lines
-- [x] **PdfPages** — multi-page PDF export
-- [x] **fill_betweenx** — horizontal fill between
-- [ ] **Sankey diagrams** — flow diagrams
-- [ ] **Radar/spider charts** — polar bar charts
-- [ ] **Inset axes** — `inset_axes()`, `zoomed_inset_axes()`
-- [ ] **Broken axes** — axes with discontinuities
-- [ ] **Geographic projections** — Basemap-like functionality
-- [ ] **Pickle support** — serialize/deserialize figures
-- [ ] **Copy to clipboard** — system clipboard integration
-
-## Phase 9: Full API Compatibility (v1.0.0) — PARTIAL
-
-- [x] **pyplot core API** — 50+ functions implemented
-- [x] **Axes methods** — 40+ methods implemented
-- [x] **Figure methods** — 15+ methods implemented
-- [x] **Type stubs** — `.pyi` files for IDE autocompletion
-- [x] **Native SVG** — real vector SVG output
-- [x] **Security hardening** — path validation, dimension limits, no panics
-- [ ] **100% pyplot coverage** — remaining pyplot functions
-- [ ] **Default style parity** — match matplotlib's appearance pixel-for-pixel
-- [ ] **Image comparison tests** — regression testing against matplotlib output
-- [ ] **Full documentation** — API docs with examples
-- [ ] **Backward compatibility** — support for deprecated matplotlib APIs
+### Security
+- [x] Zero unsafe, path validation, dimension limits, no panics on user input
 
 ---
 
-## What's Next
+## IN PROGRESS — v3.0.0
 
-Priority areas for continued development:
+### Missing Plot Types
+- [ ] `spy()` — sparsity pattern visualization
+- [ ] `specgram()` — spectrogram
+- [ ] `acorr()` / `xcorr()` — auto/cross correlation
+- [ ] `angle_spectrum()` / `magnitude_spectrum()` / `phase_spectrum()`
+- [ ] `cohere()` — coherence plot
+- [ ] `csd()` / `psd()` — cross/power spectral density
+- [ ] `ecdf()` — empirical cumulative distribution
+- [ ] `stairs()` — step plot with edges
+- [ ] `tricontour()` / `tricontourf()` — contour on triangulation
+- [ ] `tripcolor()` — pseudocolor on triangulation
+- [ ] `triplot()` — plot triangulation edges
 
-1. **Jupyter inline display** — `%matplotlib inline` support
-2. **Full LaTeX math rendering** — proper TeX layout engine
-3. **Custom fonts** — load user .ttf/.otf files
-4. **NumPy zero-copy** — eliminate `.tolist()` overhead
-5. **Interactive 3D** — mouse rotation for 3D plots
-6. **Functional widgets** — working Slider, Button with event callbacks
-7. **Qt/GTK backends** — native GUI integration
-8. **Image comparison tests** — automated visual regression testing
+### Formatters & Locators (functional, not stubs)
+- [ ] `ScalarFormatter` — default number formatting
+- [ ] `LogFormatter` / `LogFormatterSciNotation`
+- [ ] `EngFormatter` — engineering notation (1k, 1M, 1G)
+- [ ] `PercentFormatter`
+- [ ] `StrMethodFormatter` / `FuncFormatter`
+- [ ] `MaxNLocator` — smart tick placement (partial, have auto_ticks)
+- [ ] `MultipleLocator` — ticks at multiples
+- [ ] `LogLocator` — logarithmic ticks
+- [ ] `FixedLocator` — user-specified positions
+- [ ] `AutoMinorLocator` — automatic minor ticks
+- [ ] `DateFormatter` functional (format ticks as dates)
+- [ ] `DateLocator` functional (place ticks at date intervals)
+
+### Advanced Customization
+- [ ] `FancyArrowPatch` — complex arrow styles (arc, angle, etc.)
+- [ ] `ConnectionPatch` — arrows connecting different axes
+- [ ] Spine positioning (`set_position('center')`, `set_position(('data', 0))`)
+- [ ] Minor ticks rendering (major/minor tick distinction)
+- [ ] Grid major/minor separate styling
+- [ ] `ax.set_xticks(minor=True)` functional
+- [ ] Colorbar as separate Axes (not inline drawing)
+- [ ] `TwoSlopeNorm`, `CenteredNorm`, `BoundaryNorm` functional
+
+### Image Improvements
+- [ ] Bicubic, Lanczos, Spline interpolation
+- [ ] Image origin ('upper' vs 'lower')
+- [ ] Image extent parameter
+- [ ] RGB/RGBA image support in imshow
+
+---
+
+## PLANNED — v4.0.0
+
+### Functional Backends
+- [ ] Qt backend (QApplication, mouse events, toolbar, save dialog)
+- [ ] GTK3/GTK4 backend
+- [ ] Tk backend (tkinter integration)
+- [ ] Jupyter inline backend (rich display protocol, `_repr_png_`)
+- [ ] WebAgg (HTML5 Canvas, browser-based interactive)
+- [ ] macOS native backend (NSView/Metal)
+
+### Functional Widgets
+- [ ] `Slider` with real callback and visual rendering
+- [ ] `RangeSlider`
+- [ ] `Button` with click detection
+- [ ] `CheckButtons` / `RadioButtons`
+- [ ] `TextBox` with keyboard input
+- [ ] `SpanSelector` / `RectangleSelector` / `LassoSelector` functional
+- [ ] `Cursor` with crosshair rendering
+
+### Interactive Features
+- [ ] Mouse events (click, motion, scroll, pick)
+- [ ] Keyboard events
+- [ ] Zoom/pan navigation toolbar
+- [ ] 3D mouse rotation
+- [ ] Blitting for fast animation updates
+- [ ] Interactive data cursors
+
+---
+
+## PLANNED — v5.0.0
+
+### Full LaTeX Math Rendering
+- [ ] TeX layout engine (fractions, roots, integrals, summation)
+- [ ] Subscript/superscript positioning
+- [ ] Math font rendering (Computer Modern, STIX)
+- [ ] `\frac{}{}`, `\sqrt{}`, `\int`, `\sum`, `\prod`
+- [ ] Matrices, arrays, aligned equations
+- [ ] `\mathbf{}`, `\mathit{}`, `\mathrm{}`
+
+### Advanced Layout
+- [ ] Tight layout engine (constraint solver)
+- [ ] Constrained layout
+- [ ] GridSpec with rowspan/colspan
+- [ ] Figure.add_axes() with custom position [left, bottom, width, height]
+- [ ] Axes divider (mpl_toolkits.axes_grid1)
+- [ ] `make_axes_locatable` for colorbar positioning
+- [ ] Nested subplots
+
+### Transform System
+- [ ] Composable transforms (data → axes → figure → display)
+- [ ] `ax.transData`, `ax.transAxes`, `fig.transFigure`
+- [ ] Blended transforms
+- [ ] Custom projections
+- [ ] Affine2D functional (rotate, scale, translate)
+- [ ] `ax.set_transform()` on artists
+
+---
+
+## PLANNED — v6.0.0
+
+### Geographic/Specialized Projections
+- [ ] Polar projection improvements (theta direction, offset)
+- [ ] Hammer, Aitoff, Mollweide projections
+- [ ] Lambert conformal conic
+- [ ] Stereographic projection
+- [ ] Basemap-like coastlines and borders (optional data)
+
+### Serialization
+- [ ] Pickle save/load figures
+- [ ] JSON export/import of figure state
+- [ ] Copy to system clipboard (PNG)
+- [ ] Multi-page PDF (real, not separate files)
+
+### Full Artist Hierarchy
+- [ ] Artist base class with all properties (alpha, clip, zorder, transform, visible, picker, animated, label, url)
+- [ ] `set_clip_path()`, `set_clip_box()`
+- [ ] `contains()` for hit testing
+- [ ] `get_children()`, `findobj()`
+- [ ] `draw()` dispatch through artist tree
+- [ ] `stale` property for incremental redraw
+
+### Remaining API Surface
+- [ ] 100% of `matplotlib.pyplot` functions
+- [ ] 100% of `Axes` methods
+- [ ] 100% of `Figure` methods
+- [ ] Image comparison regression tests vs matplotlib output
+- [ ] Full API documentation with examples
+- [ ] Type stubs (.pyi) for all modules
 
 ---
 
 ## Contributing
 
-We welcome contributions! Pick any unchecked item from a phase, open an issue to discuss the approach, and submit a PR with tests.
+Pick any unchecked item, open an issue to discuss, submit a PR with tests.
 
-**Priority areas:**
-1. Turning stub modules into real implementations
-2. Bug fixes and edge cases
-3. Performance optimizations
-4. Documentation and examples
+**Highest impact areas:**
+1. Formatters/Locators (v3.0.0) — makes axes look professional
+2. Jupyter backend (v4.0.0) — huge for data scientists
+3. LaTeX rendering (v5.0.0) — needed for scientific papers
+4. Interactive features (v4.0.0) — needed for exploratory analysis
