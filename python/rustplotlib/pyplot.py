@@ -313,31 +313,62 @@ class AxesProxy:
     def imshow(self, data, cmap="viridis", aspect=None, vmin=None, vmax=None,
                annotate=False, fmt=None, interpolation=None, origin=None,
                extent=None, **kwargs):
-        data_list = _to_2d_list(data)
+        import numpy as _np
+        arr = _np.asarray(data, dtype=float)
         if origin == 'lower':
-            data_list = list(reversed(data_list))
-        kw = {"cmap": cmap}
-        if vmin is not None:
-            kw["vmin"] = vmin
-        if vmax is not None:
-            kw["vmax"] = vmax
-        if annotate:
-            kw["annotate"] = True
-        if fmt is not None:
-            kw["fmt"] = str(fmt)
-        if interpolation is not None:
-            kw["interpolation"] = str(interpolation)
-        self._fig.axes_imshow(self._id, data_list, kw)
+            arr = arr[::-1]
+
+        if arr.ndim == 3 and arr.shape[2] in (3, 4):
+            # RGB or RGBA image — pass as 3D list to Rust
+            rgb_list = arr.tolist()
+            kw = {}
+            if interpolation is not None:
+                kw["interpolation"] = str(interpolation)
+            if extent is not None:
+                kw["extent"] = [float(e) for e in extent]
+            self._fig.axes_imshow_rgb(self._id, rgb_list, kw)
+        else:
+            # Scalar 2D data — use colormap
+            if arr.ndim == 3:
+                # Unexpected channel count; convert to grayscale
+                arr = arr.mean(axis=2)
+            data_list = arr.tolist()
+            kw = {"cmap": cmap}
+            if vmin is not None:
+                kw["vmin"] = vmin
+            if vmax is not None:
+                kw["vmax"] = vmax
+            if annotate:
+                kw["annotate"] = True
+            if fmt is not None:
+                kw["fmt"] = str(fmt)
+            if interpolation is not None:
+                kw["interpolation"] = str(interpolation)
+            if extent is not None:
+                kw["extent"] = [float(e) for e in extent]
+            self._fig.axes_imshow(self._id, data_list, kw)
         return self
 
     def set_title(self, title, fontsize=None, loc=None, **kwargs):
         self._fig.axes_set_title(self._id, str(title), fontsize, loc)
 
-    def set_xlabel(self, label, fontsize=None, **kwargs):
-        self._fig.axes_set_xlabel(self._id, str(label), fontsize)
+    def set_xlabel(self, label, fontsize=None, color=None, **kwargs):
+        color_str = None
+        if color is not None:
+            color_str = str(color)
+        elif 'fontdict' in kwargs and isinstance(kwargs['fontdict'], dict):
+            if 'color' in kwargs['fontdict']:
+                color_str = str(kwargs['fontdict']['color'])
+        self._fig.axes_set_xlabel(self._id, str(label), fontsize, color_str)
 
-    def set_ylabel(self, label, fontsize=None, **kwargs):
-        self._fig.axes_set_ylabel(self._id, str(label), fontsize)
+    def set_ylabel(self, label, fontsize=None, color=None, **kwargs):
+        color_str = None
+        if color is not None:
+            color_str = str(color)
+        elif 'fontdict' in kwargs and isinstance(kwargs['fontdict'], dict):
+            if 'color' in kwargs['fontdict']:
+                color_str = str(kwargs['fontdict']['color'])
+        self._fig.axes_set_ylabel(self._id, str(label), fontsize, color_str)
 
     def set_xlim(self, left=None, right=None, xmin=None, xmax=None, **kwargs):
         left = left if left is not None else xmin
@@ -551,18 +582,20 @@ class AxesProxy:
             self._fig.axes_set_axis_off(self._id, False)
 
     def set_xticks(self, ticks, labels=None, minor=False, **kwargs):
-        if not minor:
+        if minor:
+            self._fig.axes_set_xticks_minor(self._id, [float(t) for t in ticks])
+        else:
             self._fig.axes_set_xticks(self._id, [float(t) for t in ticks])
             if labels is not None:
                 self._fig.axes_set_xticklabels(self._id, [str(l) for l in labels])
-        # minor ticks: silently ignore (not yet rendered)
 
     def set_yticks(self, ticks, labels=None, minor=False, **kwargs):
-        if not minor:
+        if minor:
+            self._fig.axes_set_yticks_minor(self._id, [float(t) for t in ticks])
+        else:
             self._fig.axes_set_yticks(self._id, [float(t) for t in ticks])
             if labels is not None:
                 self._fig.axes_set_yticklabels(self._id, [str(l) for l in labels])
-        # minor ticks: silently ignore (not yet rendered)
 
     def set_xticklabels(self, labels, **kwargs):
         self._fig.axes_set_xticklabels(self._id, [str(l) for l in labels])

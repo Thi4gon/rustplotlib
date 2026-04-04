@@ -87,6 +87,20 @@ fn hex_color(hex: &str) -> Option<Color> {
     }
 }
 
+/// Parse a color from a plain Rust string (name, hex). Returns black on failure.
+pub fn parse_color_str(s: &str) -> Color {
+    let trimmed = s.trim();
+    if let Some(c) = named_color(trimmed) {
+        return c;
+    }
+    if trimmed.starts_with('#') {
+        if let Some(c) = hex_color(&trimmed[1..]) {
+            return c;
+        }
+    }
+    Color::new(0, 0, 0, 255)
+}
+
 /// Parse a Python color value: string (name, shorthand, hex) or tuple (RGB/RGBA floats).
 pub fn parse_color_value(obj: &Bound<PyAny>) -> PyResult<Color> {
     // Try as string first

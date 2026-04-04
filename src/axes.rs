@@ -212,6 +212,12 @@ pub struct Axes {
     pub title_loc: String,
     // Infinite lines (axline)
     pub ax_lines: Vec<AxLine>,
+    // Minor ticks
+    pub custom_xticks_minor: Option<Vec<f64>>,
+    pub custom_yticks_minor: Option<Vec<f64>>,
+    // Label colors
+    pub xlabel_color: Option<Color>,
+    pub ylabel_color: Option<Color>,
 }
 
 /// Which grid lines to show.
@@ -288,6 +294,10 @@ impl Axes {
             table_data: None,
             title_loc: "center".to_string(),
             ax_lines: Vec::new(),
+            custom_xticks_minor: None,
+            custom_yticks_minor: None,
+            xlabel_color: None,
+            ylabel_color: None,
         }
     }
 
@@ -393,8 +403,8 @@ impl Axes {
         self.artists.push(Box::new(h));
     }
 
-    /// Add an image display.
-    pub fn imshow(&mut self, data: Vec<Vec<f64>>, cmap: Option<String>, annotate: bool, fmt: Option<String>, interpolation: Option<String>) {
+    /// Add an image display (scalar data with colormap).
+    pub fn imshow(&mut self, data: Vec<Vec<f64>>, cmap: Option<String>, annotate: bool, fmt: Option<String>, interpolation: Option<String>, extent: Option<(f64, f64, f64, f64)>) {
         let cm = cmap.unwrap_or_else(|| "viridis".to_string());
         let mut img = Image::new(data, cm);
         img.annotate = annotate;
@@ -407,6 +417,33 @@ impl Axes {
                 _ => ImageInterpolation::Nearest,
             };
         }
+        img.extent = extent;
+        self.artists.push(Box::new(img));
+    }
+
+    /// Add an RGB image display (3D data: rows x cols x 3).
+    pub fn imshow_rgb(&mut self, data: Vec<Vec<(f64, f64, f64)>>, interpolation: Option<String>, extent: Option<(f64, f64, f64, f64)>) {
+        let mut img = Image::new_rgb(data);
+        if let Some(interp) = interpolation {
+            img.interpolation = match interp.to_lowercase().as_str() {
+                "bilinear" => ImageInterpolation::Bilinear,
+                _ => ImageInterpolation::Nearest,
+            };
+        }
+        img.extent = extent;
+        self.artists.push(Box::new(img));
+    }
+
+    /// Add an RGBA image display (3D data: rows x cols x 4).
+    pub fn imshow_rgba(&mut self, data: Vec<Vec<(f64, f64, f64, f64)>>, interpolation: Option<String>, extent: Option<(f64, f64, f64, f64)>) {
+        let mut img = Image::new_rgba(data);
+        if let Some(interp) = interpolation {
+            img.interpolation = match interp.to_lowercase().as_str() {
+                "bilinear" => ImageInterpolation::Bilinear,
+                _ => ImageInterpolation::Nearest,
+            };
+        }
+        img.extent = extent;
         self.artists.push(Box::new(img));
     }
 
@@ -1141,16 +1178,54 @@ impl Axes {
                 );
             }
 
+            // 5b. Draw minor tick marks (shorter, thinner, no labels)
+            {
+                let minor_tick_len = tick_len * 0.5;
+                let (minor_out, minor_in) = match self.tick_direction {
+                    TickDirection::Out => (minor_tick_len, 0.0_f32),
+                    TickDirection::In => (0.0_f32, minor_tick_len),
+                    TickDirection::InOut => (minor_tick_len, minor_tick_len),
+                };
+                let mut minor_stroke = Stroke::default();
+                minor_stroke.width = (self.tick_width * 0.5).max(0.5);
+
+                if let Some(ref minor_xticks) = self.custom_xticks_minor {
+                    for &tx in minor_xticks {
+                        let (px, _) = transform.transform_xy(tx, ymin);
+                        if px < left || px > right { continue; }
+                        let mut pb = PathBuilder::new();
+                        pb.move_to(px, bottom - minor_in);
+                        pb.line_to(px, bottom + minor_out);
+                        if let Some(path) = pb.finish() {
+                            pixmap.stroke_path(&path, &tick_paint, &minor_stroke, ts, None);
+                        }
+                    }
+                }
+                if let Some(ref minor_yticks) = self.custom_yticks_minor {
+                    for &ty in minor_yticks {
+                        let (_, py) = transform.transform_xy(xmin, ty);
+                        if py < top || py > bottom { continue; }
+                        let mut pb = PathBuilder::new();
+                        pb.move_to(left + minor_in, py);
+                        pb.line_to(left - minor_out, py);
+                        if let Some(path) = pb.finish() {
+                            pixmap.stroke_path(&path, &tick_paint, &minor_stroke, ts, None);
+                        }
+                    }
+                }
+            }
+
             // 7. Draw xlabel
             if let Some(ref xlabel) = self.xlabel {
                 let cx = (left + right) / 2.0;
+                let xlabel_col = self.xlabel_color.unwrap_or(self.text_color);
                 draw_text(
                     pixmap,
                     xlabel,
                     cx,
                     bottom + tick_out + self.tick_label_size + 10.0,
                     self.label_size,
-                    self.text_color,
+                    xlabel_col,
                     TextAnchorX::Center,
                     TextAnchorY::Top,
                     0.0,
@@ -1160,13 +1235,14 @@ impl Axes {
             // 8. Draw ylabel (rotated 90 degrees)
             if let Some(ref ylabel) = self.ylabel {
                 let cy = (top + bottom) / 2.0;
+                let ylabel_col = self.ylabel_color.unwrap_or(self.text_color);
                 draw_text(
                     pixmap,
                     ylabel,
                     left - tick_out - 35.0,
                     cy,
                     self.label_size,
-                    self.text_color,
+                    ylabel_col,
                     TextAnchorX::Center,
                     TextAnchorY::Center,
                     -std::f32::consts::FRAC_PI_2,
@@ -1566,16 +1642,43 @@ impl Axes {
                 svg.add_text(left - tick_out - 3.0, py, &label, self.tick_label_size, &text_str, "end", 0.0);
             }
 
+            // 5b. Minor ticks (SVG)
+            {
+                let minor_tick_len = tick_len * 0.5;
+                let (minor_out, minor_in) = match self.tick_direction {
+                    TickDirection::Out => (minor_tick_len, 0.0_f32),
+                    TickDirection::In => (0.0_f32, minor_tick_len),
+                    TickDirection::InOut => (minor_tick_len, minor_tick_len),
+                };
+                let minor_width = (self.tick_width * 0.5).max(0.5);
+                if let Some(ref minor_xticks) = self.custom_xticks_minor {
+                    for &tx in minor_xticks {
+                        let (px, _) = transform.transform_xy(tx, ymin);
+                        if px < left || px > right { continue; }
+                        svg.add_line(px, bottom - minor_in, px, bottom + minor_out, &tick_str, minor_width, None, 1.0);
+                    }
+                }
+                if let Some(ref minor_yticks) = self.custom_yticks_minor {
+                    for &ty in minor_yticks {
+                        let (_, py) = transform.transform_xy(xmin, ty);
+                        if py < top || py > bottom { continue; }
+                        svg.add_line(left + minor_in, py, left - minor_out, py, &tick_str, minor_width, None, 1.0);
+                    }
+                }
+            }
+
             // 7. xlabel
             if let Some(ref xlabel) = self.xlabel {
                 let cx = (left + right) / 2.0;
-                svg.add_text(cx, bottom + tick_out + self.tick_label_size + 12.0, xlabel, self.label_size, &text_str, "middle", 0.0);
+                let xlabel_str = if let Some(ref c) = self.xlabel_color { color_to_svg(c) } else { text_str.clone() };
+                svg.add_text(cx, bottom + tick_out + self.tick_label_size + 12.0, xlabel, self.label_size, &xlabel_str, "middle", 0.0);
             }
 
             // 8. ylabel (rotated)
             if let Some(ref ylabel) = self.ylabel {
                 let cy = (top + bottom) / 2.0;
-                svg.add_text(left - tick_out - 35.0, cy, ylabel, self.label_size, &text_str, "middle", -std::f32::consts::FRAC_PI_2);
+                let ylabel_str = if let Some(ref c) = self.ylabel_color { color_to_svg(c) } else { text_str.clone() };
+                svg.add_text(left - tick_out - 35.0, cy, ylabel, self.label_size, &ylabel_str, "middle", -std::f32::consts::FRAC_PI_2);
             }
         }
 

@@ -290,7 +290,72 @@ impl RustFigure {
             Some(v.extract::<String>()?)
         } else { None };
 
-        ax.imshow(data, cmap, annotate, fmt, interpolation);
+        let extent = if let Some(v) = kwargs.get_item("extent")? {
+            let ext: Vec<f64> = v.extract()?;
+            if ext.len() == 4 {
+                Some((ext[0], ext[1], ext[2], ext[3]))
+            } else {
+                None
+            }
+        } else { None };
+
+        ax.imshow(data, cmap, annotate, fmt, interpolation, extent);
+
+        Ok(())
+    }
+
+    fn axes_imshow_rgb(
+        &mut self,
+        ax_id: usize,
+        data: Vec<Vec<Vec<f64>>>,
+        kwargs: &Bound<'_, PyDict>,
+    ) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+
+        let interpolation = if let Some(v) = kwargs.get_item("interpolation")? {
+            Some(v.extract::<String>()?)
+        } else { None };
+
+        let extent = if let Some(v) = kwargs.get_item("extent")? {
+            let ext: Vec<f64> = v.extract()?;
+            if ext.len() == 4 {
+                Some((ext[0], ext[1], ext[2], ext[3]))
+            } else {
+                None
+            }
+        } else { None };
+
+        // Determine if RGB or RGBA based on inner vector length
+        let is_rgba = data.first()
+            .and_then(|row| row.first())
+            .map(|pixel| pixel.len() >= 4)
+            .unwrap_or(false);
+
+        if is_rgba {
+            let rgba_data: Vec<Vec<(f64, f64, f64, f64)>> = data.iter().map(|row| {
+                row.iter().map(|pixel| {
+                    (
+                        pixel.get(0).copied().unwrap_or(0.0),
+                        pixel.get(1).copied().unwrap_or(0.0),
+                        pixel.get(2).copied().unwrap_or(0.0),
+                        pixel.get(3).copied().unwrap_or(1.0),
+                    )
+                }).collect()
+            }).collect();
+            ax.imshow_rgba(rgba_data, interpolation, extent);
+        } else {
+            let rgb_data: Vec<Vec<(f64, f64, f64)>> = data.iter().map(|row| {
+                row.iter().map(|pixel| {
+                    (
+                        pixel.get(0).copied().unwrap_or(0.0),
+                        pixel.get(1).copied().unwrap_or(0.0),
+                        pixel.get(2).copied().unwrap_or(0.0),
+                    )
+                }).collect()
+            }).collect();
+            ax.imshow_rgb(rgb_data, interpolation, extent);
+        }
 
         Ok(())
     }
@@ -309,24 +374,30 @@ impl RustFigure {
         Ok(())
     }
 
-    #[pyo3(signature = (ax_id, label, fontsize=None))]
-    fn axes_set_xlabel(&mut self, ax_id: usize, label: String, fontsize: Option<f32>) -> PyResult<()> {
+    #[pyo3(signature = (ax_id, label, fontsize=None, color=None))]
+    fn axes_set_xlabel(&mut self, ax_id: usize, label: String, fontsize: Option<f32>, color: Option<String>) -> PyResult<()> {
         let ax = self.axes.get_mut(ax_id)
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
         ax.xlabel = Some(label);
         if let Some(fs) = fontsize {
             ax.label_size = fs;
         }
+        if let Some(c) = color {
+            ax.xlabel_color = Some(crate::colors::parse_color_str(&c));
+        }
         Ok(())
     }
 
-    #[pyo3(signature = (ax_id, label, fontsize=None))]
-    fn axes_set_ylabel(&mut self, ax_id: usize, label: String, fontsize: Option<f32>) -> PyResult<()> {
+    #[pyo3(signature = (ax_id, label, fontsize=None, color=None))]
+    fn axes_set_ylabel(&mut self, ax_id: usize, label: String, fontsize: Option<f32>, color: Option<String>) -> PyResult<()> {
         let ax = self.axes.get_mut(ax_id)
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
         ax.ylabel = Some(label);
         if let Some(fs) = fontsize {
             ax.label_size = fs;
+        }
+        if let Some(c) = color {
+            ax.ylabel_color = Some(crate::colors::parse_color_str(&c));
         }
         Ok(())
     }
@@ -875,6 +946,20 @@ impl RustFigure {
         let ax = self.axes.get_mut(ax_id)
             .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
         ax.custom_yticks = Some(ticks);
+        Ok(())
+    }
+
+    fn axes_set_xticks_minor(&mut self, ax_id: usize, ticks: Vec<f64>) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.custom_xticks_minor = Some(ticks);
+        Ok(())
+    }
+
+    fn axes_set_yticks_minor(&mut self, ax_id: usize, ticks: Vec<f64>) -> PyResult<()> {
+        let ax = self.axes.get_mut(ax_id)
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Invalid axes index"))?;
+        ax.custom_yticks_minor = Some(ticks);
         Ok(())
     }
 

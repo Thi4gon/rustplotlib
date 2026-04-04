@@ -422,8 +422,15 @@ pub enum ImageInterpolation {
     Bilinear,   // smooth blending between adjacent pixels
 }
 
+/// Image data variants: scalar (uses colormap) or direct RGB/RGBA.
+pub enum ImageData {
+    Scalar(Vec<Vec<f64>>),
+    RGB(Vec<Vec<(f64, f64, f64)>>),
+    RGBA(Vec<Vec<(f64, f64, f64, f64)>>),
+}
+
 pub struct Image {
-    pub data: Vec<Vec<f64>>,
+    pub data: ImageData,
     pub rows: usize,
     pub cols: usize,
     pub cmap: String,
@@ -432,6 +439,7 @@ pub struct Image {
     pub annotate: bool,
     pub fmt: String,
     pub interpolation: ImageInterpolation,
+    pub extent: Option<(f64, f64, f64, f64)>,  // (left, right, bottom, top)
 }
 
 impl Image {
@@ -452,7 +460,91 @@ impl Image {
             vmax = vmin + 1.0;
         }
 
-        Image { data, rows, cols, cmap, vmin, vmax, annotate: false, fmt: ".2g".to_string(), interpolation: ImageInterpolation::Nearest }
+        Image { data: ImageData::Scalar(data), rows, cols, cmap, vmin, vmax, annotate: false, fmt: ".2g".to_string(), interpolation: ImageInterpolation::Nearest, extent: None }
+    }
+
+    /// Create an Image from RGB data (H x W x 3).
+    pub fn new_rgb(data: Vec<Vec<(f64, f64, f64)>>) -> Self {
+        let rows = data.len();
+        let cols = if rows > 0 { data[0].len() } else { 0 };
+        Image {
+            data: ImageData::RGB(data),
+            rows,
+            cols,
+            cmap: String::new(),
+            vmin: 0.0,
+            vmax: 1.0,
+            annotate: false,
+            fmt: ".2g".to_string(),
+            interpolation: ImageInterpolation::Nearest,
+            extent: None,
+        }
+    }
+
+    /// Create an Image from RGBA data (H x W x 4).
+    pub fn new_rgba(data: Vec<Vec<(f64, f64, f64, f64)>>) -> Self {
+        let rows = data.len();
+        let cols = if rows > 0 { data[0].len() } else { 0 };
+        Image {
+            data: ImageData::RGBA(data),
+            rows,
+            cols,
+            cmap: String::new(),
+            vmin: 0.0,
+            vmax: 1.0,
+            annotate: false,
+            fmt: ".2g".to_string(),
+            interpolation: ImageInterpolation::Nearest,
+            extent: None,
+        }
+    }
+
+    /// Get the color for a cell, regardless of data type.
+    fn cell_color(&self, r: usize, c: usize) -> Color {
+        match &self.data {
+            ImageData::Scalar(data) => {
+                let val = data[r][c];
+                let t = (val - self.vmin) / (self.vmax - self.vmin);
+                colormap_lookup(&self.cmap, t)
+            }
+            ImageData::RGB(data) => {
+                let (rv, gv, bv) = data[r][c];
+                Color::from_f32(rv as f32, gv as f32, bv as f32, 1.0)
+            }
+            ImageData::RGBA(data) => {
+                let (rv, gv, bv, av) = data[r][c];
+                Color::from_f32(rv as f32, gv as f32, bv as f32, av as f32)
+            }
+        }
+    }
+
+    /// Get scalar value for annotation. Returns None for non-scalar data.
+    fn cell_scalar(&self, r: usize, c: usize) -> Option<f64> {
+        match &self.data {
+            ImageData::Scalar(data) => Some(data[r][c]),
+            _ => None,
+        }
+    }
+
+    /// Get the data coordinates for a given cell using extent if set.
+    fn cell_bounds(&self, r: usize, c: usize) -> (f64, f64, f64, f64) {
+        if let Some((ext_left, ext_right, ext_bottom, ext_top)) = self.extent {
+            // Map cell indices to extent coordinates
+            let cell_w = (ext_right - ext_left) / self.cols as f64;
+            let cell_h = (ext_top - ext_bottom) / self.rows as f64;
+            let x0 = ext_left + c as f64 * cell_w;
+            let x1 = x0 + cell_w;
+            // Row 0 is top of image, so y goes from ext_top downward
+            let y0 = ext_top - r as f64 * cell_h;
+            let y1 = y0 - cell_h;
+            (x0, x1, y1, y0) // (x0, x1, y_bottom, y_top)
+        } else {
+            let x0 = c as f64 - 0.5;
+            let x1 = c as f64 + 0.5;
+            let y0 = r as f64 - 0.5;
+            let y1 = r as f64 + 0.5;
+            (x0, x1, y0, y1)
+        }
     }
 }
 
@@ -466,21 +558,16 @@ impl Artist for Image {
 
         match self.interpolation {
             ImageInterpolation::Nearest => {
-                // Original nearest-neighbor rendering: one rect per data cell
+                // Nearest-neighbor rendering: one rect per data cell
                 for r in 0..self.rows {
                     for c in 0..self.cols {
-                        let val = self.data[r][c];
-                        let t = (val - self.vmin) / (self.vmax - self.vmin);
-                        let color = colormap_lookup(&self.cmap, t);
+                        let color = self.cell_color(r, c);
 
                         let mut paint = Paint::default();
                         paint.set_color(color.to_tiny_skia());
                         paint.anti_alias = false;
 
-                        let x0 = c as f64 - 0.5;
-                        let x1 = c as f64 + 0.5;
-                        let y0 = r as f64 - 0.5;
-                        let y1 = r as f64 + 0.5;
+                        let (x0, x1, y0, y1) = self.cell_bounds(r, c);
 
                         let (px0, py0) = transform.transform_xy(x0, y0);
                         let (px1, py1) = transform.transform_xy(x1, y1);
@@ -497,90 +584,101 @@ impl Artist for Image {
                 }
             }
             ImageInterpolation::Bilinear => {
-                // Bilinear interpolation: render pixel-by-pixel, blending
-                // the 4 nearest data cells for smooth heatmaps.
+                // Bilinear interpolation only supported for scalar data; fall back to nearest for RGB/RGBA
+                if !matches!(&self.data, ImageData::Scalar(_)) {
+                    // Fall back to nearest for RGB/RGBA
+                    for r in 0..self.rows {
+                        for c in 0..self.cols {
+                            let color = self.cell_color(r, c);
+                            let mut paint = Paint::default();
+                            paint.set_color(color.to_tiny_skia());
+                            paint.anti_alias = false;
+                            let (x0, x1, y0, y1) = self.cell_bounds(r, c);
+                            let (px0, py0) = transform.transform_xy(x0, y0);
+                            let (px1, py1) = transform.transform_xy(x1, y1);
+                            let rx = px0.min(px1);
+                            let ry = py0.min(py1);
+                            let rw = (px1 - px0).abs().max(1.0);
+                            let rh = (py1 - py0).abs().max(1.0);
+                            if let Some(rect) = Rect::from_xywh(rx, ry, rw, rh) {
+                                pixmap.fill_rect(rect, &paint, ts, None);
+                            }
+                        }
+                    }
+                } else if let ImageData::Scalar(ref scalar_data) = self.data {
+                    // Bilinear interpolation for scalar data
+                    let (data_x_min, data_x_max, data_y_min, data_y_max) = if let Some((el, er, eb, et)) = self.extent {
+                        (el, er, eb, et)
+                    } else {
+                        (-0.5_f64, self.cols as f64 - 0.5, -0.5_f64, self.rows as f64 - 0.5)
+                    };
 
-                // Compute the pixel bounding box of the entire image
-                let (px_left, py_top) = transform.transform_xy(-0.5, -0.5);
-                let (px_right, py_bottom) = transform.transform_xy(
-                    self.cols as f64 - 0.5,
-                    self.rows as f64 - 0.5,
-                );
-                let px_min = px_left.min(px_right) as i32;
-                let px_max = px_left.max(px_right).ceil() as i32;
-                let py_min = py_top.min(py_bottom) as i32;
-                let py_max = py_top.max(py_bottom).ceil() as i32;
+                    let (px_left, py_top) = transform.transform_xy(data_x_min, data_y_min);
+                    let (px_right, py_bottom) = transform.transform_xy(data_x_max, data_y_max);
+                    let px_min = px_left.min(px_right) as i32;
+                    let px_max = px_left.max(px_right).ceil() as i32;
+                    let py_min = py_top.min(py_bottom) as i32;
+                    let py_max = py_top.max(py_bottom).ceil() as i32;
 
-                // Clamp to pixmap bounds
-                let pw = pixmap.width() as i32;
-                let ph = pixmap.height() as i32;
-                let start_x = px_min.max(0);
-                let end_x = px_max.min(pw);
-                let start_y = py_min.max(0);
-                let end_y = py_max.min(ph);
+                    let pw = pixmap.width() as i32;
+                    let ph = pixmap.height() as i32;
+                    let start_x = px_min.max(0);
+                    let end_x = px_max.min(pw);
+                    let start_y = py_min.max(0);
+                    let end_y = py_max.min(ph);
 
-                // Precompute inverse mapping constants
-                let data_x_min = -0.5_f64;
-                let data_x_max = self.cols as f64 - 0.5;
-                let data_y_min = -0.5_f64;
-                let data_y_max = self.rows as f64 - 0.5;
+                    let (p0x_f32, p0y_f32) = transform.transform_xy(data_x_min, data_y_min);
+                    let (p1x_f32, p1y_f32) = transform.transform_xy(data_x_max, data_y_max);
+                    let p0x = p0x_f32 as f64;
+                    let p0y = p0y_f32 as f64;
+                    let p1x = p1x_f32 as f64;
+                    let p1y = p1y_f32 as f64;
 
-                let (p0x_f32, p0y_f32) = transform.transform_xy(data_x_min, data_y_min);
-                let (p1x_f32, p1y_f32) = transform.transform_xy(data_x_max, data_y_max);
-                let p0x = p0x_f32 as f64;
-                let p0y = p0y_f32 as f64;
-                let p1x = p1x_f32 as f64;
-                let p1y = p1y_f32 as f64;
+                    let inv_sx = if (p1x - p0x).abs() > 1e-10 { (data_x_max - data_x_min) / (p1x - p0x) } else { 0.0 };
+                    let inv_sy = if (p1y - p0y).abs() > 1e-10 { (data_y_max - data_y_min) / (p1y - p0y) } else { 0.0 };
 
-                let inv_sx = if (p1x - p0x).abs() > 1e-10 { (data_x_max - data_x_min) / (p1x - p0x) } else { 0.0 };
-                let inv_sy = if (p1y - p0y).abs() > 1e-10 { (data_y_max - data_y_min) / (p1y - p0y) } else { 0.0 };
+                    let range = self.vmax - self.vmin;
+                    let pm_width = pixmap.width();
 
-                let range = self.vmax - self.vmin;
-                let pm_width = pixmap.width();
+                    for py in start_y..end_y {
+                        for px in start_x..end_x {
+                            let pxf = px as f64 + 0.5;
+                            let pyf = py as f64 + 0.5;
 
-                for py in start_y..end_y {
-                    for px in start_x..end_x {
-                        // Map pixel center back to data coordinates
-                        let pxf = px as f64 + 0.5;
-                        let pyf = py as f64 + 0.5;
+                            let dx = data_x_min + (pxf - p0x) * inv_sx;
+                            let dy = data_y_min + (pyf - p0y) * inv_sy;
 
-                        let dx = data_x_min + (pxf - p0x) * inv_sx;
-                        let dy = data_y_min + (pyf - p0y) * inv_sy;
+                            let fx = dx.clamp(0.0, (self.cols - 1) as f64);
+                            let fy = dy.clamp(0.0, (self.rows - 1) as f64);
 
-                        // Bilinear sample from data grid
-                        // Data cell centers are at integer coordinates (0..rows-1, 0..cols-1)
-                        let fx = dx.clamp(0.0, (self.cols - 1) as f64);
-                        let fy = dy.clamp(0.0, (self.rows - 1) as f64);
+                            let ix = fx.floor() as usize;
+                            let iy = fy.floor() as usize;
+                            let ix1 = (ix + 1).min(self.cols - 1);
+                            let iy1 = (iy + 1).min(self.rows - 1);
 
-                        let ix = fx.floor() as usize;
-                        let iy = fy.floor() as usize;
-                        let ix1 = (ix + 1).min(self.cols - 1);
-                        let iy1 = (iy + 1).min(self.rows - 1);
+                            let frac_x = fx - ix as f64;
+                            let frac_y = fy - iy as f64;
 
-                        let frac_x = fx - ix as f64;
-                        let frac_y = fy - iy as f64;
+                            let v00 = scalar_data[iy][ix];
+                            let v10 = scalar_data[iy][ix1];
+                            let v01 = scalar_data[iy1][ix];
+                            let v11 = scalar_data[iy1][ix1];
 
-                        // Blend the 4 nearest cell values
-                        let v00 = self.data[iy][ix];
-                        let v10 = self.data[iy][ix1];
-                        let v01 = self.data[iy1][ix];
-                        let v11 = self.data[iy1][ix1];
+                            let val = v00 * (1.0 - frac_x) * (1.0 - frac_y)
+                                    + v10 * frac_x * (1.0 - frac_y)
+                                    + v01 * (1.0 - frac_x) * frac_y
+                                    + v11 * frac_x * frac_y;
 
-                        let val = v00 * (1.0 - frac_x) * (1.0 - frac_y)
-                                + v10 * frac_x * (1.0 - frac_y)
-                                + v01 * (1.0 - frac_x) * frac_y
-                                + v11 * frac_x * frac_y;
+                            let t = (val - self.vmin) / range;
+                            let color = colormap_lookup(&self.cmap, t);
 
-                        let t = (val - self.vmin) / range;
-                        let color = colormap_lookup(&self.cmap, t);
-
-                        // Write pixel directly
-                        let pixel = tiny_skia::PremultipliedColorU8::from_rgba(
-                            color.r, color.g, color.b, color.a,
-                        );
-                        if let Some(pixel_ref) = pixmap.pixels_mut().get_mut((py as u32 * pm_width + px as u32) as usize) {
-                            if let Some(p) = pixel {
-                                *pixel_ref = p;
+                            let pixel = tiny_skia::PremultipliedColorU8::from_rgba(
+                                color.r, color.g, color.b, color.a,
+                            );
+                            if let Some(pixel_ref) = pixmap.pixels_mut().get_mut((py as u32 * pm_width + px as u32) as usize) {
+                                if let Some(p) = pixel {
+                                    *pixel_ref = p;
+                                }
                             }
                         }
                     }
@@ -588,18 +686,13 @@ impl Artist for Image {
             }
         }
 
-        // Draw annotation text if enabled (always uses nearest/cell-center logic)
+        // Draw annotation text if enabled (only for scalar data)
         if self.annotate {
             for r in 0..self.rows {
                 for c in 0..self.cols {
-                    let val = self.data[r][c];
-                    let t = (val - self.vmin) / (self.vmax - self.vmin);
-                    let color = colormap_lookup(&self.cmap, t);
+                    let color = self.cell_color(r, c);
 
-                    let x0 = c as f64 - 0.5;
-                    let x1 = c as f64 + 0.5;
-                    let y0 = r as f64 - 0.5;
-                    let y1 = r as f64 + 0.5;
+                    let (x0, x1, y0, y1) = self.cell_bounds(r, c);
 
                     let (px0, py0) = transform.transform_xy(x0, y0);
                     let (px1, py1) = transform.transform_xy(x1, y1);
@@ -608,7 +701,11 @@ impl Artist for Image {
                     let cy_px = (py0 + py1) / 2.0;
                     let rh = (py1 - py0).abs().max(1.0);
 
-                    let text = format_annotation_value(val, &self.fmt);
+                    let text = if let Some(val) = self.cell_scalar(r, c) {
+                        format_annotation_value(val, &self.fmt)
+                    } else {
+                        continue; // skip annotation for non-scalar data
+                    };
 
                     let brightness = 0.299 * (color.r as f32 / 255.0)
                         + 0.587 * (color.g as f32 / 255.0)
@@ -638,12 +735,16 @@ impl Artist for Image {
     }
 
     fn data_bounds(&self) -> (f64, f64, f64, f64) {
-        (
-            -0.5,
-            self.cols as f64 - 0.5,
-            -0.5,
-            self.rows as f64 - 0.5,
-        )
+        if let Some((left, right, bottom, top)) = self.extent {
+            (left, right, bottom, top)
+        } else {
+            (
+                -0.5,
+                self.cols as f64 - 0.5,
+                -0.5,
+                self.rows as f64 - 0.5,
+            )
+        }
     }
 
     fn legend_label(&self) -> Option<&str> {

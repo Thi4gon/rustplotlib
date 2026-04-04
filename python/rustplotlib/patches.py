@@ -72,3 +72,35 @@ class Wedge(Patch):
         self.r = r
         self.theta1 = theta1
         self.theta2 = theta2
+
+
+class FancyArrowPatch(Patch):
+    """Basic FancyArrowPatch stub for matplotlib compatibility.
+
+    Supports posA/posB point-to-point arrows and basic arrow styles.
+    """
+
+    def __init__(self, posA=None, posB=None, path=None, arrowstyle='->',
+                 connectionstyle='arc3', mutation_scale=1, shrinkA=2,
+                 shrinkB=2, **kwargs):
+        super().__init__(**kwargs)
+        self.posA = posA
+        self.posB = posB
+        self.path = path
+        self.arrowstyle = arrowstyle
+        self.connectionstyle = connectionstyle
+        self.mutation_scale = mutation_scale
+        self.shrinkA = shrinkA
+        self.shrinkB = shrinkB
+
+
+class ConnectionPatch(FancyArrowPatch):
+    """Connection patch that draws an arrow between two points, optionally on different axes."""
+
+    def __init__(self, xyA, xyB, coordsA='data', coordsB='data',
+                 axesA=None, axesB=None, **kwargs):
+        super().__init__(posA=xyA, posB=xyB, **kwargs)
+        self.coordsA = coordsA
+        self.coordsB = coordsB
+        self.axesA = axesA
+        self.axesB = axesB
