@@ -1214,6 +1214,201 @@ class AxesProxy:
         """Set margins around data."""
         pass  # stub
 
+    def specgram(self, x, NFFT=256, Fs=2, noverlap=128, cmap='viridis', **kwargs):
+        """Plot a spectrogram."""
+        x = np.asarray(x)
+
+        # Compute STFT
+        noverlap = min(noverlap, NFFT - 1)  # ensure step >= 1
+        step = NFFT - noverlap
+        num_segments = (len(x) - NFFT) // step + 1
+
+        spec = np.zeros((NFFT // 2 + 1, num_segments))
+        window = np.hanning(NFFT)
+
+        for i in range(num_segments):
+            start = i * step
+            segment = x[start:start + NFFT] * window
+            fft_result = np.fft.rfft(segment)
+            spec[:, i] = np.abs(fft_result) ** 2
+
+        # Convert to dB
+        spec = 10 * np.log10(spec + 1e-10)
+
+        # Plot as imshow
+        freqs = np.fft.rfftfreq(NFFT, d=1.0 / Fs)
+        times = np.arange(num_segments) * step / Fs
+
+        self.imshow(spec.tolist(), cmap=cmap, origin='lower',
+                    extent=[times[0], times[-1], freqs[0], freqs[-1]])
+        self.set_xlabel('Time')
+        self.set_ylabel('Frequency')
+
+        return spec, freqs, times
+
+    def acorr(self, x, maxlags=None, **kwargs):
+        """Plot autocorrelation."""
+        x = np.asarray(x)
+        x = x - x.mean()
+
+        if maxlags is None:
+            maxlags = len(x) - 1
+        maxlags = min(maxlags, len(x) - 1)
+
+        # Full autocorrelation
+        corr = np.correlate(x, x, mode='full')
+        corr = corr / corr[len(x) - 1]  # normalize
+
+        # Extract lags
+        lags = np.arange(-maxlags, maxlags + 1)
+        mid = len(x) - 1
+        acorr_vals = corr[mid - maxlags:mid + maxlags + 1]
+
+        self.stem(lags.tolist(), acorr_vals.tolist(), **kwargs)
+        self.set_xlabel('Lag')
+        self.set_ylabel('Autocorrelation')
+
+        return lags, acorr_vals
+
+    def xcorr(self, x, y, maxlags=None, **kwargs):
+        """Plot cross-correlation."""
+        x = np.asarray(x) - np.mean(x)
+        y = np.asarray(y) - np.mean(y)
+
+        if maxlags is None:
+            maxlags = max(len(x), len(y)) - 1
+
+        corr = np.correlate(x, y, mode='full')
+        norm = np.sqrt(np.sum(x**2) * np.sum(y**2))
+        if norm > 0:
+            corr = corr / norm
+
+        mid = len(x) - 1
+        lags = np.arange(-maxlags, maxlags + 1)
+        xcorr_vals = corr[mid - maxlags:mid + maxlags + 1]
+
+        self.stem(lags.tolist(), xcorr_vals.tolist(), **kwargs)
+        self.set_xlabel('Lag')
+        self.set_ylabel('Cross-correlation')
+
+        return lags, xcorr_vals
+
+    def psd(self, x, NFFT=256, Fs=2, **kwargs):
+        """Plot power spectral density."""
+        x = np.asarray(x)
+
+        freqs = np.fft.rfftfreq(NFFT, d=1.0 / Fs)
+
+        # Welch's method
+        step = NFFT // 2
+        num_segments = (len(x) - NFFT) // step + 1
+        window = np.hanning(NFFT)
+
+        psd_vals = np.zeros(NFFT // 2 + 1)
+        for i in range(num_segments):
+            start = i * step
+            segment = x[start:start + NFFT] * window
+            fft_result = np.fft.rfft(segment)
+            psd_vals += np.abs(fft_result) ** 2
+
+        psd_vals /= num_segments
+        psd_db = 10 * np.log10(psd_vals + 1e-10)
+
+        self.plot(freqs.tolist(), psd_db.tolist(), **kwargs)
+        self.set_xlabel('Frequency')
+        self.set_ylabel('Power/Frequency (dB/Hz)')
+        self.grid(True)
+
+        return psd_vals, freqs
+
+    def magnitude_spectrum(self, x, Fs=2, **kwargs):
+        """Plot magnitude spectrum."""
+        x = np.asarray(x)
+        freqs = np.fft.rfftfreq(len(x), d=1.0 / Fs)
+        spectrum = np.abs(np.fft.rfft(x))
+        self.plot(freqs.tolist(), spectrum.tolist(), **kwargs)
+        self.set_xlabel('Frequency')
+        self.set_ylabel('Magnitude')
+        return spectrum, freqs
+
+    def angle_spectrum(self, x, Fs=2, **kwargs):
+        """Plot angle spectrum."""
+        x = np.asarray(x)
+        freqs = np.fft.rfftfreq(len(x), d=1.0 / Fs)
+        spectrum = np.angle(np.fft.rfft(x))
+        self.plot(freqs.tolist(), spectrum.tolist(), **kwargs)
+        self.set_xlabel('Frequency')
+        self.set_ylabel('Angle (radians)')
+        return spectrum, freqs
+
+    def phase_spectrum(self, x, Fs=2, **kwargs):
+        """Plot phase spectrum (alias for angle_spectrum)."""
+        return self.angle_spectrum(x, Fs=Fs, **kwargs)
+
+    def cohere(self, x, y, NFFT=256, Fs=2, **kwargs):
+        """Plot coherence between two signals."""
+        x = np.asarray(x)
+        y = np.asarray(y)
+        freqs = np.fft.rfftfreq(NFFT, d=1.0 / Fs)
+
+        # Simplified coherence
+        Pxx = np.abs(np.fft.rfft(x[:NFFT])) ** 2
+        Pyy = np.abs(np.fft.rfft(y[:NFFT])) ** 2
+        Pxy = np.abs(np.fft.rfft(x[:NFFT]) * np.conj(np.fft.rfft(y[:NFFT]))) ** 2
+
+        coh = Pxy / (Pxx * Pyy + 1e-10)
+
+        self.plot(freqs.tolist(), coh.tolist(), **kwargs)
+        self.set_xlabel('Frequency')
+        self.set_ylabel('Coherence')
+        self.set_ylim(0, 1)
+
+        return coh, freqs
+
+    def csd(self, x, y, NFFT=256, Fs=2, **kwargs):
+        """Plot cross spectral density."""
+        x = np.asarray(x)
+        y = np.asarray(y)
+        freqs = np.fft.rfftfreq(NFFT, d=1.0 / Fs)
+        Pxy = np.fft.rfft(x[:NFFT]) * np.conj(np.fft.rfft(y[:NFFT]))
+        self.plot(freqs.tolist(), (10 * np.log10(np.abs(Pxy) + 1e-10)).tolist(), **kwargs)
+        self.set_xlabel('Frequency')
+        self.set_ylabel('Cross Spectral Density (dB)')
+        return Pxy, freqs
+
+    def hist2d(self, x, y, bins=10, cmap='viridis', **kwargs):
+        """Plot a 2D histogram."""
+        x = np.asarray(x)
+        y = np.asarray(y)
+
+        if isinstance(bins, int):
+            bins_x = bins_y = bins
+        else:
+            bins_x, bins_y = bins
+
+        H, xedges, yedges = np.histogram2d(x, y, bins=[bins_x, bins_y])
+
+        self.imshow(H.T.tolist(), cmap=cmap, origin='lower',
+                    extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]])
+
+        return H, xedges, yedges
+
+    def semilogx(self, *args, **kwargs):
+        """Plot with log scaling on the x axis."""
+        self._fig.axes_set_xscale(self._id, 'log')
+        return self.plot(*args, **kwargs)
+
+    def semilogy(self, *args, **kwargs):
+        """Plot with log scaling on the y axis."""
+        self._fig.axes_set_yscale(self._id, 'log')
+        return self.plot(*args, **kwargs)
+
+    def loglog(self, *args, **kwargs):
+        """Plot with log scaling on both axes."""
+        self._fig.axes_set_xscale(self._id, 'log')
+        self._fig.axes_set_yscale(self._id, 'log')
+        return self.plot(*args, **kwargs)
+
     def get_figure(self):
         """Return the FigureProxy that owns this axes."""
         return FigureProxy(self._fig, [self])
@@ -2589,3 +2784,70 @@ def bar_label(container, labels=None, fmt='%g', label_type='edge', fontsize=None
     """Add labels on bar chart bars (module-level)."""
     _gca().bar_label(container, labels=labels, fmt=fmt, label_type=label_type,
                      fontsize=fontsize, **kwargs)
+
+
+# --- Signal processing / spectral plots ---
+
+def specgram(x, NFFT=256, Fs=2, noverlap=128, cmap='viridis', **kwargs):
+    """Plot a spectrogram."""
+    return _gca().specgram(x, NFFT=NFFT, Fs=Fs, noverlap=noverlap, cmap=cmap, **kwargs)
+
+
+def acorr(x, maxlags=None, **kwargs):
+    """Plot autocorrelation."""
+    return _gca().acorr(x, maxlags=maxlags, **kwargs)
+
+
+def xcorr(x, y, maxlags=None, **kwargs):
+    """Plot cross-correlation."""
+    return _gca().xcorr(x, y, maxlags=maxlags, **kwargs)
+
+
+def psd(x, NFFT=256, Fs=2, **kwargs):
+    """Plot power spectral density."""
+    return _gca().psd(x, NFFT=NFFT, Fs=Fs, **kwargs)
+
+
+def magnitude_spectrum(x, Fs=2, **kwargs):
+    """Plot magnitude spectrum."""
+    return _gca().magnitude_spectrum(x, Fs=Fs, **kwargs)
+
+
+def angle_spectrum(x, Fs=2, **kwargs):
+    """Plot angle spectrum."""
+    return _gca().angle_spectrum(x, Fs=Fs, **kwargs)
+
+
+def phase_spectrum(x, Fs=2, **kwargs):
+    """Plot phase spectrum (alias for angle_spectrum)."""
+    return _gca().phase_spectrum(x, Fs=Fs, **kwargs)
+
+
+def cohere(x, y, NFFT=256, Fs=2, **kwargs):
+    """Plot coherence between two signals."""
+    return _gca().cohere(x, y, NFFT=NFFT, Fs=Fs, **kwargs)
+
+
+def csd(x, y, NFFT=256, Fs=2, **kwargs):
+    """Plot cross spectral density."""
+    return _gca().csd(x, y, NFFT=NFFT, Fs=Fs, **kwargs)
+
+
+def hist2d(x, y, bins=10, cmap='viridis', **kwargs):
+    """Plot a 2D histogram."""
+    return _gca().hist2d(x, y, bins=bins, cmap=cmap, **kwargs)
+
+
+def semilogx(*args, **kwargs):
+    """Plot with log scaling on the x axis."""
+    return _gca().semilogx(*args, **kwargs)
+
+
+def semilogy(*args, **kwargs):
+    """Plot with log scaling on the y axis."""
+    return _gca().semilogy(*args, **kwargs)
+
+
+def loglog(*args, **kwargs):
+    """Plot with log scaling on both axes."""
+    return _gca().loglog(*args, **kwargs)
