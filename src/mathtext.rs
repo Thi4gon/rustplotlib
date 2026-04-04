@@ -437,6 +437,133 @@ pub fn parse_math_symbols(input: &str) -> String {
                 "emptyset" => "∅",
                 "forall" => "∀",
                 "exists" => "∃",
+                // Accents (rendered as combining characters)
+                "hat" | "widehat" => {
+                    if chars.peek() == Some(&'{') {
+                        let content = extract_brace_content(&mut chars);
+                        result.push_str(&content);
+                        result.push('\u{0302}'); // combining circumflex
+                        continue;
+                    }
+                    if let Some(c) = chars.next() {
+                        result.push(c);
+                        result.push('\u{0302}');
+                    }
+                    continue;
+                }
+                "tilde" | "widetilde" => {
+                    if chars.peek() == Some(&'{') {
+                        let content = extract_brace_content(&mut chars);
+                        result.push_str(&content);
+                        result.push('\u{0303}');
+                        continue;
+                    }
+                    if let Some(c) = chars.next() {
+                        result.push(c);
+                        result.push('\u{0303}');
+                    }
+                    continue;
+                }
+                "vec" => {
+                    if chars.peek() == Some(&'{') {
+                        let content = extract_brace_content(&mut chars);
+                        result.push_str(&content);
+                        result.push('\u{20D7}');
+                        continue;
+                    }
+                    if let Some(c) = chars.next() {
+                        result.push(c);
+                        result.push('\u{20D7}');
+                    }
+                    continue;
+                }
+                "dot" => {
+                    if chars.peek() == Some(&'{') {
+                        let content = extract_brace_content(&mut chars);
+                        result.push_str(&content);
+                        result.push('\u{0307}');
+                        continue;
+                    }
+                    if let Some(c) = chars.next() {
+                        result.push(c);
+                        result.push('\u{0307}');
+                    }
+                    continue;
+                }
+                "ddot" => {
+                    if chars.peek() == Some(&'{') {
+                        let content = extract_brace_content(&mut chars);
+                        result.push_str(&content);
+                        result.push('\u{0308}');
+                        continue;
+                    }
+                    if let Some(c) = chars.next() {
+                        result.push(c);
+                        result.push('\u{0308}');
+                    }
+                    continue;
+                }
+                "bar" | "overline" => {
+                    if chars.peek() == Some(&'{') {
+                        let content = extract_brace_content(&mut chars);
+                        result.push_str(&content);
+                        result.push('\u{0305}');
+                        continue;
+                    }
+                    if let Some(c) = chars.next() {
+                        result.push(c);
+                        result.push('\u{0305}');
+                    }
+                    continue;
+                }
+                "underline" => {
+                    if chars.peek() == Some(&'{') {
+                        let content = extract_brace_content(&mut chars);
+                        result.push_str(&content);
+                        result.push('\u{0332}');
+                        continue;
+                    }
+                    if let Some(c) = chars.next() {
+                        result.push(c);
+                        result.push('\u{0332}');
+                    }
+                    continue;
+                }
+                // Overbrace/underbrace
+                "overbrace" => "⏞",
+                "underbrace" => "⏟",
+                // Delimitadores
+                "left" => {
+                    // consume next char (the delimiter)
+                    if let Some(c) = chars.next() {
+                        match c {
+                            '(' => result.push('('),
+                            '[' => result.push('['),
+                            '|' => result.push('|'),
+                            '.' => {} // invisible delimiter
+                            _ => result.push(c),
+                        }
+                    }
+                    continue;
+                }
+                "right" => {
+                    if let Some(c) = chars.next() {
+                        match c {
+                            ')' => result.push(')'),
+                            ']' => result.push(']'),
+                            '|' => result.push('|'),
+                            '.' => {}
+                            _ => result.push(c),
+                        }
+                    }
+                    continue;
+                }
+                "langle" => "⟨",
+                "rangle" => "⟩",
+                "lceil" => "⌈",
+                "rceil" => "⌉",
+                "lfloor" => "⌊",
+                "rfloor" => "⌋",
                 // Misc
                 "degree" | "deg" => "°",
                 "prime" => "′",
@@ -444,6 +571,30 @@ pub fn parse_math_symbols(input: &str) -> String {
                 "ell" => "ℓ",
                 "Re" => "ℜ",
                 "Im" => "ℑ",
+                // Additional operators
+                "wedge" | "land" => "∧",
+                "vee" | "lor" => "∨",
+                "neg" | "lnot" => "¬",
+                "otimes" => "⊗",
+                "oplus" => "⊕",
+                "dagger" => "†",
+                "ddagger" => "‡",
+                "perp" => "⊥",
+                "parallel" => "∥",
+                "therefore" => "∴",
+                "because" => "∵",
+                "mapsto" => "↦",
+                "hookrightarrow" => "↪",
+                "hookleftarrow" => "↩",
+                "uparrow" => "↑",
+                "downarrow" => "↓",
+                "Uparrow" => "⇑",
+                "Downarrow" => "⇓",
+                "updownarrow" => "↕",
+                "ldots" | "dots" => "…",
+                "cdots" => "⋯",
+                "vdots" => "⋮",
+                "ddots" => "⋱",
                 // Spacing
                 "quad" => "  ",
                 "qquad" => "    ",
