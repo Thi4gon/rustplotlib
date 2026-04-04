@@ -597,6 +597,18 @@ class BarContainerProxy:
         pass
 
 
+class _AxisStub:
+    """Stub for secondary axis objects."""
+
+    def set_xlabel(self, label, **kwargs): pass
+    def set_ylabel(self, label, **kwargs): pass
+    def set_ticks(self, ticks): pass
+    def set_ticklabels(self, labels): pass
+    def tick_params(self, **kwargs): pass
+    def set_color(self, color): pass
+    def set_visible(self, b): pass
+
+
 class _LegendStub:
     """Minimal stub for matplotlib Legend objects."""
 
@@ -1506,6 +1518,51 @@ class AxesProxy:
         """Turn off minor ticks."""
         self._fig.axes_set_xticks_minor(self._id, [])
         self._fig.axes_set_yticks_minor(self._id, [])
+
+    def sharex(self, other):
+        """Share x-axis with another axes — synchronize xlim."""
+        xlim = other.get_xlim()
+        self.set_xlim(xlim[0], xlim[1])
+        self._shared_x = other
+
+    def sharey(self, other):
+        """Share y-axis with another axes — synchronize ylim."""
+        ylim = other.get_ylim()
+        self.set_ylim(ylim[0], ylim[1])
+        self._shared_y = other
+
+    def indicate_inset(self, bounds, inset_ax=None, **kwargs):
+        """Draw a box indicating an inset region.
+
+        Parameters
+        ----------
+        bounds : [x0, y0, width, height]
+        inset_ax : AxesProxy, optional
+            If provided, draw connector lines to the inset axes.
+        """
+        x0, y0, w, h = bounds
+        from rustplotlib.patches import Rectangle
+        rect = Rectangle((x0, y0), w, h,
+                         edgecolor=kwargs.get('edgecolor', 'black'),
+                         facecolor='none',
+                         linewidth=kwargs.get('linewidth', 1.0))
+        self.add_patch(rect)
+        return rect
+
+    def indicate_inset_zoom(self, inset_ax, **kwargs):
+        """Draw a box and connector lines indicating zoomed inset."""
+        xlim = inset_ax.get_xlim()
+        ylim = inset_ax.get_ylim()
+        bounds = [xlim[0], ylim[0], xlim[1] - xlim[0], ylim[1] - ylim[0]]
+        return self.indicate_inset(bounds, inset_ax, **kwargs)
+
+    def secondary_xaxis(self, location='top', functions=None, **kwargs):
+        """Add a secondary x-axis. Returns a stub axis proxy."""
+        return _AxisStub()
+
+    def secondary_yaxis(self, location='right', functions=None, **kwargs):
+        """Add a secondary y-axis. Returns a stub axis proxy."""
+        return _AxisStub()
 
     def get_xlim(self):
         return self._fig.axes_get_xlim(self._id)
