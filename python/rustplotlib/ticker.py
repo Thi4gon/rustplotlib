@@ -18,9 +18,8 @@ class ScalarFormatter(Formatter):
         self.useOffset = useOffset
         self.useMathText = useMathText
     def __call__(self, x, pos=None):
-        if x == int(x):
-            return str(int(x))
-        return f"{x:g}"
+        from rustplotlib._rustplotlib import format_tick_scalar
+        return format_tick_scalar(float(x))
 
 class FormatStrFormatter(Formatter):
     def __init__(self, fmt):
@@ -46,10 +45,8 @@ class PercentFormatter(Formatter):
         self.decimals = decimals
         self.symbol = symbol
     def __call__(self, x, pos=None):
-        pct = x / self.xmax * 100
-        if self.decimals is not None:
-            return f"{pct:.{self.decimals}f}{self.symbol}"
-        return f"{pct:g}{self.symbol}"
+        from rustplotlib._rustplotlib import format_tick_percent
+        return format_tick_percent(float(x), float(self.xmax), self.decimals)
 
 class LogFormatter(Formatter):
     def __init__(self, base=10.0, labelOnlyBase=False):
@@ -58,10 +55,8 @@ class LogFormatter(Formatter):
     def __call__(self, x, pos=None):
         if x <= 0:
             return ''
-        exp = math.log(x, self.base)
-        if abs(exp - round(exp)) < 0.01:
-            return f"$10^{{{int(round(exp))}}}$"
-        return f"{x:g}"
+        from rustplotlib._rustplotlib import format_tick_log
+        return format_tick_log(float(x), float(self.base))
 
 class LogFormatterSciNotation(LogFormatter):
     pass
@@ -81,15 +76,11 @@ class EngFormatter(Formatter):
         self.places = places
         self.sep = sep
     def __call__(self, x, pos=None):
-        if x == 0:
-            return f"0{self.sep}{self.unit}"
-        exp = int(math.floor(math.log10(abs(x)) / 3) * 3)
-        exp = max(-24, min(24, exp))
-        prefix = self._prefixes.get(exp, f'e{exp}')
-        value = x / (10 ** exp)
-        if self.places is not None:
-            return f"{value:.{self.places}f}{self.sep}{prefix}{self.unit}"
-        return f"{value:g}{self.sep}{prefix}{self.unit}"
+        from rustplotlib._rustplotlib import format_tick_engineering
+        result = format_tick_engineering(float(x), self.places)
+        if self.unit:
+            return f"{result}{self.sep}{self.unit}"
+        return result
 
 class NullFormatter(Formatter):
     def __call__(self, x, pos=None):
@@ -128,13 +119,8 @@ class MultipleLocator(Locator):
     def __init__(self, base=1.0):
         self.base = base
     def tick_values(self, vmin, vmax):
-        start = math.ceil(vmin / self.base) * self.base
-        ticks = []
-        t = start
-        while t <= vmax + self.base * 0.001:
-            ticks.append(round(t / self.base) * self.base)
-            t += self.base
-        return ticks
+        from rustplotlib._rustplotlib import tick_values_multiple
+        return tick_values_multiple(float(vmin), float(vmax), float(self.base))
 
 class FixedLocator(Locator):
     def __init__(self, locs):
@@ -147,17 +133,8 @@ class LogLocator(Locator):
         self.base = base
         self.subs = subs or [1.0]
     def tick_values(self, vmin, vmax):
-        if vmin <= 0:
-            vmin = 1e-10
-        log_min = math.floor(math.log(vmin, self.base))
-        log_max = math.ceil(math.log(vmax, self.base))
-        ticks = []
-        for exp in range(log_min, log_max + 1):
-            for sub in self.subs:
-                val = sub * self.base ** exp
-                if vmin <= val <= vmax:
-                    ticks.append(val)
-        return ticks
+        from rustplotlib._rustplotlib import tick_values_log
+        return tick_values_log(float(max(vmin, 1e-10)), float(vmax), float(self.base))
 
 class AutoLocator(MaxNLocator):
     def __init__(self):
@@ -177,8 +154,8 @@ class LinearLocator(Locator):
     def __init__(self, numticks=None):
         self.numticks = numticks or 11
     def tick_values(self, vmin, vmax):
-        import numpy as np
-        return list(np.linspace(vmin, vmax, self.numticks))
+        from rustplotlib._rustplotlib import tick_values_linear
+        return tick_values_linear(float(vmin), float(vmax), int(self.numticks))
 
 class IndexLocator(Locator):
     def __init__(self, base, offset=0):

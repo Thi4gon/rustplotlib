@@ -5,6 +5,7 @@ mod axes;
 mod axes3d;
 mod colors;
 mod figure;
+mod parse;
 mod projection3d;
 pub mod svg_renderer;
 mod text;
@@ -43,5 +44,17 @@ fn _rustplotlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ticker::format_tick, m)?)?;
     m.add_function(wrap_pyfunction!(set_font, m)?)?;
     m.add_function(wrap_pyfunction!(clear_font, m)?)?;
+    // Parse utilities (format strings, tick formatting, hit testing)
+    m.add_function(wrap_pyfunction!(parse::parse_fmt, m)?)?;
+    m.add_function(wrap_pyfunction!(parse::color_char_to_name, m)?)?;
+    m.add_function(wrap_pyfunction!(parse::format_tick_scalar, m)?)?;
+    m.add_function(wrap_pyfunction!(parse::format_tick_percent, m)?)?;
+    m.add_function(wrap_pyfunction!(parse::format_tick_engineering, m)?)?;
+    m.add_function(wrap_pyfunction!(parse::format_tick_log, m)?)?;
+    m.add_function(wrap_pyfunction!(parse::tick_values_multiple, m)?)?;
+    m.add_function(wrap_pyfunction!(parse::tick_values_log, m)?)?;
+    m.add_function(wrap_pyfunction!(parse::tick_values_linear, m)?)?;
+    m.add_function(wrap_pyfunction!(parse::hit_test_points, m)?)?;
+    m.add_function(wrap_pyfunction!(parse::hit_test_line, m)?)?;
     Ok(())
 }

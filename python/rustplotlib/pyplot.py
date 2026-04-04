@@ -267,20 +267,20 @@ class Line2DProxy(_PickableMixin):
         self._ydata = list(y) if y is not None else []
 
     def _default_contains(self, mouseevent, picker):
-        """Check if mouse is within picker tolerance of any line point."""
+        """Check if mouse is within picker tolerance of any line point.
+
+        Uses Rust hit_test_line() for performance.
+        """
         if not self._xdata or not self._ydata:
             return False, {}
         tolerance = float(picker) if isinstance(picker, (int, float)) else 5.0
         mx, my = mouseevent.xdata, mouseevent.ydata
         if mx is None or my is None:
             return False, {}
-        indices = []
-        for i, (px, py) in enumerate(zip(self._xdata, self._ydata)):
-            dist = ((px - mx) ** 2 + (py - my) ** 2) ** 0.5
-            if dist <= tolerance:
-                indices.append(i)
+        from rustplotlib._rustplotlib import hit_test_line
+        indices = hit_test_line(self._xdata, self._ydata, mx, my, tolerance)
         if indices:
-            return True, {"ind": indices}
+            return True, {"ind": list(indices)}
         return False, {}
 
     def set_color(self, c):
@@ -381,21 +381,22 @@ class PathCollectionProxy(_PickableMixin):
         return self._offsets
 
     def _default_contains(self, mouseevent, picker):
-        """Check if mouse is within picker tolerance of any scatter point."""
+        """Check if mouse is within picker tolerance of any scatter point.
+
+        Uses Rust hit_test_points() for performance.
+        """
         if not self._offsets:
             return False, {}
         tolerance = float(picker) if isinstance(picker, (int, float)) else 5.0
         mx, my = mouseevent.xdata, mouseevent.ydata
         if mx is None or my is None:
             return False, {}
-        indices = []
-        for i, pt in enumerate(self._offsets):
-            if len(pt) >= 2:
-                dist = ((pt[0] - mx) ** 2 + (pt[1] - my) ** 2) ** 0.5
-                if dist <= tolerance:
-                    indices.append(i)
+        from rustplotlib._rustplotlib import hit_test_points
+        xs = [pt[0] for pt in self._offsets if len(pt) >= 2]
+        ys = [pt[1] for pt in self._offsets if len(pt) >= 2]
+        indices = hit_test_points(xs, ys, mx, my, tolerance)
         if indices:
-            return True, {"ind": indices}
+            return True, {"ind": list(indices)}
         return False, {}
 
 
@@ -2902,28 +2903,18 @@ def _parse_plot_args(*args, **kwargs):
 
 
 def _parse_fmt(fmt, kwargs):
-    """Parse matplotlib format string like 'r--o' into color, linestyle, marker."""
-    color_chars = {"r", "g", "b", "c", "m", "y", "k", "w"}
-    marker_chars = {".", "o", "s", "^", "v", "+", "x", "D", "*"}
-    remaining = fmt
+    """Parse matplotlib format string like 'r--o' into color, linestyle, marker.
 
-    if remaining and remaining[0] in color_chars:
-        if "color" not in kwargs:
-            kwargs["color"] = remaining[0]
-        remaining = remaining[1:]
-
-    for ls in ["--", "-.", ":", "-"]:
-        if ls in remaining:
-            if "linestyle" not in kwargs:
-                kwargs["linestyle"] = ls
-            remaining = remaining.replace(ls, "", 1)
-            break
-
-    for ch in remaining:
-        if ch in marker_chars:
-            if "marker" not in kwargs:
-                kwargs["marker"] = ch
-            break
+    Uses Rust parse_fmt() for the actual parsing.
+    """
+    from rustplotlib._rustplotlib import parse_fmt as _rust_parse_fmt
+    color, linestyle, marker = _rust_parse_fmt(fmt)
+    if color is not None and "color" not in kwargs:
+        kwargs["color"] = color
+    if linestyle is not None and "linestyle" not in kwargs:
+        kwargs["linestyle"] = linestyle
+    if marker is not None and "marker" not in kwargs:
+        kwargs["marker"] = marker
 
 
 def _apply_font_from_rcparams():
