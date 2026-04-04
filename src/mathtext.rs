@@ -62,6 +62,204 @@ pub fn render_mathtext(
     }
 }
 
+/// Render math text with proper layout (fractions stacked, sqrt with bar).
+///
+/// This is the "full" TeX layout engine that positions elements properly
+/// instead of converting to flat Unicode strings.
+pub fn render_mathtext_layout(
+    pixmap: &mut tiny_skia::Pixmap,
+    input: &str,
+    x: f32,
+    y: f32,
+    size: f32,
+    color: Color,
+) {
+    let ts = tiny_skia::Transform::identity();
+    let mut cursor_x = x;
+    let mut chars = input.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            let mut cmd = String::new();
+            while let Some(&c) = chars.peek() {
+                if c.is_alphanumeric() { cmd.push(c); chars.next(); }
+                else { break; }
+            }
+
+            if cmd == "frac" {
+                // \frac{num}{den} — render stacked with horizontal bar
+                let num = extract_brace_content(&mut chars);
+                let den = extract_brace_content(&mut chars);
+
+                let frac_size = size * 0.75;
+                let num_text = parse_math_symbols(&num);
+                let den_text = parse_math_symbols(&den);
+
+                let (num_w, num_h) = text::measure_text(&num_text, frac_size);
+                let (den_w, den_h) = text::measure_text(&den_text, frac_size);
+                let max_w = num_w.max(den_w);
+
+                // Numerator centered above bar
+                let num_x = cursor_x + (max_w - num_w) / 2.0;
+                let bar_y = y + size * 0.4;
+                text::draw_text(pixmap, &num_text, num_x, bar_y - num_h - 2.0,
+                    frac_size, color, text::TextAnchorX::Left, text::TextAnchorY::Top, 0.0);
+
+                // Horizontal bar
+                let mut pb = tiny_skia::PathBuilder::new();
+                pb.move_to(cursor_x, bar_y);
+                pb.line_to(cursor_x + max_w, bar_y);
+                if let Some(path) = pb.finish() {
+                    let mut paint = tiny_skia::Paint::default();
+                    paint.set_color(color.to_tiny_skia());
+                    let mut stroke = tiny_skia::Stroke::default();
+                    stroke.width = 0.8;
+                    pixmap.stroke_path(&path, &paint, &stroke, ts, None);
+                }
+
+                // Denominator centered below bar
+                let den_x = cursor_x + (max_w - den_w) / 2.0;
+                text::draw_text(pixmap, &den_text, den_x, bar_y + 3.0,
+                    frac_size, color, text::TextAnchorX::Left, text::TextAnchorY::Top, 0.0);
+
+                cursor_x += max_w + size * 0.2;
+            } else if cmd == "sqrt" {
+                // \sqrt{content} — render with radical sign and bar
+                let content = extract_brace_content(&mut chars);
+                let content_text = parse_math_symbols(&content);
+                let (cw, ch) = text::measure_text(&content_text, size);
+
+                // Draw radical symbol (√)
+                let rad_w = size * 0.4;
+                let bar_top = y;
+                let bar_bottom = y + ch + 4.0;
+
+                let mut pb = tiny_skia::PathBuilder::new();
+                // V-shape of radical
+                pb.move_to(cursor_x, y + ch * 0.6);
+                pb.line_to(cursor_x + rad_w * 0.4, bar_bottom);
+                pb.line_to(cursor_x + rad_w, bar_top);
+                // Horizontal bar over content
+                pb.line_to(cursor_x + rad_w + cw + 4.0, bar_top);
+                if let Some(path) = pb.finish() {
+                    let mut paint = tiny_skia::Paint::default();
+                    paint.set_color(color.to_tiny_skia());
+                    let mut stroke = tiny_skia::Stroke::default();
+                    stroke.width = 1.0;
+                    pixmap.stroke_path(&path, &paint, &stroke, ts, None);
+                }
+
+                // Content text
+                text::draw_text(pixmap, &content_text, cursor_x + rad_w + 2.0, y + 2.0,
+                    size, color, text::TextAnchorX::Left, text::TextAnchorY::Top, 0.0);
+
+                cursor_x += rad_w + cw + 6.0;
+            } else if cmd == "int" || cmd == "sum" || cmd == "prod" {
+                // Large operator with optional limits (from _ and ^)
+                let symbol = match cmd.as_str() {
+                    "int" => "∫",
+                    "sum" => "Σ",
+                    "prod" => "∏",
+                    _ => "?",
+                };
+
+                // Render large symbol
+                let large_size = size * 1.5;
+                text::draw_text(pixmap, symbol, cursor_x, y - size * 0.15,
+                    large_size, color, text::TextAnchorX::Left, text::TextAnchorY::Top, 0.0);
+                cursor_x += large_size * 0.7;
+
+                // Check for limits: _lower ^upper
+                if chars.peek() == Some(&'_') {
+                    chars.next();
+                    let lower = extract_next_group(&mut chars);
+                    let lower_text = parse_math_symbols(&lower);
+                    let small = size * 0.6;
+                    text::draw_text(pixmap, &lower_text, cursor_x - large_size * 0.5,
+                        y + large_size * 0.8, small, color,
+                        text::TextAnchorX::Center, text::TextAnchorY::Top, 0.0);
+                }
+                if chars.peek() == Some(&'^') {
+                    chars.next();
+                    let upper = extract_next_group(&mut chars);
+                    let upper_text = parse_math_symbols(&upper);
+                    let small = size * 0.6;
+                    text::draw_text(pixmap, &upper_text, cursor_x - large_size * 0.5,
+                        y - small * 0.5, small, color,
+                        text::TextAnchorX::Center, text::TextAnchorY::Top, 0.0);
+                }
+            } else {
+                // Regular symbol — use existing lookup
+                let sym = match cmd.as_str() {
+                    "alpha" => "α", "beta" => "β", "gamma" => "γ", "delta" => "δ",
+                    "pi" => "π", "sigma" => "σ", "theta" => "θ", "omega" => "ω",
+                    "infty" => "∞", "pm" => "±", "times" => "×", "cdot" => "·",
+                    "leq" => "≤", "geq" => "≥", "neq" => "≠", "approx" => "≈",
+                    "rightarrow" | "to" => "→", "leftarrow" => "←",
+                    "partial" => "∂", "nabla" => "∇",
+                    _ => { cursor_x += size * 0.3; continue; }
+                };
+                text::draw_text(pixmap, sym, cursor_x, y, size, color,
+                    text::TextAnchorX::Left, text::TextAnchorY::Top, 0.0);
+                cursor_x += size * 0.6;
+            }
+        } else if ch == '_' {
+            // Subscript
+            let sub = extract_next_group(&mut chars);
+            let sub_text = parse_math_symbols(&sub);
+            let sub_size = size * 0.7;
+            text::draw_text(pixmap, &sub_text, cursor_x, y + size * 0.4,
+                sub_size, color, text::TextAnchorX::Left, text::TextAnchorY::Top, 0.0);
+            cursor_x += sub_text.len() as f32 * sub_size * 0.6;
+        } else if ch == '^' {
+            // Superscript
+            let sup = extract_next_group(&mut chars);
+            let sup_text = parse_math_symbols(&sup);
+            let sup_size = size * 0.7;
+            text::draw_text(pixmap, &sup_text, cursor_x, y - size * 0.3,
+                sup_size, color, text::TextAnchorX::Left, text::TextAnchorY::Top, 0.0);
+            cursor_x += sup_text.len() as f32 * sup_size * 0.6;
+        } else if ch == '{' || ch == '}' {
+            // skip
+        } else if ch == ' ' {
+            cursor_x += size * 0.3;
+        } else {
+            text::draw_text(pixmap, &ch.to_string(), cursor_x, y, size, color,
+                text::TextAnchorX::Left, text::TextAnchorY::Top, 0.0);
+            cursor_x += size * 0.6;
+        }
+    }
+}
+
+/// Extract content within braces: {content}
+fn extract_brace_content(chars: &mut std::iter::Peekable<std::str::Chars>) -> String {
+    let mut content = String::new();
+    if chars.peek() == Some(&'{') {
+        chars.next(); // skip {
+        let mut depth = 1;
+        while let Some(c) = chars.next() {
+            if c == '{' { depth += 1; }
+            if c == '}' { depth -= 1; if depth == 0 { break; } }
+            content.push(c);
+        }
+    } else if let Some(&c) = chars.peek() {
+        chars.next();
+        content.push(c);
+    }
+    content
+}
+
+/// Extract next group: either {content} or single char
+fn extract_next_group(chars: &mut std::iter::Peekable<std::str::Chars>) -> String {
+    if chars.peek() == Some(&'{') {
+        extract_brace_content(chars)
+    } else if let Some(c) = chars.next() {
+        c.to_string()
+    } else {
+        String::new()
+    }
+}
+
 /// Convert LaTeX math commands to Unicode equivalents.
 pub fn parse_math_symbols(input: &str) -> String {
     let mut result = String::new();
