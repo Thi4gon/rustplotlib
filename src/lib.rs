@@ -8,6 +8,7 @@ mod figure;
 mod mathtext;
 mod parse;
 mod projection3d;
+mod projections;
 pub mod svg_renderer;
 mod text;
 mod ticker;
@@ -66,6 +67,14 @@ fn _rustplotlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse::hit_test_line, m)?)?;
     m.add_function(wrap_pyfunction!(parse::parse_plot_groups, m)?)?;
     m.add_function(wrap_pyfunction!(parse::figure_to_json, m)?)?;
+    // Geographic projections
+    m.add_function(wrap_pyfunction!(projections::hammer_project, m)?)?;
+    m.add_function(wrap_pyfunction!(projections::aitoff_project, m)?)?;
+    m.add_function(wrap_pyfunction!(projections::mollweide_project, m)?)?;
+    m.add_function(wrap_pyfunction!(projections::hammer_project_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(projections::aitoff_project_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(projections::mollweide_project_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(projections::generate_graticule, m)?)?;
     m.add_function(wrap_pyfunction!(parse_math_symbols_py, m)?)?;
     Ok(())
 }
